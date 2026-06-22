@@ -2,7 +2,7 @@
 
 > **Sistema de Monitoramento IoT e Visão Computacional para o Controle Fitossanitário em Estufas**
 
-Este é o repositório centralizado do projeto EcoVision, um sistema inteligente focado na deteção precoce de pragas e anomalias em culturas protegidas utilizando Inteligência Artificial e Internet das Coisas (IoT).
+Este é o repositório centralizado do projeto EcoVision, um sistema inteligente focado na detecção precoce de pragas e anomalias em culturas protegidas utilizando Inteligência Artificial e Internet das Coisas (IoT).
 
 ---
 
