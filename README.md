@@ -7,7 +7,7 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 ---
 
 ## 📌 Links Úteis do Projeto
-* **Quadro de Tarefas (Kanban):** [Aceder ao GitHub Projects here](https://github.com/users/HigorPereira10/projects/1)
+* **Quadro de Tarefas (Kanban):** [GitHub Projects](https://github.com/users/HigorPereira10/projects/1)
 * **Comunicação da Equipa:** [Servidor do Discord]()
 * **Documentação de Texto (TCC):** [Pasta Partilhada no Google Drive]()
 
