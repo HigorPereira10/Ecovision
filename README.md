@@ -1,4 +1,4 @@
-# EcoVision Cerrado
+# EcoVision
 
 > **Sistema de Monitoramento IoT e Visão Computacional para o Controle Fitossanitário em Estufas**
 
