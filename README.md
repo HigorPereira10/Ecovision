@@ -46,4 +46,4 @@ Para garantir a estabilidade do sistema e evitar conflitos no código principal,
 
 1. **A branch `main` é sagrada:** É estritamente proibido realizar commits diretos na branch `main`.
 2. **Criação de Branches:** Toda e qualquer tarefa iniciada a partir do quadro Kanban deve possuir uma branch isolada utilizando o padrão de nomenclatura do componente (ex: `feature/edge-camera-capture`, `feature/cloud-fastapi-inference`).
-3. **Pull Requests & Code Review:** Ao concluir uma funcionalidade, o desenvolvedor deve abrir um *Pull Request* direcionado à `main`. [cite_start]O merge só será realizado após a revisão e aprovação de, pelo menos, **1 outro integrante da equipa**.
+3. **Pull Requests & Code Review:** Ao concluir uma funcionalidade, o desenvolvedor deve abrir um *Pull Request* direcionado à `main`. O merge só será realizado após a revisão e aprovação de, pelo menos, **1 outro integrante da equipa**.
