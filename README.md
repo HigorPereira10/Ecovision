@@ -2,27 +2,85 @@
 
 > **Sistema de Monitoramento IoT e Visão Computacional para o Controle Fitossanitário em Estufas**
 
-Este é o repositório centralizado do projeto EcoVision, um sistema inteligente focado na detecção precoce de pragas e anomalias em culturas protegidas utilizando Inteligência Artificial e Internet das Coisas (IoT).
+Este é o repositório centralizado do projeto EcoVision, um sistema inteligente focado na detecção precoce de pragas e anomalias em culturas protegidas (estufas de tomate) utilizando Inteligência Artificial e Internet das Coisas (IoT).
+
+**Documento técnico de referência:** *Tech Stack - Ecovision (revisado)* (mantido na pasta compartilhada do grupo). Todas as decisões de arquitetura, hardware e software descritas neste repositório seguem esse documento; ele tem prioridade sobre qualquer divergência no TC1. Um índice de navegação rápida por seção está em [`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md).
 
 ---
 
 ## 📌 Links Úteis do Projeto
 * **Quadro de Tarefas (Kanban):** [GitHub Projects](https://github.com/users/HigorPereira10/projects/1)
-* **Comunicação da Equipa:** [Servidor do Discord]()
-* **Documentação de Texto (TCC):** [Pasta Partilhada no Google Drive]()
+* **Comunicação da Equipa:** [Servidor do Discord](https://discord.gg/3R8CkSaxx)
+* **Documentação de Texto (TCC):** [Pasta Partilhada no Google Drive](https://drive.google.com/drive/folders/1x9B_vlEw8Yn10jC9kYOUhRTUJoWjrQXT?usp=drive_link)
 
 ---
 
-## 📁 Estrutura de Pastas (Monorepo)
+## 🏗️ Visão Geral da Arquitetura
 
-O projeto adota uma arquitetura de *monorepo*, concentrando todos os componentes do ecossistema numa única estrutura de diretórios:
+O sistema é dividido em cinco camadas, cada uma com um papel isolado,
+a mesma separação de responsabilidades que orienta a estrutura de
+pastas deste monorepo.
 
-* `/app`: Contém o código-fonte do painel/dashboard mobile e web que será utilizado pelo produtor rural para visualizar os dados e diagnósticos.
-* `/cloud`: Repositório do backend desenvolvido em FastAPI, responsável por receber os dados, integrar o runtime do TFLite e expor as APIs de inferência e alertas.
-* `/docs`: Centraliza toda a documentação técnica, atas de reuniões e os capítulos da escrita académica do TCC.
-* `/edge`: Código-fonte que será executado localmente no Raspberry Pi Zero 2 W, incluindo os scripts de captura de imagem (Picamera2), leitura de sensores (DHT22/ADS1115) e cache offline.
-* `/infra`: Scripts de automatização, ficheiros de configuração de ambiente e diretivas de deploy para as plataformas Railway e Supabase.
-* `/ml`: Pipeline de Machine Learning completo, contendo os notebooks do Google Colab, rotinas de preparação do dataset, treino da MobileNetV2 e conversão de modelos para o formato TFLite.
+```
+┌──────────────┐      HTTPS POST /diagnostico       ┌──────────────────┐
+│  edge/       │  (imagem + leituras, API Key)      │  cloud/           │
+│  Raspberry   │ ──────────────────────────────────▶│  FastAPI          │
+│  Pi Zero 2 W │                                     │  no Railway       │
+│              │                                     │  (TFLite Runtime  │
+│  captura,    │                                     │   em memória,     │
+│  compressão, │                                     │   sem gravação    │
+│  fila        │                                     │   em disco)       │
+│  offline     │                                     └─────────┬─────────┘
+└──────────────┘                                               │
+                                                    grava imagem + dados
+                                                                │
+                                                                ▼
+                                                     ┌────────────────────┐
+                                                     │  Supabase          │
+                                                     │  Postgres (dados)  │
+                                                     │  + Storage         │
+                                                     │  (imagens)         │
+                                                     └─────────┬──────────┘
+                                                                │
+                                                    consultado apenas
+                                                    através da API
+                                                                │
+                                                                ▼
+                                                     ┌────────────────────┐
+                                                     │  app/              │
+                                                     │  Dashboard/App     │
+                                                     │  (produtor rural)  │
+                                                     │  JWT + refresh     │
+                                                     └────────────────────┘
+```
+
+O modelo de IA usado pela API (`.tflite`) é treinado **offline**, fora
+deste fluxo em tempo real, na camada `ml/` (Google Colab), e chega ao
+Railway versionado no Git via deploy automático (GitHub Actions), nunca
+por upload manual.
+
+Regras que atravessam todas as camadas (ver Blueprint, Seção 4.4):
+- **Zero gravação em disco no Railway**: tudo em memória (`BytesIO`) até ser persistido no Supabase.
+- **O frontend nunca fala diretamente com o Supabase**: sempre através da API.
+- **Duas autenticações diferentes, deliberadamente**: API Key estática para o dispositivo IoT; JWT + bcrypt para o login do produtor.
+
+---
+
+## 📁 Estrutura de Pastas (Monorepo), Índice
+
+O projeto adota uma arquitetura de *monorepo*. Cada pasta tem um README
+próprio, com a justificativa técnica detalhada e a referência à seção
+correspondente do Blueprint:
+
+* [`app/`](app/README.md): Dashboard/app do produtor rural. ⚠️ Framework (Expo × PWA × Streamlit) ainda **pendente de decisão do grupo**: ver [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
+* [`cloud/`](cloud/README.md): Backend FastAPI no Railway, integração com Supabase (Postgres + Storage), autenticação.
+* [`docs/`](docs/README.md): Documentação técnica (ADRs, atas) e escrita acadêmica do TCC.
+* [`edge/`](edge/README.md): Software do Raspberry Pi Zero 2 W: captura, sensores, fila offline.
+* [`infra/`](infra/README.md): Deploy (Railway), schema/políticas do Supabase, variáveis de ambiente, calendário de sincronização.
+* [`ml/`](ml/README.md): Pipeline de treino de IA (Google Colab), dataset "Frankenstein Cirúrgico", exportação `.tflite`.
+
+Decisões arquiteturais relevantes, incluindo as ainda em aberto, estão
+registradas como ADRs em [`docs/decisions/`](docs/decisions/README.md).
 
 ---
 
@@ -31,7 +89,7 @@ O projeto adota uma arquitetura de *monorepo*, concentrando todos os componentes
 O desenvolvimento é guiado por um framework ágil baseado num Scrum Simplificado, estruturado em sprints de 2 semanas.
 
 ### GitHub Projects
-[cite_start]Toda a distribuição de atividades é centralizada no **GitHub Projects** através de um quadro Kanban composto por três esteiras principais:
+Toda a distribuição de atividades é centralizada no **GitHub Projects** através de um quadro Kanban composto por três esteiras principais:
 1. **Todo (A Fazer):** Lista de tarefas priorizadas para a sprint atual.
 2. **In Progress (Em Progresso):** Atividades ativas sendo desenvolvidas por um membro da equipa.
 3. **Done (Concluído):** Tarefas finalizadas e validadas.
@@ -47,3 +105,12 @@ Para garantir a estabilidade do sistema e evitar conflitos no código principal,
 1. **A branch `main` é sagrada:** É estritamente proibido realizar commits diretos na branch `main`.
 2. **Criação de Branches:** Toda e qualquer tarefa iniciada a partir do quadro Kanban deve possuir uma branch isolada utilizando o padrão de nomenclatura do componente (ex: `feature/edge-camera-capture`, `feature/cloud-fastapi-inference`).
 3. **Pull Requests & Code Review:** Ao concluir uma funcionalidade, o desenvolvedor deve abrir um *Pull Request* direcionado à `main`. O merge só será realizado após a revisão e aprovação de, pelo menos, **1 outro integrante da equipa**.
+
+---
+
+## ⚠️ Decisões e riscos em aberto (checar antes da Sprint 1)
+
+- **Framework de frontend** (Expo × PWA × Streamlit): [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
+- **Schema fino do banco de dados** (colunas das tabelas `registros_imagem`, `leituras_ambientais`, `diagnosticos`, `alertas`, usuários, dispositivos): ver `infra/supabase/schema.sql` e `cloud/app/db/models.py`.
+- **Calendário de sincronização** entre a ativação do trial do Railway, a coleta de campo (Sprint 9) e a data da banca: [`infra/calendar/sincronizacao.md`](infra/calendar/sincronizacao.md), ainda com datas "A DEFINIR".
+- **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver Fase 1 do Blueprint.

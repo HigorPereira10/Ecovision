@@ -1,0 +1,39 @@
+# cloud/requirements.txt
+#
+# Dependências do backend FastAPI, conforme Tech Stack Blueprint v3.0,
+# Sumário Executivo (camada "Backend / Nuvem") e Seção 4.4.
+#
+# Este arquivo ainda NÃO tem versões fixadas, é um esqueleto de decisão
+# de bibliotecas. Fixar versões (==x.y.z) apenas quando o ambiente de
+# desenvolvimento for configurado.
+#
+# IMPORTANTE (Blueprint, Pontos de Atenção):
+# instalar apenas `tflite-runtime` em produção, NUNCA o pacote `tensorflow`
+# completo, pois estoura o limite de RAM (1GB) do Railway.
+
+# --- Framework web ---
+# fastapi
+# uvicorn[standard]        # 1 worker apenas, conforme decisão do Blueprint
+
+# --- Inferência ---
+# tflite-runtime            # NUNCA `tensorflow` em produção
+
+# --- Banco de dados (Supabase Postgres) ---
+# sqlalchemy[asyncio]
+# asyncpg
+# alembic                   # migrations
+
+# --- Storage (Supabase Storage, S3-compatible) ---
+# supabase                  # cliente oficial (cobre Postgres + Storage)
+
+# --- Processamento de imagem (100% em memória, via BytesIO) ---
+# pillow
+# numpy
+
+# --- Autenticação ---
+# pyjwt                     # JWT de curta duração (24h) + refresh token (30 dias), dashboard
+# passlib[bcrypt]           # hash de senha do produtor
+
+# --- Configuração ---
+# python-dotenv
+# pydantic-settings

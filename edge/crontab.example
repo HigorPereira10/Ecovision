@@ -1,0 +1,13 @@
+# edge/crontab.example
+#
+# Agendamento de referência (Blueprint v3.0, Fase 2):
+# - Captura de imagem + leituras: a cada 2 horas.
+# - Drenagem da fila offline / upload: a cada 15 minutos.
+#
+# Este arquivo é um exemplo/documentação, instalar de fato via
+# `crontab -e` no Pi (automatizado futuramente por edge/scripts/install.sh).
+# Caminhos e ambiente virtual (venv) devem ser ajustados para o setup real.
+
+# TODO (esqueleto, ajustar caminhos reais ao implementar):
+# 0 */2 * * *  /caminho/venv/bin/python /caminho/edge/src/main.py        >> /var/log/ecovision-captura.log 2>&1
+# */15 * * * * /caminho/venv/bin/python /caminho/edge/src/upload/uploader.py >> /var/log/ecovision-upload.log 2>&1

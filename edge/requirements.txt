@@ -1,0 +1,28 @@
+# edge/requirements.txt
+#
+# Dependências do software de borda (Raspberry Pi Zero 2 W), conforme
+# Tech Stack Blueprint v3.0, Fase 2.
+#
+# Ainda sem versões fixadas, fixar ao configurar o Pi. 
+# Algumas dessas libs (picamera2, RPi.GPIO) só instalam/funcionam
+# de fato em hardware Raspberry Pi.
+
+# --- Sistema operacional alvo ---
+# Raspberry Pi OS Lite (64-bit): necessário para Picamera2 e libs modernas.
+
+# --- Câmera ---
+# picamera2                 # biblioteca oficial, autofoco programático (AfMode.AUTO)
+
+# --- Compressão de imagem ---
+# pillow
+# (garantir libjpeg-turbo instalado no SO, não é um pacote pip)
+
+# --- GPIO / Sensores ---
+# RPi.GPIO                  # controle do MOSFET do Ring LED
+# Adafruit_DHT               # sensor DHT22 (temperatura/umidade do ar)
+# Adafruit-Blinka
+# adafruit-circuitpython-ads1x15   # ADC ADS1115 (sensor de umidade do solo)
+
+# --- Rede, fila e agendamento ---
+# requests                  # upload HTTP com retry/backoff
+# (fcntl, cron, pathlib são stdlib/SO, não entram no requirements.txt)

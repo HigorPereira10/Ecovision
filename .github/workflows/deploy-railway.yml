@@ -1,0 +1,23 @@
+# .github/workflows/deploy-railway.yml
+#
+# Esqueleto do workflow de CI/CD, conforme Tech Stack Blueprint v3.0, Seção 4.4 (regra 1):
+# o modelo .tflite deve estar versionado no repositório e o deploy no Railway deve acontecer via GitHub Actions nunca por upload manual em volume stateful.
+#
+# Este arquivo mora aqui (raiz do repo, .github/workflows/) por exigência técnica do GitHub Actions, não em infra/,
+# ver infra/README.md e infra/railway/README.md para as demais notas de deploy.
+#
+# AINDA NÃO FUNCIONAL: apenas o roteiro comentado do que este workflow deve fazer quando implementado:
+#
+# on:
+#   push:
+#     branches: [main]
+#
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       # TODO: checkout do código (inclui cloud/ e ml/models/*.tflite)
+#       # TODO: (opcional) rodar testes de cloud/tests/ antes do deploy
+#       # TODO: acionar o deploy no Railway (ex.: via Railway CLI/GitHub
+#       #       integration oficial), garantindo que ml/models/*.tflite
+#       #       vai junto no build — nunca enviado separadamente.
