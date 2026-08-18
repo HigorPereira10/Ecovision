@@ -1,9 +1,8 @@
 /**
  * app/src/screens/HistoricoScreen.tsx
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Histórico de diagnósticos e leituras ambientais ao longo do tempo,
  * com gráficos (Victory Native — ver app/src/components/charts/).

@@ -1,9 +1,8 @@
 /**
  * app/src/navigation/AppNavigator.tsx
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Navegação do app (React Navigation, citado no Sumário Executivo do
  * Blueprint v3.0). Define o fluxo: Login -> (Alertas | Diagnóstico |

@@ -1,16 +1,13 @@
 /**
  * app/src/notifications/pushNotifications.ts
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Push notifications nativas via Expo Notifications, um dos
  * diferenciais citados no comparativo do Blueprint (Fase 5) a favor de
  * Expo em relação a React PWA/Streamlit (nenhuma das outras duas opções
- * suporta push nativo). Se a decisão final não for Expo, este módulo
- * não tem equivalente direto e a funcionalidade de notificação deve ser
- * reavaliada.
+ * suportava push nativo).
  *
  * Responsabilidades quando implementado:
  * - Registrar o dispositivo para push notifications e obter o token.

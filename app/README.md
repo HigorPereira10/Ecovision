@@ -1,15 +1,15 @@
 # app — Frontend / Aplicativo
 
-> ⚠️ **DECISÃO DE FRAMEWORK AINDA PENDENTE.**
-> Ainda não foi definido entre (React Native), React PWA ou Streamlit
+> ✅ **Framework definido: Expo (React Native).** Decisão confirmada
+> pelo grupo — ver [ADR 0002](../docs/decisions/0002-frontend-framework-pendente.md).
+> A estrutura abaixo, que já existia como scaffolding desde a
+> reestruturação inicial do repositório, é agora a definitiva.
 >
-> Esta pasta foi estruturada **pensando que Expo/React Native foi a decisão
-> escolhido**, por decisão explícita de scaffolding (não é a decisão
-> final do grupo, ver `docs/decisions/0002-frontend-framework-pendente.md`).
-> Se o grupo optar por React PWA ou Streamlit, toda a estrutura abaixo
-> precisa ser refeita antes de qualquer implementação real.
+> **Responsável pela camada:** Amanda. **Apoio nas primeiras semanas:**
+> Igor, em tarefas combinadas diretamente com ela (ver
+> [`docs/planejamento/divisao-equipe-e-roadmap.md`](../docs/planejamento/divisao-equipe-e-roadmap.md)).
 
-## Papel desta camada (independente do framework escolhido)
+## Papel desta camada
 
 Referência: **Tech Stack Blueprint v3.0, Fase 5**.
 
@@ -18,10 +18,9 @@ Referência: **Tech Stack Blueprint v3.0, Fase 5**.
 - Autenticação do produtor via JWT (login) + refresh token, consumindo
   os endpoints do FastAPI (`cloud/app/api/routes/auth.py`).
 - **Nunca** acessa o Supabase diretamente, sempre via API no Railway
-  (Blueprint Seção 4.2, passo 5). Trocar o framework de UI não deve
-  exigir mudanças no backend.
+  (Blueprint Seção 4.2, passo 5).
 
-## Estrutura (esqueleto Expo/React Native — ver aviso acima)
+## Estrutura (Expo/React Native)
 
 ```
 app/
@@ -32,3 +31,7 @@ app/
     ├── components/charts/ # Victory Native (gráficos)
     └── notifications/     # Expo Notifications (push nativo)
 ```
+
+> Nota: os cabeçalhos dos arquivos em `app/src/` ainda podem trazer o
+> aviso "decisão de framework pendente" escrito antes desta confirmação
+> — está desatualizado, a decisão é Expo/React Native (ver ADR 0002).

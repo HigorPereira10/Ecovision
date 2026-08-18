@@ -1,16 +1,22 @@
-# ADR 0002 — Framework de frontend (Expo × React PWA × Streamlit)
+# ADR 0002 — Framework de frontend: Expo (React Native)
 
-**Status:** ⚠️ **PENDENTE — decisão oficial do grupo ainda não tomada.**
+**Status:** ✅ **Decidido.** O grupo confirmou Expo (React Native) como
+framework do `app/`. React PWA e Streamlit não serão usados.
+
+> Nota: o nome do arquivo manteve o sufixo `-pendente` para não quebrar
+> os links já existentes no repositório (README raiz, outros READMEs,
+> cabeçalhos dos arquivos em `app/src/`). O conteúdo abaixo reflete a
+> decisão final, não mais uma pendência.
 
 ## Contexto (Tech Stack Blueprint v3.0, Fase 5)
 
-Esta é a decisão de maior risco de cronograma do projeto, porque pode
-envolver trocar de linguagem de programação (Python → JavaScript/TypeScript)
-sob prazo fixo. O Blueprint não fecha uma escolha única, define o
-critério de decisão e exige que ela seja tomada **antes da Sprint 1**.
+Esta era a decisão de maior risco de cronograma do projeto, porque
+poderia envolver trocar de linguagem de programação (Python →
+JavaScript/TypeScript) sob prazo fixo. O Blueprint não fechava uma
+escolha única — definia o critério de decisão (a pergunta de confiança
+em Expo/React Native) e exigia que o grupo decidisse antes da Sprint 1.
 
-
-### Comparativo (resumo: ver Blueprint Seção 5 para a tabela completa)
+### Comparativo que embasou a decisão (ver Blueprint Seção 5 para a tabela completa)
 
 | Critério | Expo (RN) | React PWA | Streamlit |
 |---|---|---|---|
@@ -19,18 +25,26 @@ critério de decisão e exige que ela seja tomada **antes da Sprint 1**.
 | Push notifications nativas | Sim | Não | Não |
 | Risco técnico | Médio-Alto se time não conhece RN | Baixo | Muito baixo |
 
-## Decisão de scaffolding tomada NESTA reestruturação de repositório
+## Decisão
 
-Por instrução explícita do responsável pelo repositório, a pasta `app/`
-foi estruturada **como se Expo (React Native) já tivesse sido escolhido**
-— isso é uma conveniência de andaime (scaffolding) para não deixar a
-pasta vazia, **não é a decisão final do grupo**. Todo arquivo dentro de
-`app/` traz esse aviso no cabeçalho. Se o grupo decidir por PWA ou
-Streamlit, a estrutura interna de `app/src/` deve ser refeita, a
-decisão continua em aberto.
+O grupo confirmou **Expo (React Native)**. A pasta `app/` já estava
+estruturada dessa forma desde a reestruturação inicial do repositório
+(como scaffolding, na época sem decisão fechada) — essa estrutura
+**passa a ser definitiva**, não mais um placeholder.
 
-## Consequências se a decisão não for tomada a tempo
+Amanda é a responsável técnica pela camada `app/`; Igor a apoia nas
+primeiras semanas em tarefas de frontend combinadas diretamente com ela
+(ver [`docs/planejamento/divisao-equipe-e-roadmap.md`](../planejamento/divisao-equipe-e-roadmap.md)
+para a divisão de equipe completa).
 
-Início do frontend atrasa ou, pior, começa em Expo e precisa ser
-refeito do zero em outra stack já dentro do cronograma apertado da
-Sprint 7, sem tempo de recuperação (Blueprint, Pontos de Atenção).
+## Consequências
+
+- Os avisos de "decisão pendente" nos cabeçalhos de `app/src/*` e em
+  `app/README.md` estão desatualizados e devem ser lidos como
+  históricos — a estrutura Expo é a definitiva.
+- Push notifications nativas (Expo Notifications) seguem viáveis como
+  planejado no Blueprint, já que PWA/Streamlit (que não as suportam)
+  foram descartados.
+- Nenhum retrabalho de framework é esperado a partir de agora — o app
+  segue em JavaScript/TypeScript, com Victory Native para gráficos e
+  React Navigation.

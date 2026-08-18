@@ -12,6 +12,7 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 * **Quadro de Tarefas (Kanban):** [GitHub Projects](https://github.com/users/HigorPereira10/projects/1)
 * **Comunicação da Equipa:** [Servidor do Discord](https://discord.gg/3R8CkSaxx)
 * **Documentação de Texto (TCC):** [Pasta Partilhada no Google Drive](https://drive.google.com/drive/folders/1x9B_vlEw8Yn10jC9kYOUhRTUJoWjrQXT?usp=drive_link)
+* **Protótipos de UI (Figma):** *(link a preencher — Igor é responsável por organizar e manter este link atualizado)*
 
 ---
 
@@ -72,7 +73,7 @@ O projeto adota uma arquitetura de *monorepo*. Cada pasta tem um README
 próprio, com a justificativa técnica detalhada e a referência à seção
 correspondente do Blueprint:
 
-* [`app/`](app/README.md): Dashboard/app do produtor rural. ⚠️ Framework (Expo × PWA × Streamlit) ainda **pendente de decisão do grupo**: ver [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
+* [`app/`](app/README.md): Dashboard/app do produtor rural. Framework: **Expo (React Native), decisão confirmada**: ver [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
 * [`cloud/`](cloud/README.md): Backend FastAPI no Railway, integração com Supabase (Postgres + Storage), autenticação.
 * [`docs/`](docs/README.md): Documentação técnica (ADRs, atas) e escrita acadêmica do TCC.
 * [`edge/`](edge/README.md): Software do Raspberry Pi Zero 2 W: captura, sensores, fila offline.
@@ -108,9 +109,20 @@ Para garantir a estabilidade do sistema e evitar conflitos no código principal,
 
 ---
 
+## 👥 Equipe
+
+| Pessoa | Responsabilidade |
+|---|---|
+| João | `ml/` — pipeline de IA completo |
+| Amanda | `app/` — frontend/dashboard (Expo/React Native, decisão confirmada) |
+| Higor | `cloud/` + `infra/` + `edge/` — banco de dados, backend/API, scripts do Raspberry Pi |
+| Igor | Documentação do projeto (ADRs, atas, organização do Drive e do Figma, pautas/decisões de reunião) — nas primeiras semanas, também apoia a Amanda no `app/`, alinhando diretamente com ela |
+
+Detalhes e cronograma passo a passo em
+[`docs/planejamento/divisao-equipe-e-roadmap.md`](docs/planejamento/divisao-equipe-e-roadmap.md).
+
 ## ⚠️ Decisões e riscos em aberto (checar antes da Sprint 1)
 
-- **Framework de frontend** (Expo × PWA × Streamlit): [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
 - **Schema fino do banco de dados** (colunas das tabelas `registros_imagem`, `leituras_ambientais`, `diagnosticos`, `alertas`, usuários, dispositivos): ver `infra/supabase/schema.sql` e `cloud/app/db/models.py`.
 - **Calendário de sincronização** entre a ativação do trial do Railway, a coleta de campo (Sprint 9) e a data da banca: [`infra/calendar/sincronizacao.md`](infra/calendar/sincronizacao.md), ainda com datas "A DEFINIR".
-- **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver Fase 1 do Blueprint.
+- **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver [`docs/planejamento/lista-compras-hardware.md`](docs/planejamento/lista-compras-hardware.md).

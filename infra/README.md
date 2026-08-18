@@ -57,3 +57,9 @@ e a nota em `infra/railway/README.md`.
   — dependem da data da banca, ainda não confirmada pela coordenação.
 - Schema fino das tabelas em `infra/supabase/schema.sql` (mesma pendência
   de `cloud/app/db/models.py`).
+
+## Planejamento relacionado
+
+A explicação completa da estratégia Supabase × Railway (o que pode ser
+feito já vs. o que é deliberadamente adiado) está registrada em
+[`docs/planejamento/divisao-equipe-e-roadmap.md`](../docs/planejamento/divisao-equipe-e-roadmap.md#5-supabase--railway--por-que-a-estratégia-de-ativação-é-diferente).

@@ -1,9 +1,8 @@
 /**
  * app/src/screens/FinanceiroScreen.tsx
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Tela financeira citada no Plano de Execução do Blueprint (Fase 4,
  * "Telas essenciais") como MOCK, não há integração de backend real

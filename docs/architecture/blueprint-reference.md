@@ -13,7 +13,7 @@ pasta compartilhada do grupo, ver README raiz). O conteúdo completo NÃO
 | Fase 4 — Nuvem, Backend e BD | Railway, Supabase, autenticação, regras de código | `cloud/`, `infra/` |
 | Fase 4.3 | Autenticação (API Key + JWT/bcrypt) | `docs/decisions/0003-autenticacao-dual.md` |
 | Fase 4.6 | Calendário de sincronização Railway × banca | `infra/calendar/sincronizacao.md` |
-| Fase 5 — Frontend | Decisão pendente Expo × PWA × Streamlit | `docs/decisions/0002-frontend-framework-pendente.md`, `app/` |
+| Fase 5 — Frontend | Framework decidido: Expo (React Native) | `docs/decisions/0002-frontend-framework-pendente.md`, `app/` |
 | Plano de Execução | Ordem de fases e sprints | (não replicado — ver documento original) |
 
 ## Status deste documento

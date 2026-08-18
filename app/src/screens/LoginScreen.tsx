@@ -1,9 +1,8 @@
 /**
  * app/src/screens/LoginScreen.tsx
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Tela de login do produtor, consumindo POST /auth/login
  * (cloud/app/api/routes/auth.py). Ao autenticar com sucesso, deve

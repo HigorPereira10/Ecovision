@@ -7,8 +7,9 @@ aplicável) o que foi descartado. Convenção de nome:
 Decisões já registradas:
 
 - [0001 — Camera Module 3 (não V2)](0001-camera-module-3.md)
-- [0002 — Framework de frontend (pendente)](0002-frontend-framework-pendente.md)
+- [0002 — Framework de frontend: Expo (React Native)](0002-frontend-framework-pendente.md)
 - [0003 — Autenticação dual (API Key + JWT/bcrypt)](0003-autenticacao-dual.md)
+- [0004 — Divisão de equipe final](0004-divisao-equipe-final.md)
 
 Ao tomar novas decisões de arquitetura durante o desenvolvimento,
 adicionar um novo ADR aqui em vez de só decidir em chat/reunião, isso é

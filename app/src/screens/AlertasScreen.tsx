@@ -1,9 +1,8 @@
 /**
  * app/src/screens/AlertasScreen.tsx
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Lista os alertas do produtor autenticado (GET /alertas) e permite
  * marcá-los como lidos (PATCH /alertas/{id}/lido), RBAC do Blueprint

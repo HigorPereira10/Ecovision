@@ -1,9 +1,8 @@
 /**
  * app/src/services/auth.ts
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Lógica de autenticação do produtor: login, armazenamento seguro do
  * JWT de acesso (24h) e do refresh token (30 dias), e renovação
@@ -11,7 +10,7 @@
  *
  * Responsabilidades quando implementado:
  * - login(email, senha): chama POST /auth/login, guarda os tokens
- *   (ex.: Expo SecureStore, se Expo for a escolha final).
+ *   (ex.: Expo SecureStore).
  * - refresh(): chama POST /auth/refresh quando o access token expira.
  * - logout(): limpa os tokens armazenados localmente.
  *
