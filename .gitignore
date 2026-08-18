@@ -1,1 +1,21 @@
- 
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Segredos reais (nunca versionar — usar os .example em infra/env/)
+.env
+*.env
+!*.env.example
+
+# Dados em runtime (fila offline do edge/, cache local)
+edge/data/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
