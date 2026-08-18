@@ -6,18 +6,28 @@
 # Este arquivo mora aqui (raiz do repo, .github/workflows/) por exigência técnica do GitHub Actions, não em infra/,
 # ver infra/README.md e infra/railway/README.md para as demais notas de deploy.
 #
-# AINDA NÃO FUNCIONAL: apenas o roteiro comentado do que este workflow deve fazer quando implementado:
-#
-# on:
-#   push:
-#     branches: [main]
-#
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
-#     steps:
-#       # TODO: checkout do código (inclui cloud/ e ml/models/*.tflite)
-#       # TODO: (opcional) rodar testes de cloud/tests/ antes do deploy
-#       # TODO: acionar o deploy no Railway (ex.: via Railway CLI/GitHub
-#       #       integration oficial), garantindo que ml/models/*.tflite
-#       #       vai junto no build — nunca enviado separadamente.
+# AINDA NÃO IMPLEMENTADO: o gatilho abaixo é `workflow_dispatch` (só roda quando
+# alguém aciona manualmente pela aba Actions) de propósito — a ativação do
+# Railway é deliberadamente adiada até perto da Sprint 9 (ver
+# docs/planejamento/divisao-equipe-e-roadmap.md, Seção 5). Trocar para
+# `on: push: branches: [main]` só quando o deploy automático for de fato
+# implementado.
+
+name: Deploy Railway (placeholder — não implementado)
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Placeholder — deploy real ainda não implementado
+        run: |
+          echo "Este workflow ainda não faz deploy de verdade."
+          echo "TODO quando implementado:"
+          echo "  1. checkout do codigo (inclui cloud/ e ml/models/*.tflite)"
+          echo "  2. (opcional) rodar testes de cloud/tests/ antes do deploy"
+          echo "  3. acionar o deploy no Railway (Railway CLI/GitHub integration),"
+          echo "     garantindo que ml/models/*.tflite vai junto no build"
+          echo "Ver infra/railway/README.md e infra/README.md."
