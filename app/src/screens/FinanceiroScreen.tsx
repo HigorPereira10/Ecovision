@@ -2,22 +2,42 @@
  * app/src/screens/FinanceiroScreen.tsx
  *
  * Framework: Expo (React Native) — decisão confirmada pelo grupo.
- * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
- *
- * Tela financeira citada no Plano de Execução do Blueprint (Fase 4,
- * "Telas essenciais") como MOCK, não há integração de backend real
- * para dados financeiros definida no Blueprint v3.0. Manter como dado
- * estático/simulado até (e se) o grupo decidir formalizar essa
- * funcionalidade em uma revisão futura do Blueprint.
- *
- * Relação com o resto do sistema:
- * - Nenhuma, por ora, não consome nenhum endpoint real da API.
+ * Tela financeira MOCK — sem integração de backend real (Blueprint v3.0).
  */
 
-// import React from "react";
-// import { View, Text } from "react-native";
+import React from "react";
+import { View, Text, StyleSheet } from "react-native";
 
-// export default function FinanceiroScreen() {
-//   // TODO: dados mock (sem integração de backend real, conforme Blueprint)
-//   throw new Error("Not implemented");
-// }
+export default function FinanceiroScreen() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.titulo}>Financeiro</Text>
+      <Text style={styles.aviso}>
+        Dados simulados — sem integração real com o backend por enquanto.
+      </Text>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Custo estimado do mês</Text>
+        <Text style={styles.valor}>R$ 1.240,00</Text>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.label}>Economia com detecção precoce</Text>
+        <Text style={styles.valor}>R$ 380,00</Text>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16, gap: 12 },
+  titulo: { fontSize: 22, fontWeight: "bold" },
+  aviso: { color: "#888", fontSize: 12, marginBottom: 12 },
+  card: {
+    backgroundColor: "#F5F5F5",
+    borderRadius: 8,
+    padding: 16,
+  },
+  label: { fontSize: 14, color: "#555" },
+  valor: { fontSize: 20, fontWeight: "bold", marginTop: 4 },
+});
