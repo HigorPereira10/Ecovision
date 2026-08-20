@@ -2,7 +2,9 @@
 #
 # edge/scripts/install.sh
 #
-# Script de setup do ambiente no Raspberry Pi Zero 2 W (Raspberry Pi OS Lite 64-bit),
+# Script de setup do ambiente no Raspberry Pi 3 Model B+ (Anatel), Raspberry
+# Pi OS Lite 64-bit — ver docs/decisions/0004-raspberry-pi-3b-plus.md pela
+# troca de hardware (era Pi Zero 2 W). Necessário 64-bit para Picamera2/libcamera,
 # conforme Tech Stack Blueprint v3.0, Fase 2.
 #
 # Uso: rodar a partir da raiz do repositório, já clonado no Pi:
@@ -24,7 +26,9 @@ sudo apt install -y libjpeg-turbo-progs libturbojpeg0-dev
 
 echo "==> 3/6: Instalando dependências de sistema do Picamera2/libcamera"
 sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps \
-  python3-venv python3-pip i2c-tools
+  python3-venv python3-pip i2c-tools libgpiod2
+# libgpiod2: exigido pelo Blinka/adafruit-circuitpython-dht (leitura do DHT22)
+# em Raspberry Pi OS Bullseye+ — ver edge/src/sensors/dht22.py.
 
 echo "==> 4/6: Criando/ativando virtualenv e instalando requirements.txt"
 python3 -m venv --system-site-packages "$VENV_DIR"
@@ -33,6 +37,10 @@ python3 -m venv --system-site-packages "$VENV_DIR"
 "$VENV_DIR/bin/pip" install -r "$REPO_ROOT/edge/requirements.txt"
 
 echo "==> 5/6: Instalando o crontab a partir de edge/crontab.example"
+# Os logs do cron (crontab.example) vão para dentro do repo, não /var/log/
+# (que normalmente exige root) — garantir que o diretório já existe antes
+# do cron tentar escrever neles pela primeira vez.
+mkdir -p "$REPO_ROOT/edge/data/logs"
 CRONTAB_TMP="$(mktemp)"
 sed \
   -e "s#/caminho/venv/bin/python#$VENV_DIR/bin/python#g" \

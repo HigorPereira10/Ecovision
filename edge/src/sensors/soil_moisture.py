@@ -2,7 +2,7 @@
 edge/src/sensors/soil_moisture.py
 
 Leitura do sensor capacitivo de umidade do solo, via ADC ADS1115
-(I2C, 16-bit), o Pi Zero não tem ADC nativo, por isso o ADS1115 é
+(I2C, 16-bit) — o Raspberry Pi não tem ADC nativo, por isso o ADS1115 é
 obrigatório (Blueprint v3.0, Fase 1).
 
 Sensor capacitivo foi escolhido (não resistivo) por evitar corrosão por

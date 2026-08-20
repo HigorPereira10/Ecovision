@@ -1,13 +1,19 @@
-# edge — Software de Borda (Raspberry Pi Zero 2 W)
+# edge — Software de Borda (Raspberry Pi 3 Model B+)
 
 Referência arquitetural: **Tech Stack Blueprint Consolidado v3.0, Fase 2 (Software de Borda)**.
 
+> Hardware: **Raspberry Pi 3 Model B+ (Anatel)** — troca em relação ao
+> Pi Zero 2 W do Blueprint original, ver
+> [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md).
+
 ## Papel desta camada
 
-O Pi Zero 2 W realiza **exclusivamente** captura, compressão e transmissão.
-**Nenhuma inferência de IA roda aqui** , o hardware (quad-core 1GHz, 512MB RAM)
-não tem capacidade para isso, e essa é uma decisão arquitetural deliberada
-validada no Blueprint.
+O Pi realiza **exclusivamente** captura, compressão e transmissão.
+**Nenhuma inferência de IA roda aqui** — decisão arquitetural deliberada
+validada no Blueprint, independente da capacidade do hardware (o Pi 3B+,
+quad-core Cortex-A53 @1.4GHz / 1GB RAM, tem folga de sobra para
+captura/compressão/fila, mas a inferência continua no backend por
+design, não por limitação de hardware).
 
 Responsabilidades:
 - Capturar fotos da folha via Picamera2 (Camera Module 3, autofoco PDAF),
@@ -25,12 +31,12 @@ Responsabilidades:
 ```
 edge/
 ├── src/
-│   ├── main.py              # orquestração: captura -> sensores -> fila -> upload
+│   ├── main.py              # orquestração: sensores -> LED -> foto -> fila -> upload
 │   ├── config.py            # variáveis de ambiente (URL da API, API Key, intervalos)
-│   ├── capture.py           # Picamera2 + autofoco (AfMode.AUTO)
+│   ├── capture.py           # Picamera2 + autofoco (AfMode.Auto)
 │   ├── compress.py          # Pillow + libjpeg-turbo
 │   ├── sensors/
-│   │   ├── dht22.py         # Adafruit_DHT
+│   │   ├── dht22.py         # adafruit-circuitpython-dht
 │   │   └── soil_moisture.py # Adafruit ADS1x15
 │   ├── actuators/
 │   │   └── led_flash.py     # RPi.GPIO, acionamento do Ring LED via MOSFET
@@ -39,7 +45,7 @@ edge/
 │   └── upload/
 │       └── uploader.py      # requests, retry/backoff, header Authorization (API Key)
 ├── scripts/
-│   └── install.sh           # setup de dependências no Pi (libjpeg-turbo etc.)
+│   └── install.sh           # setup de dependências no Pi (apt + venv + crontab)
 ├── crontab.example          # agendamento: captura 2h / upload da fila 15min
 └── requirements.txt
 ```
@@ -47,13 +53,35 @@ edge/
 ## Pontos de atenção herdados do Blueprint
 
 - Verificar `libjpeg-turbo` ativo antes de medir velocidade de compressão
- sem ele, o Pillow é ~5x mais lento.
+  — sem ele, o Pillow é ~5x mais lento.
 - O Ring LED **precisa** passar pelo MOSFET (ver `edge/src/actuators/led_flash.py`)
- ligação direta ao GPIO pode danificar o pino ou o Pi.
-- A Camera Module 3 requer cabo FFC específico para o conector CSI de
-  22 pinos do Pi Zero, não é o mesmo cabo que acompanha o kit padrão da câmera.
+  — ligação direta ao GPIO pode danificar o pino ou o Pi.
+- A Camera Module 3 usa o conector CSI **padrão de 15 pinos** do Pi 3B+
+  (mesmo do Pi 4) — o cabo que já acompanha a câmera serve direto, sem
+  adaptador (diferente do Pi Zero, que usava um conector mini de 22
+  pinos — ver [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md)).
+
+## Decisões de implementação que corrigem riscos identificados em revisão
+
+- **`edge/src/config.py`**: `QUEUE_DIR` é ancorado em `__file__` (não no
+  diretório de trabalho de quem chamou o script) — necessário porque o
+  cron normalmente roda com cwd diferente da raiz do repositório.
+- **`edge/crontab.example`** + **`edge/scripts/install.sh`**: os logs do
+  cron vão para `edge/data/logs/` (dentro do repo), não `/var/log/`, que
+  normalmente exige root.
+- **`edge/src/main.py`**: falha de leitura de um sensor ambiental (DHT22
+  ou solo) não aborta o ciclo — a foto (dado mais valioso) ainda é
+  capturada, com `None` no(s) campo(s) que falharam.
+- **`edge/src/sensors/dht22.py`**: usa `adafruit-circuitpython-dht` em
+  vez do legado `Adafruit_DHT` (descontinuado, instalação frágil em
+  Raspberry Pi OS atual) — mesma linha CircuitPython/Blinka do ADS1115.
+- **`edge/requirements.txt`**: `picamera2` não é instalado via pip aqui
+  — vem do `apt` em `install.sh` (`python3-picamera2`), porque depende
+  de bindings do libcamera compilados para o sistema.
 
 ## Pendências de grupo
 
-- Nenhuma decisão em aberto nesta camada, Fase 2 foi validada sem
-  alterações no Blueprint v3.0.
+- Confirmar compatibilidade física do dissipador/case com o formato do
+  Pi 3B+ (ver [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md)).
+- Calibração real de `SOIL_DRY_RAW`/`SOIL_WET_RAW` (`edge/src/config.py`)
+  assim que o sensor físico estiver disponível em protoboard.

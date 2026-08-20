@@ -13,12 +13,18 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# edge/ — usado para ancorar caminhos (.env, QUEUE_DIR) de forma absoluta,
+# independente do diretório de trabalho de quem chamou o script. Isso
+# importa porque o cron normalmente roda com cwd == home do usuário, não
+# a raiz do repositório.
+_EDGE_DIR = Path(__file__).resolve().parents[1]
+
 # Cron não carrega variáveis de ambiente automaticamente — lê edge/.env
 # aqui (gerado por edge/scripts/install.sh a partir de
 # infra/env/edge.env.example) para que main.py/uploader.py funcionem tanto
 # invocados pelo cron quanto manualmente. Não sobrescreve variáveis já
 # definidas no ambiente (ex.: exportadas manualmente ou por systemd).
-load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+load_dotenv(_EDGE_DIR / ".env")
 
 
 def _obrigatoria(nome: str) -> str:
@@ -68,9 +74,20 @@ SOIL_WET_RAW = _inteira("SOIL_WET_RAW", 8000)
 JPEG_QUALITY = _inteira("JPEG_QUALITY", 70)
 
 # --- Fila offline (Blueprint, Fase 2) ---
-QUEUE_DIR = Path(os.environ.get("QUEUE_DIR", "edge/data/queue"))
+# BUG CORRIGIDO: o default era um caminho relativo ("edge/data/queue"),
+# que resolvia para lugares diferentes dependendo de quem chamava o
+# script (manual, na raiz do repo, vs. cron, com cwd == home do
+# usuário) — dados podiam "sumir" de um lado sem erro nenhum. Agora
+# ancorado em _EDGE_DIR (baseado em __file__), igual ao .env acima.
+# QUEUE_DIR só via variável de ambiente se alguém precisar de fato
+# apontar para outro lugar (ex.: disco externo).
+_QUEUE_DIR_ENV = os.environ.get("QUEUE_DIR")
+QUEUE_DIR = Path(_QUEUE_DIR_ENV) if _QUEUE_DIR_ENV else (_EDGE_DIR / "data" / "queue")
 QUEUE_FILE = QUEUE_DIR / "fila.jsonl"
 QUEUE_IMAGES_DIR = QUEUE_DIR / "images"
+
+# --- Logs (cron redireciona stdout/stderr para cá — ver crontab.example) ---
+LOGS_DIR = _EDGE_DIR / "data" / "logs"
 
 # --- Upload / retry (Blueprint, Fase 2: "retry/backoff") ---
 UPLOAD_TIMEOUT_SECONDS = _flutuante("UPLOAD_TIMEOUT_SECONDS", 30.0)

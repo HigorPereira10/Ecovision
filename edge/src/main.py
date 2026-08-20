@@ -5,7 +5,10 @@ Orquestrador principal do ciclo de captura, executado periodicamente
 via cron (Blueprint v3.0, Fase 2: agendamento de captura a cada 2h).
 
 Fluxo:
-1. Ler sensores (sensors/dht22.py, sensors/soil_moisture.py).
+1. Ler sensores (sensors/dht22.py, sensors/soil_moisture.py) — com
+   tolerância a falha: um sensor ambiental instável não deve impedir a
+   captura da foto, que é o dado mais valioso do ciclo (ver
+   _ler_sensores()).
 2. Acionar o Ring LED via MOSFET (actuators/led_flash.py), abraçando a
    captura da foto para garantir sincronismo real entre flash e câmera.
 3. Capturar a foto (capture.py) com autofoco.
@@ -44,12 +47,33 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 logger = logging.getLogger("ecovision.edge")
 
 
+def _ler_sensores() -> dict:
+    """Lê DHT22 e sensor de solo com tolerância a falha individual: se um
+    sensor falhar (ex.: DHT22 é propenso a falhas pontuais de leitura —
+    ver dht22.py), grava None nesse campo e segue o ciclo em vez de
+    abortar — a foto não deve ser perdida por causa de um sensor
+    ambiental instável."""
+    leituras: dict = {}
+
+    try:
+        leituras.update(dht22.ler_dht22(config.DHT22_PIN))
+    except Exception:
+        logger.warning("Falha ao ler o DHT22 — seguindo sem essa leitura.", exc_info=True)
+        leituras["temperatura_c"] = None
+        leituras["umidade_ar_pct"] = None
+
+    try:
+        leituras["umidade_solo_pct"] = soil_moisture.ler_umidade_solo()
+    except Exception:
+        logger.warning("Falha ao ler o sensor de solo — seguindo sem essa leitura.", exc_info=True)
+        leituras["umidade_solo_pct"] = None
+
+    return leituras
+
+
 def ciclo_de_captura() -> None:
     """Executa um ciclo completo: sensores -> LED -> foto -> compressão -> fila -> upload."""
-    leituras = {
-        **dht22.ler_dht22(config.DHT22_PIN),
-        "umidade_solo_pct": soil_moisture.ler_umidade_solo(),
-    }
+    leituras = _ler_sensores()
     logger.info("Leituras dos sensores: %s", leituras)
 
     led_flash.ligar_led(config.LED_MOSFET_PIN)

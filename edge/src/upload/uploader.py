@@ -30,6 +30,7 @@ Relação com o resto do sistema:
   best-effort ao final de cada ciclo de captura (edge/src/main.py).
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -45,6 +46,14 @@ from urllib3.util.retry import Retry
 
 from edge.src import config
 from edge.src.queue import offline_queue
+
+# BUG CORRIGIDO: este módulo não tinha nenhum log. Como roda sozinho via
+# cron a cada 15min (crontab.example), sem isso não havia como saber, sem
+# SSH na estufa, se os uploads estavam de fato acontecendo. basicConfig()
+# é seguro de chamar de novo aqui mesmo quando main.py já chamou (é
+# no-op se o root logger já tem handler configurado).
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+logger = logging.getLogger("ecovision.edge.upload")
 
 _CAMPOS_NAO_LEITURAS = {"id", "device_id", "timestamp", "imagem_path"}
 
@@ -68,7 +77,13 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
     if not caminho_imagem.exists():
         # Imagem já foi removida (ex.: envio anterior parcialmente
         # confirmado). Não há o que reenviar; trata como concluído para
-        # não travar a fila indefinidamente.
+        # não travar a fila indefinidamente. Logado como warning (não
+        # info) porque também pode indicar um bug/corrupção real — sem
+        # isso não havia nenhum rastro desse caso acontecer.
+        logger.warning(
+            "Registro %s sem imagem em %s — tratando como já enviado.",
+            registro.get("id"), caminho_imagem,
+        )
         return True
 
     leituras = {
@@ -95,8 +110,14 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
                 timeout=config.UPLOAD_TIMEOUT_SECONDS,
             )
         except requests.RequestException:
+            logger.warning("Falha de rede ao enviar registro %s.", registro.get("id"), exc_info=True)
             return False
 
+    if not resposta.ok:
+        logger.warning(
+            "API recusou o registro %s: HTTP %d — %s",
+            registro.get("id"), resposta.status_code, resposta.text[:200],
+        )
     return resposta.ok
 
 
@@ -104,8 +125,10 @@ def drenar_fila_e_enviar() -> None:
     """Lê pendentes, envia com retry/backoff, remove da fila os confirmados."""
     pendentes = offline_queue.ler_pendentes()
     if not pendentes:
+        logger.info("Fila vazia, nada para enviar.")
         return
 
+    logger.info("Drenando fila: %d registro(s) pendente(s).", len(pendentes))
     sessao = _sessao_com_retry()
     ids_enviados = []
 
@@ -115,6 +138,11 @@ def drenar_fila_e_enviar() -> None:
 
     if ids_enviados:
         offline_queue.remover_enviados(ids_enviados)
+
+    logger.info(
+        "Envio concluído: %d confirmado(s), %d ainda pendente(s).",
+        len(ids_enviados), len(pendentes) - len(ids_enviados),
+    )
 
 
 if __name__ == "__main__":
