@@ -1,10 +1,14 @@
 /**
  * app/src/navigation/AppNavigator.tsx
- * teste
+ *
  * Framework: Expo (React Native) — decisão confirmada pelo grupo.
  * Navegação do app (React Navigation): Login -> (Alertas | Diagnóstico |
  * Histórico | Financeiro), com guarda de rota baseada na presença de
  * um JWT válido (app/src/services/auth.ts).
+ *
+ * VERSÃO MOCK: isAuthenticated() checa o SecureStore local (sem API real).
+ * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
+ * automaticamente a login()/logout(), trocando de tela sem reload.
  */
 
 import React, { useEffect, useState } from "react";
@@ -17,12 +21,7 @@ import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
 import FinanceiroScreen from "../screens/FinanceiroScreen";
-
-// TODO: trocar por uma função real de src/services/auth.ts
-// assim que eu souber o formato exato (ex: getToken(), isAuthenticated()).
-async function checkAuthPlaceholder(): Promise<boolean> {
-  return false;
-}
+import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges } from "../services/auth";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -42,7 +41,15 @@ export default function AppNavigator() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    checkAuthPlaceholder().then(setIsAuthenticated);
+    // checagem inicial (ex: usuário já tinha logado antes e fechou o app)
+    checkIsAuthenticated().then(setIsAuthenticated);
+
+    // escuta mudanças disparadas por login()/logout() em qualquer tela
+    const unsubscribe = subscribeAuthChanges((autenticado) => {
+      setIsAuthenticated(autenticado);
+    });
+
+    return unsubscribe;
   }, []);
 
   // ainda não sabemos se está logado -> não renderiza nada por enquanto

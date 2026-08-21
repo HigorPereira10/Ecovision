@@ -1,5 +1,23 @@
 [
-  { "id": 1, "titulo": "Umidade baixa na estufa 2", "descricao": "Umidade abaixo de 40% detectada.", "lido": false, "data": "2026-08-18T09:12:00Z" },
-  { "id": 2, "titulo": "Possível praga detectada", "descricao": "Padrão suspeito na folha do talhão 3.", "lido": false, "data": "2026-08-17T15:40:00Z" },
-  { "id": 3, "titulo": "Temperatura normalizada", "descricao": "Estufa 1 voltou à faixa ideal.", "lido": true, "data": "2026-08-16T08:00:00Z" }
+  {
+    "id": 1,
+    "tipo": "míldio",
+    "severidade": "media",
+    "lido": false,
+    "timestamp": "2026-08-18T09:12:00Z"
+  },
+  {
+    "id": 2,
+    "tipo": "praga",
+    "severidade": "alta",
+    "lido": false,
+    "timestamp": "2026-08-17T15:40:00Z"
+  },
+  {
+    "id": 3,
+    "tipo": "temperatura",
+    "severidade": "baixa",
+    "lido": true,
+    "timestamp": "2026-08-16T08:00:00Z"
+  }
 ]

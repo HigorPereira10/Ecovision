@@ -1,10 +1,10 @@
 [
   {
     "id": 1,
-    "imagem_url": "https://picsum.photos/seed/tomate1/400/300",
-    "resultado": "Requeima (Phytophthora infestans)",
+    "registro_imagem_id": 1,
+    "classificacao": "Míldio (Phytophthora infestans)",
     "confianca": 0.87,
-    "data": "2026-08-18T09:12:00Z",
-    "recomendacao": "Aplicar fungicida à base de cobre e melhorar ventilação da estufa 2."
+    "recomendacao": "Aplicar fungicida à base de cobre e melhorar ventilação da estufa 2.",
+    "timestamp": "2026-08-18T09:12:00Z"
   }
 ]

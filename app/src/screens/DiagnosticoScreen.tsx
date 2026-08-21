@@ -15,10 +15,30 @@
 import React from "react";
 import { View, Image, Text, StyleSheet, ScrollView } from "react-native";
 import diagnosticosMock from "../mocks/diagnosticos.json";
+import imagensMock from "../mocks/imagens.json";
+
+type Diagnostico = {
+  id: number;
+  registro_imagem_id: number;
+  classificacao: string;
+  confianca: number;
+  recomendacao: string;
+  timestamp: string;
+};
+
+type RegistroImagem = {
+  id: number;
+  dispositivo_id: number;
+  caminho_arquivo: string;
+  resolucao: string;
+  timestamp: string;
+};
 
 export default function DiagnosticoScreen() {
-  // Por enquanto, sempre mostra o mais recente (primeiro do mock)
-  const diagnostico = diagnosticosMock[0];
+  const diagnostico = (diagnosticosMock as Diagnostico[])[0];
+  const registroImagem = (imagensMock as RegistroImagem[]).find(
+    (img) => img.id === diagnostico?.registro_imagem_id
+  );
 
   if (!diagnostico) {
     return (
@@ -30,9 +50,11 @@ export default function DiagnosticoScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      <Image source={{ uri: diagnostico.imagem_url }} style={styles.imagem} />
+      {registroImagem && (
+        <Image source={{ uri: registroImagem.caminho_arquivo }} style={styles.imagem} />
+      )}
 
-      <Text style={styles.resultado}>{diagnostico.resultado}</Text>
+      <Text style={styles.resultado}>{diagnostico.classificacao}</Text>
       <Text style={styles.confianca}>
         Confiança: {Math.round(diagnostico.confianca * 100)}%
       </Text>
@@ -41,7 +63,7 @@ export default function DiagnosticoScreen() {
       <Text style={styles.recomendacao}>{diagnostico.recomendacao}</Text>
 
       <Text style={styles.data}>
-        {new Date(diagnostico.data).toLocaleString("pt-BR")}
+        {new Date(diagnostico.timestamp).toLocaleString("pt-BR")}
       </Text>
     </ScrollView>
   );
@@ -49,13 +71,7 @@ export default function DiagnosticoScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16 },
-  imagem: {
-    width: "100%",
-    height: 220,
-    borderRadius: 8,
-    marginBottom: 16,
-    backgroundColor: "#eee",
-  },
+  imagem: { width: "100%", height: 220, borderRadius: 8, marginBottom: 16, backgroundColor: "#eee" },
   resultado: { fontSize: 20, fontWeight: "bold" },
   confianca: { color: "#666", marginTop: 4, marginBottom: 16 },
   label: { fontWeight: "bold", marginTop: 8 },

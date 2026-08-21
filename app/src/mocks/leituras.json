@@ -1,7 +1,26 @@
 [
-  { "data": "2026-08-14", "temperatura": 24.5, "umidade": 61 },
-  { "data": "2026-08-15", "temperatura": 25.1, "umidade": 58 },
-  { "data": "2026-08-16", "temperatura": 23.8, "umidade": 63 },
-  { "data": "2026-08-17", "temperatura": 26.2, "umidade": 55 },
-  { "data": "2026-08-18", "temperatura": 24.9, "umidade": 60 }
+  {
+    "id": 1,
+    "dispositivo_id": 1,
+    "temperatura": 24,
+    "umidade_ar": 65,
+    "umidade_solo": 42,
+    "timestamp": "2026-08-20T09:00:00Z"
+  },
+  {
+    "id": 2,
+    "dispositivo_id": 1,
+    "temperatura": 22.5,
+    "umidade_ar": 70,
+    "umidade_solo": 45,
+    "timestamp": "2026-08-20T06:00:00Z"
+  },
+  {
+    "id": 3,
+    "dispositivo_id": 1,
+    "temperatura": 26.1,
+    "umidade_ar": 58,
+    "umidade_solo": 38,
+    "timestamp": "2026-08-19T09:00:00Z"
+  }
 ]

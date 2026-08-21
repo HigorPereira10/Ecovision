@@ -1,0 +1,9 @@
+[
+  {
+    "id": 1,
+    "identificador": "ESP32-ESTUFA-01",
+    "nome": "Sensor Estufa 1",
+    "status": "ativo",
+    "data_instalacao": "2026-05-10T00:00:00Z"
+  }
+]

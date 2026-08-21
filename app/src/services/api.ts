@@ -8,20 +8,26 @@
  * autenticado via JWT do produtor. Regra do Blueprint (Seção 4.2, passo
  * 5): o frontend NUNCA fala diretamente com o Supabase, só com esta API.
  *
- * Responsabilidades quando implementado:
- * - Anexar automaticamente o header Authorization (JWT de acesso) em
- *   toda requisição.
- * - Renovar o token via refresh token quando expirado (ver
- *   app/src/services/auth.ts), de forma transparente às telas.
- * - Apontar para a URL base da API no Railway (variável de ambiente do app).
+ * VERSÃO MOCK: ainda não existe requisição HTTP real. Este arquivo por
+ * enquanto só expõe o estado de autenticação (via auth.ts) para telas
+ * que precisem checar se o produtor está logado (ex.: AppNavigator).
+ * As telas de dados (Alertas, Diagnóstico, Histórico) seguem importando
+ * os JSONs de src/mocks/ diretamente por enquanto.
  *
- * Relação com o resto do sistema:
- * - Usado por todas as telas em app/src/screens/.
- * - Espelha, do lado do cliente, os endpoints de
- *   cloud/app/api/routes/*.py.
+ * TODO quando a API estiver pronta:
+ * - Criar instância axios com baseURL vindo de variável de ambiente do app.
+ * - Interceptor de request: anexar Authorization: Bearer <accessToken>
+ *   (usar getAccessToken() de auth.ts).
+ * - Interceptor de response: em 401, chamar refresh() de auth.ts e
+ *   repetir a requisição original; se refresh falhar, chamar logout()
+ *   e redirecionar para LoginScreen.
+ * - Migrar as telas para chamar funções deste arquivo (ex.: getAlertas())
+ *   em vez de importar os JSONs diretamente.
  */
 
 // import axios from "axios";
+
+export { isAuthenticated, getAccessToken } from "./auth";
 
 // export const api = axios.create({
 //   // TODO: baseURL a partir de variável de ambiente do app
