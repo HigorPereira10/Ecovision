@@ -47,8 +47,18 @@ edge/
 ├── scripts/
 │   └── install.sh           # setup de dependências no Pi (apt + venv + crontab)
 ├── crontab.example          # agendamento: captura 2h / upload da fila 15min
-└── requirements.txt
+├── requirements.txt
+└── tests/                   # testes automatizados (ver edge/tests/README.md)
 ```
+
+## Testes automatizados
+
+A parte do código que não depende de hardware (fila offline + envio
+para a API) tem testes automatizados em [`edge/tests/`](tests/README.md)
+— cobrindo, sem precisar da Raspberry Pi física, o ciclo completo de
+guardar fotos pendentes, confirmar envio, e os casos de falha de rede.
+Ver [`edge/tests/README.md`](tests/README.md) para uma explicação de
+cada teste e como rodar (WSL/Linux ou Windows).
 
 ## Pontos de atenção herdados do Blueprint
 
@@ -57,26 +67,26 @@ edge/
 - O Ring LED **precisa** passar pelo MOSFET (ver `edge/src/actuators/led_flash.py`)
   — ligação direta ao GPIO pode danificar o pino ou o Pi.
 - A Camera Module 3 usa o conector CSI **padrão de 15 pinos** do Pi 3B+
-  (mesmo do Pi 4) — o cabo que já acompanha a câmera serve direto, sem
+  (mesmo do Pi 4), o cabo que já acompanha a câmera serve direto, sem
   adaptador (diferente do Pi Zero, que usava um conector mini de 22
-  pinos — ver [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md)).
+  pinos, ver [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md)).
 
 ## Decisões de implementação que corrigem riscos identificados em revisão
 
 - **`edge/src/config.py`**: `QUEUE_DIR` é ancorado em `__file__` (não no
-  diretório de trabalho de quem chamou o script) — necessário porque o
+  diretório de trabalho de quem chamou o script), necessário porque o
   cron normalmente roda com cwd diferente da raiz do repositório.
 - **`edge/crontab.example`** + **`edge/scripts/install.sh`**: os logs do
   cron vão para `edge/data/logs/` (dentro do repo), não `/var/log/`, que
   normalmente exige root.
 - **`edge/src/main.py`**: falha de leitura de um sensor ambiental (DHT22
-  ou solo) não aborta o ciclo — a foto (dado mais valioso) ainda é
+  ou solo) não aborta o ciclo, a foto (dado mais valioso) ainda é
   capturada, com `None` no(s) campo(s) que falharam.
 - **`edge/src/sensors/dht22.py`**: usa `adafruit-circuitpython-dht` em
   vez do legado `Adafruit_DHT` (descontinuado, instalação frágil em
-  Raspberry Pi OS atual) — mesma linha CircuitPython/Blinka do ADS1115.
-- **`edge/requirements.txt`**: `picamera2` não é instalado via pip aqui
-  — vem do `apt` em `install.sh` (`python3-picamera2`), porque depende
+  Raspberry Pi OS atual), mesma linha CircuitPython/Blinka do ADS1115.
+- **`edge/requirements.txt`**: `picamera2` não é instalado via pip aqui, 
+  vem do `apt` em `install.sh` (`python3-picamera2`), porque depende
   de bindings do libcamera compilados para o sistema.
 
 ## Pendências de grupo

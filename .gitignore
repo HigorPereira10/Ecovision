@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
 
 # Segredos reais (nunca versionar — usar os .example em infra/env/)
 .env
