@@ -24,7 +24,7 @@ _AUTOFOCUS_SETTLE_SECONDS = 0.3
 
 def capturar_imagem() -> bytes:
     """Captura uma foto com autofoco PDAF e retorna os bytes crus (JPEG
-    de resolução nativa, ainda não recomprimido — ver compress.py)."""
+    de resolução nativa, ainda não recomprimido, ver compress.py)."""
     picam2 = Picamera2()
     try:
         config = picam2.create_still_configuration()

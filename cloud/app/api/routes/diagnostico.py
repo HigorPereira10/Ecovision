@@ -7,13 +7,13 @@ roda a inferência e persiste tudo no Supabase.
 
 Fluxo completo, conforme Blueprint v3.0 Seção 4.2:
 1. Autenticar a requisição via API Key estática (ver app/core/security.py).
-2. Checar se já existe um registro com essa idempotency_key — reenvio
-   detectado, devolve o diagnóstico já existente sem reprocessar (ver
-   "Idempotência" abaixo).
+2. Checar se já existe um registro com essa idempotency_key. Se existir,
+   é um reenvio: devolve o diagnóstico já existente sem reprocessar
+   (ver "Idempotência" abaixo).
 3. Ler a imagem recebida em memória (BytesIO), nunca gravar em disco.
 4. Redimensionar para 224x224, normalizar, rodar inferência TFLite
-   (app/core/inference.py) — devolve placeholder se não houver modelo
-   carregado ainda (ver app/core/inference.py).
+   (app/core/inference.py). Devolve um resultado placeholder se ainda
+   não houver modelo carregado (ver app/core/inference.py).
 5. Fazer upload da imagem já comprimida para o Supabase Storage
    (app/storage/supabase_storage.py) e obter o caminho salvo.
 6. Persistir no Supabase Postgres (app/db/models.py):
@@ -24,7 +24,7 @@ Fluxo completo, conforme Blueprint v3.0 Seção 4.2:
      (ver _deve_gerar_alerta abaixo), e um para cada risco ambiental
      identificado nas leituras (ver app/core/alertas_ambientais.py e
      docs/decisions/0005-limiares-ambientais.md para as fontes de cada
-     limiar — não são números inventados no código).
+     limiar; nenhum desses números foi inventado no código).
 7. Descartar o buffer da imagem da memória.
 
 Idempotência: edge/src/upload/uploader.py manda um `idempotency_key`
@@ -39,7 +39,7 @@ Contrato exato assumido do lado do dispositivo (edge/src/upload/uploader.py):
   multipart/form-data:
     - imagem: arquivo JPEG comprimido
     - device_id, timestamp, idempotency_key: strings
-    - temperatura_c, umidade_ar_pct, umidade_solo_pct: opcionais — podem
+    - temperatura_c, umidade_ar_pct, umidade_solo_pct: opcionais. Podem
       vir ausentes OU como a string "None" (edge/src/main.py grava None
       no JSON quando um sensor falha; ver _campo_float_opcional abaixo).
 
@@ -71,24 +71,25 @@ logger = logging.getLogger("ecovision.cloud.diagnostico")
 router = APIRouter()
 
 # Classes que NÃO geram alerta automático: "saudavel" (nada a avisar) e
-# "indisponivel" (placeholder de app/core/inference.py quando não há
-# modelo carregado — avisar o produtor de uma classe que não significa
-# nada ainda seria pior que não avisar).
+# "indisponivel" (placeholder de app/core/inference.py quando ainda não
+# há modelo carregado). Avisar o produtor de uma classe que ainda não
+# significa nada seria pior do que simplesmente não avisar.
 _CLASSES_SEM_ALERTA = {"saudavel", "indisponivel"}
 
-# edge/src/compress.py mira 150-250KB por foto — 5MB já é uma margem
-# generosa (>20x o esperado). Sem esse limite, um dispositivo com bug
-# (ou uma requisição forjada, já que device_id não é validado contra
-# nenhum cadastro nesta rodada) poderia mandar um arquivo enorme e
-# esgotar a RAM do processo (1 worker só, decisão do Blueprint) antes
-# mesmo de tentar abrir a imagem.
+# ALERTA DE SEGURANÇA (proteção contra negação de serviço): edge/src/
+# compress.py mira 150-250KB por foto, então 5MB já é uma margem bem
+# generosa (mais de 20x o esperado). Sem esse limite, um dispositivo com
+# bug (ou uma requisição forjada, já que o device_id não é validado
+# contra nenhum cadastro nesta rodada) poderia mandar um arquivo enorme
+# e esgotar a RAM do processo (só 1 worker, decisão do Blueprint) antes
+# mesmo de tentar abrir a imagem. Não remover nem aumentar sem motivo.
 _TAMANHO_MAXIMO_IMAGEM_BYTES = 5 * 1024 * 1024
 
 
 def _campo_float_opcional(valor: str | None) -> float | None:
     """edge/src/main.py grava `None` no JSON quando a leitura de um
-    sensor falha; isso pode chegar aqui como campo ausente ou como a
-    string literal "None" — os dois casos viram None, nunca um erro
+    sensor falha. Isso pode chegar aqui como campo ausente ou como a
+    string literal "None": os dois casos viram None, nunca um erro
     de validação."""
     if valor is None or valor == "" or valor == "None":
         return None
@@ -131,17 +132,18 @@ async def receber_diagnostico(
     diagnostico_existente = await _buscar_diagnostico_por_idempotency_key(sessao, idempotency_key)
     if diagnostico_existente is not None:
         logger.info(
-            "Reenvio detectado (idempotency_key=%s) — devolvendo diagnóstico "
+            "Reenvio detectado (idempotency_key=%s): devolvendo diagnóstico "
             "já existente sem reprocessar.",
             idempotency_key,
         )
         return DiagnosticoOut.model_validate(diagnostico_existente)
 
-    # BUG CORRIGIDO: timestamp/leituras eram parseados só depois do
-    # upload da imagem pro Storage, sem tratamento de exceção — um valor
-    # malformado gerava um 500 cru E deixava uma imagem órfã no bucket
-    # (upload já tinha acontecido, mas nada era gravado no banco).
-    # Validar tudo que é só texto ANTES de gastar a chamada de storage.
+    # ATENÇÃO, BUG JÁ CORRIGIDO AQUI: antes, o timestamp e as leituras
+    # eram convertidos só depois do upload da imagem para o Storage, sem
+    # tratamento de exceção. Um valor malformado gerava um erro 500 cru
+    # E deixava uma imagem órfã no bucket (o upload já tinha acontecido,
+    # mas nada era gravado no banco). Por isso todo texto é validado
+    # ANTES de gastar a chamada de storage: não inverter essa ordem.
     try:
         capturado_em = datetime.fromisoformat(timestamp)
         temperatura_c_valor = _campo_float_opcional(temperatura_c)
@@ -205,15 +207,17 @@ async def receber_diagnostico(
         temperatura_c_valor, umidade_ar_pct_valor, umidade_solo_pct_valor
     )
 
-    # BUG CORRIGIDO: a checagem de idempotency_key no início da função e a
-    # gravação abaixo não são atômicas — se duas requisições com a MESMA
-    # idempotency_key chegarem quase juntas (ex.: o edge/ reenvia por
-    # timeout local logo depois de um envio que na verdade já tinha sido
-    # aceito), as duas podem passar pela checagem antes de qualquer uma
-    # terminar de gravar. A constraint UNIQUE de
-    # registros_imagem.idempotency_key garante que só uma vence — a
-    # violação pode aparecer já no primeiro flush() (não só no commit),
-    # por isso todo o bloco de gravação fica dentro do mesmo try.
+    # ATENÇÃO, BUG JÁ CORRIGIDO AQUI (condição de corrida): a checagem de
+    # idempotency_key no início da função e a gravação abaixo não são
+    # atômicas. Se duas requisições com a MESMA idempotency_key chegarem
+    # quase juntas (ex.: o edge/ reenvia por timeout local logo depois de
+    # um envio que na verdade já tinha sido aceito), as duas podem passar
+    # pela checagem antes de qualquer uma terminar de gravar. A
+    # constraint UNIQUE de registros_imagem.idempotency_key garante que
+    # só uma delas vence. Essa violação pode aparecer já no primeiro
+    # flush() (não só no commit), por isso todo o bloco de gravação
+    # abaixo precisa ficar dentro do mesmo try: não separar em blocos
+    # menores sem entender essa consequência.
     try:
         registro = RegistroImagem(
             device_id=device_id,
@@ -245,22 +249,22 @@ async def receber_diagnostico(
         if _deve_gerar_alerta(resultado["classe"]):
             descricao_doenca = resultado["recomendacao"] or "Verificar a planta o quanto antes."
             if riscos_ambientais:
-                # Correlação simples em texto (não é fusão de modelo, ver
-                # ADR 0006): avisa que condições ambientais desfavoráveis
-                # também foram detectadas no mesmo ciclo, sem alegar que
-                # uma causou a outra.
+                # Correlação simples em texto, isso NÃO é fusão de
+                # modelo (ver ADR 0006): apenas avisa que condições
+                # ambientais desfavoráveis também foram detectadas no
+                # mesmo ciclo, sem alegar que uma causou a outra.
                 titulos_ambientais = ", ".join(titulo for titulo, _, _ in riscos_ambientais)
                 descricao_doenca += (
                     f" Condições ambientais também fora do ideal neste ciclo "
-                    f"({titulos_ambientais}) — corrigir isso pode ajudar na recuperação."
+                    f"({titulos_ambientais}). Corrigir isso pode ajudar na recuperação."
                 )
             sessao.add(
                 Alerta(
                     diagnostico_id=diagnostico.id,
                     titulo=f"Possível {resultado['classe']} detectado",
                     descricao=descricao_doenca,
-                    # resultado["severidade"] é None só no placeholder
-                    # "indisponivel" — mas esse caso nunca chega aqui
+                    # resultado["severidade"] só é None no placeholder
+                    # "indisponivel", mas esse caso nunca chega aqui
                     # porque _deve_gerar_alerta já filtra essa classe.
                     severidade=resultado["severidade"],
                 )
@@ -284,13 +288,13 @@ async def receber_diagnostico(
     except IntegrityError:
         await sessao.rollback()
         logger.info(
-            "Corrida de idempotency_key=%s detectada — devolvendo o "
+            "Corrida de idempotency_key=%s detectada: devolvendo o "
             "diagnóstico da requisição que venceu.",
             idempotency_key,
         )
         diagnostico_vencedor = await _buscar_diagnostico_por_idempotency_key(sessao, idempotency_key)
         if diagnostico_vencedor is None:
-            raise  # não deveria acontecer; melhor falhar alto do que mascarar um bug diferente
+            raise  # não deveria acontecer; melhor falhar alto do que esconder um bug diferente
         return DiagnosticoOut.model_validate(diagnostico_vencedor)
 
     await sessao.refresh(diagnostico)

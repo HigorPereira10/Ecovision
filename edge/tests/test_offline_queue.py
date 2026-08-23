@@ -4,7 +4,7 @@ edge/tests/test_offline_queue.py
 O que este arquivo verifica, em português simples:
 
 A "fila offline" é o mecanismo que guarda fotos e leituras de sensores
-em disco quando a internet da estufa cai, para não perder nada — e
+em disco quando a internet da estufa cai, para não perder nada, e
 depois manda tudo assim que a conexão volta. Estes testes simulam esse
 ciclo inteiro, sem precisar de rede nem de Raspberry Pi:
 
@@ -16,12 +16,12 @@ ciclo inteiro, sem precisar de rede nem de Raspberry Pi:
    - ela some da lista de pendentes;
    - o arquivo de imagem dela é apagado do disco (não faz sentido
      guardar a foto depois que ela já foi entregue à API);
-   - a outra, que ainda não foi confirmada, continua intacta — tanto o
+   - a outra, que ainda não foi confirmada, continua intacta, tanto o
      registro quanto o arquivo de imagem dela.
 
 Só roda em Linux/WSL porque o módulo testado usa fcntl (trava de
 arquivo) para proteger a fila de corrupção quando a captura (escreve) e
-o envio (lê/remove) rodam ao mesmo tempo via cron — recurso que não
+o envio (lê/remove) rodam ao mesmo tempo via cron. Esse recurso não
 existe no Python do Windows.
 """
 
@@ -30,7 +30,7 @@ from pathlib import Path
 import pytest
 
 # pytest.importorskip interrompe a COLETA do arquivo (não só os testes)
-# se fcntl não existir — necessário porque offline_queue.py importa
+# se fcntl não existir. Isso é necessário porque offline_queue.py importa
 # fcntl direto no topo do arquivo, então um simples skipif não evitaria
 # o ModuleNotFoundError ao tentar importar o módulo no Windows.
 pytest.importorskip(
@@ -81,8 +81,8 @@ def test_ciclo_completo_enfileirar_ler_remover(tmp_path: Path):
 
 
 def test_ler_pendentes_com_fila_inexistente_retorna_lista_vazia(tmp_path: Path):
-    """Antes da primeira captura, o arquivo da fila ainda nem existe —
-    isso não pode ser tratado como erro, e sim como 'nada pendente'."""
+    """Antes da primeira captura, o arquivo da fila ainda nem existe.
+    Isso não pode ser tratado como erro, e sim como 'nada pendente'."""
     caminho_fila = tmp_path / "nao-existe" / "fila.jsonl"
     assert offline_queue.ler_pendentes(caminho_fila=caminho_fila) == []
 

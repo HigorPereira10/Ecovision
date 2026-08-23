@@ -4,25 +4,24 @@ edge/tests/test_uploader.py
 O que este arquivo verifica, em português simples:
 
 O módulo de upload pega o que está pendente na fila offline e manda
-para a API pela internet. Como não existe uma API de verdade rodando
-durante os testes (o backend em cloud/ ainda nem está pronto), aqui a
-gente troca a "sessão HTTP" real por uma falsa, que devolve exatamente
-a resposta que queremos simular — sem precisar de internet, servidor,
-nem do backend pronto.
+para a API pela internet. Este teste não faz nenhuma chamada de rede
+real: em vez de subir a API de verdade (cloud/), a gente troca a
+"sessão HTTP" por uma falsa, que devolve exatamente a resposta que
+queremos simular, sem precisar de internet nem de servidor nenhum.
 
 Casos cobertos:
 1. Envio com sucesso (a API responde 2xx): o registro deve sumir da
    fila e o arquivo de imagem correspondente deve ser apagado.
 2. Falha de rede (a internet da estufa caiu no meio do envio): o
-   registro deve continuar na fila e a imagem NÃO pode ser apagada —
+   registro deve continuar na fila e a imagem NÃO pode ser apagada,
    senão a foto se perderia de vez, sem nunca ter sido entregue.
 3. A API responde com erro (ex.: 500, fora do ar): mesmo comportamento
-   do caso 2 — nada é apagado até vir uma confirmação de sucesso.
+   do caso 2, nada é apagado até vir uma confirmação de sucesso.
 4. Caso raro, mas real, incluído porque apareceu em revisão de código:
    a imagem já não existe mais em disco (ex.: uma tentativa anterior já
    tinha apagado o arquivo, mas a confirmação de sucesso não chegou a
    tempo de limpar o registro da fila). O sistema trata isso como "já
-   enviado" — em vez de travar a fila para sempre por causa de um
+   enviado", em vez de travar a fila para sempre por causa de um
    arquivo que não existe mais.
 5. Fila vazia: não deve tentar nenhuma chamada de rede.
 
@@ -35,7 +34,7 @@ from pathlib import Path
 import pytest
 
 # pytest.importorskip interrompe a COLETA do arquivo (não só os testes)
-# se fcntl não existir — necessário porque uploader.py importa
+# se fcntl não existir. Isso é necessário porque uploader.py importa
 # offline_queue.py, que importa fcntl direto no topo do arquivo, então
 # um simples skipif não evitaria o ModuleNotFoundError no Windows.
 pytest.importorskip(
@@ -100,7 +99,7 @@ def _preparar_fila_com_um_registro(tmp_path: Path):
 
 
 def _conectar_fila_de_teste(monkeypatch, caminho_fila: Path, sessao_falsa):
-    """drenar_fila_e_enviar() não recebe parâmetros — ele sempre usa a
+    """drenar_fila_e_enviar() não recebe parâmetros: ele sempre usa a
     fila configurada em edge/src/config.py. Para não mexer na fila real
     do dispositivo durante o teste, trocamos temporariamente as funções
     que ele chama por versões que apontam para a fila de teste."""
@@ -126,8 +125,8 @@ def test_envio_com_sucesso_remove_da_fila_e_apaga_imagem(monkeypatch, tmp_path):
     assert not (caminho_imagens / f"{id_registro}.jpg").exists()
     assert len(sessao_falsa.chamadas) == 1
     assert sessao_falsa.chamadas[0]["headers"]["Authorization"] is not None
-    # a API precisa desse campo pra detectar reenvios duplicados (ver
-    # cloud/app/api/routes/diagnostico.py) — sem ele, um reenvio depois de
+    # a API precisa desse campo para detectar reenvios duplicados (ver
+    # cloud/app/api/routes/diagnostico.py). Sem ele, um reenvio depois de
     # uma falha parcial criaria um registro repetido no banco.
     assert sessao_falsa.chamadas[0]["data"]["idempotency_key"] == id_registro
 

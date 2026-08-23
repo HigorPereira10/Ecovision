@@ -1,13 +1,15 @@
 """adiciona severidade em alertas
 
 Permite diferenciar risco urgente ("alta") de informativo ("media") na
-lista de alertas do dashboard — ver docs/decisions/0005-limiares-ambientais.md
+lista de alertas do dashboard. Ver docs/decisions/0005-limiares-ambientais.md
 e docs/decisions/0006-recomendacoes-por-diagnostico.md para a origem de
 cada valor.
 
-Seguro adicionar como NOT NULL diretamente — a tabela alertas está
-vazia neste momento do projeto (confirmado antes de aplicar esta
-migration no Supabase real).
+CUIDADO se for reaproveitar este padrão em outra migration: aqui foi
+seguro adicionar a coluna já como NOT NULL diretamente porque a tabela
+alertas estava vazia neste momento do projeto (confirmado antes de
+aplicar esta migration no Supabase real). Com dados existentes, isso
+quebraria a migration.
 
 Revision ID: 0003
 Revises: 0002

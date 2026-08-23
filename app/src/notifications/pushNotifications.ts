@@ -14,8 +14,8 @@
  *
  * Responsabilidades quando implementado:
  * - Registrar o dispositivo para push notifications e obter o token.
- * - Enviar o token para a API (endpoint ainda não definido no Blueprint
- *   — TODO de grupo) para associar ao produtor autenticado.
+ * - Enviar o token para a API (endpoint ainda não definido no Blueprint,
+ *   TODO de grupo) para associar ao produtor autenticado.
  * - Tratar o recebimento de notificações (ex.: novo alerta gerado por
  *   um diagnóstico) e navegar para AlertasScreen.
  *

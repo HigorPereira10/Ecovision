@@ -5,7 +5,7 @@ Orquestrador principal do ciclo de captura, executado periodicamente
 via cron (Blueprint v3.0, Fase 2: agendamento de captura a cada 2h).
 
 Fluxo:
-1. Ler sensores (sensors/dht22.py, sensors/soil_moisture.py) — com
+1. Ler sensores (sensors/dht22.py, sensors/soil_moisture.py), com
    tolerância a falha: um sensor ambiental instável não deve impedir a
    captura da foto, que é o dado mais valioso do ciclo (ver
    _ler_sensores()).
@@ -16,7 +16,7 @@ Fluxo:
 5. Enfileirar o pacote (imagem + leituras) na fila offline
    (queue/offline_queue.py).
 6. Tentar drenar a fila e enviar para a API (upload/uploader.py), de
-   forma best-effort — uma falha de rede aqui não deve derrubar o cron
+   forma best-effort. Uma falha de rede aqui não deve derrubar o cron
    de captura, já que a drenagem "de verdade" está garantida pelo cron
    separado de 15min (crontab.example).
 
@@ -33,8 +33,9 @@ from pathlib import Path
 
 if __name__ == "__main__":
     # Cron invoca este arquivo diretamente (`python edge/src/main.py`),
-    # então a raiz do repositório não entra em sys.path por padrão — precisa
-    # ser adicionada manualmente para os imports `edge.src.*` funcionarem.
+    # então a raiz do repositório não entra em sys.path por padrão. Ela
+    # precisa ser adicionada manualmente para os imports `edge.src.*`
+    # funcionarem.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from edge.src import capture, compress, config
@@ -49,23 +50,23 @@ logger = logging.getLogger("ecovision.edge")
 
 def _ler_sensores() -> dict:
     """Lê DHT22 e sensor de solo com tolerância a falha individual: se um
-    sensor falhar (ex.: DHT22 é propenso a falhas pontuais de leitura —
+    sensor falhar (ex.: o DHT22 é propenso a falhas pontuais de leitura,
     ver dht22.py), grava None nesse campo e segue o ciclo em vez de
-    abortar — a foto não deve ser perdida por causa de um sensor
+    abortar. A foto não deve ser perdida por causa de um sensor
     ambiental instável."""
     leituras: dict = {}
 
     try:
         leituras.update(dht22.ler_dht22(config.DHT22_PIN))
     except Exception:
-        logger.warning("Falha ao ler o DHT22 — seguindo sem essa leitura.", exc_info=True)
+        logger.warning("Falha ao ler o DHT22, seguindo sem essa leitura.", exc_info=True)
         leituras["temperatura_c"] = None
         leituras["umidade_ar_pct"] = None
 
     try:
         leituras["umidade_solo_pct"] = soil_moisture.ler_umidade_solo()
     except Exception:
-        logger.warning("Falha ao ler o sensor de solo — seguindo sem essa leitura.", exc_info=True)
+        logger.warning("Falha ao ler o sensor de solo, seguindo sem essa leitura.", exc_info=True)
         leituras["umidade_solo_pct"] = None
 
     return leituras

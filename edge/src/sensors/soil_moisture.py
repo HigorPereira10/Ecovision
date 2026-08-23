@@ -2,7 +2,7 @@
 edge/src/sensors/soil_moisture.py
 
 Leitura do sensor capacitivo de umidade do solo, via ADC ADS1115
-(I2C, 16-bit) — o Raspberry Pi não tem ADC nativo, por isso o ADS1115 é
+(I2C, 16-bit). O Raspberry Pi não tem ADC nativo, por isso o ADS1115 é
 obrigatório (Blueprint v3.0, Fase 1).
 
 Sensor capacitivo foi escolhido (não resistivo) por evitar corrosão por
@@ -10,7 +10,9 @@ eletrólise em uso contínuo no solo úmido.
 
 Calibração: SOIL_DRY_RAW / SOIL_WET_RAW (edge/src/config.py) são os
 valores brutos do ADC com o sensor seco e submerso, respectivamente.
-TODO: recalibrar com o sensor físico antes da coleta de campo.
+CUIDADO: os valores atuais são apenas placeholders de fabricante.
+Recalibrar com o sensor físico antes da coleta de campo, ou a
+porcentagem devolvida aqui não reflete a umidade real do solo.
 
 Relação com o resto do sistema:
 - Chamado por edge/src/main.py em cada ciclo de captura.
@@ -52,7 +54,7 @@ def ler_umidade_solo() -> float:
     faixa = config.SOIL_DRY_RAW - config.SOIL_WET_RAW
     if faixa == 0:
         raise RuntimeError(
-            "SOIL_DRY_RAW e SOIL_WET_RAW estão iguais — sensor não calibrado "
+            "SOIL_DRY_RAW e SOIL_WET_RAW estão iguais, sensor não calibrado "
             "(ver edge/src/config.py)."
         )
 

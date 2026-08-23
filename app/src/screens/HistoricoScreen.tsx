@@ -6,7 +6,7 @@
  * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
  *
  * Histórico de diagnósticos e leituras ambientais ao longo do tempo,
- * com gráficos (Victory Native — ver app/src/components/charts/).
+ * com gráficos (Victory Native, ver app/src/components/charts/).
  *
  * Relação com o resto do sistema:
  * - Consome cloud/app/api/routes/historico.py via app/src/services/api.ts.

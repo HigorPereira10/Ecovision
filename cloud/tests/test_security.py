@@ -6,8 +6,8 @@ O que este arquivo verifica, em português simples:
 A Raspberry Pi só pode falar com a API se mandar a "senha" certa (a API
 Key) no cabeçalho da requisição. Este teste confere as três situações
 possíveis: chave certa (deixa passar), chave errada (barra com 401) e
-chave ausente (também barra com 401) — sem isso, qualquer um na
-internet poderia mandar fotos falsas pro sistema.
+chave ausente (também barra com 401). Sem isso, qualquer um na
+internet poderia mandar fotos falsas para o sistema.
 """
 
 import pytest

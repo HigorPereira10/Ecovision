@@ -1,8 +1,8 @@
 """
 cloud/app/db/models.py
 
-Modelos ORM (SQLAlchemy) que espelham o schema do Supabase Postgres —
-ver infra/supabase/schema.sql para a versão em SQL puro (mesma fonte de
+Modelos ORM (SQLAlchemy) que espelham o schema do Supabase Postgres.
+Ver infra/supabase/schema.sql para a versão em SQL puro (mesma fonte de
 verdade, gerada a partir daqui).
 
 Escopo desta rodada (combinado com o grupo): só o caminho do
@@ -13,14 +13,15 @@ não exigir migration nova depois), mas ficam vazias/não usadas até o
 login do produtor (app/) ser implementado.
 
 Decisão de design: `registros_imagem.caminho_arquivo` guarda só o
-CAMINHO dentro do bucket (ex. "pi-teste/2026-08-22T10-00-00.jpg"), não
-a URL resolvida — a escolha entre signed URL e bucket público
-(infra/supabase/storage_policies.md, ainda em aberto) fica pro lado que
-LÊ a imagem depois, sem exigir nova migration quando essa decisão for
-tomada.
+CAMINHO dentro do bucket (ex.: "pi-teste/2026-08-22T10-00-00.jpg"), não
+a URL resolvida. A escolha entre signed URL e bucket público
+(infra/supabase/storage_policies.md, ainda em aberto) fica para o lado
+que LÊ a imagem depois, sem exigir uma nova migration quando essa
+decisão for tomada.
 
-IDs são inteiros autoincremento (não UUID) — portável entre o Postgres
-real do Supabase e o SQLite usado nos testes (cloud/tests/).
+IDs são inteiros autoincremento, não UUID. Isso é proposital: assim o
+mesmo modelo funciona tanto no Postgres real do Supabase quanto no
+SQLite usado nos testes (cloud/tests/).
 
 Relação com o resto do sistema:
 - Consumido por todos os endpoints em app/api/routes/*.py via
@@ -50,9 +51,9 @@ class RegistroImagem(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
     # UUID gerado pelo edge/src/queue/offline_queue.py no momento da
-    # captura — usado por app/api/routes/diagnostico.py para detectar
-    # reenvios (ex.: a API confirmou 200 mas o edge caiu antes de tirar
-    # da fila local) e não duplicar o registro.
+    # captura. Usado por app/api/routes/diagnostico.py para detectar
+    # reenvios (ex.: a API confirmou 200, mas o edge caiu antes de tirar
+    # o item da fila local) e não duplicar o registro.
     idempotency_key: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     caminho_arquivo: Mapped[str] = mapped_column(String, nullable=False)
     capturado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -68,9 +69,9 @@ class RegistroImagem(Base):
 
 class LeituraAmbiental(Base):
     """Temperatura/umidade do ar (DHT22) e umidade do solo (ADS1115),
-    associadas 1:1 a uma captura — o Pi manda os dois juntos no mesmo
-    ciclo. Campos nullable porque edge/src/main.py já tolera falha de
-    leitura de sensor sem abortar a captura da foto."""
+    associadas 1:1 a uma captura, já que o Pi manda os dois juntos no
+    mesmo ciclo. Campos nullable porque edge/src/main.py já tolera
+    falha de leitura de sensor sem abortar a captura da foto."""
 
     __tablename__ = "leituras_ambientais"
 
@@ -119,7 +120,7 @@ class Alerta(Base):
     )
     titulo: Mapped[str] = mapped_column(String, nullable=False)
     descricao: Mapped[str] = mapped_column(String, nullable=False)
-    # 'alta' | 'media' — ver app/core/inference.py e
+    # Valor 'alta' ou 'media'. Ver app/core/inference.py e
     # app/core/alertas_ambientais.py para a origem de cada valor.
     severidade: Mapped[str] = mapped_column(String, nullable=False)
     lido: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)

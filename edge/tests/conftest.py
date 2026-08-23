@@ -4,13 +4,14 @@ edge/tests/conftest.py
 Configuração compartilhada dos testes automatizados de edge/src/.
 
 edge/src/config.py exige algumas variáveis de ambiente (URL da API,
-chave do dispositivo) assim que é importado — no dispositivo real elas
+chave do dispositivo) assim que é importado. No dispositivo real elas
 vêm do arquivo edge/.env. Para os testes rodarem sem precisar desse
 arquivo nem de um Raspberry Pi de verdade, este conftest define valores
 de teste ANTES de qualquer teste ser coletado.
 
-Como rodar (dentro do WSL/Ubuntu — edge/src/queue/offline_queue.py usa
-fcntl, um recurso que só existe em Linux/Unix, não no Python do Windows):
+Como rodar (dentro do WSL/Ubuntu, já que edge/src/queue/offline_queue.py
+usa fcntl, um recurso que só existe em Linux/Unix, não no Python do
+Windows):
 
     cd Ecovision
     pip install -r edge/tests/requirements-test.txt

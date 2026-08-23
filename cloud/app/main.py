@@ -5,22 +5,24 @@ Ponto de entrada da API FastAPI, servida via Uvicorn com 1 worker
 (Tech Stack Blueprint v3.0, Fase 4 / Sumário Executivo).
 
 Nesta rodada só o router de diagnostico é registrado (caminho do
-dispositivo) — auth/dispositivos/alertas/historico ficam para quando
-app/ (dashboard) for implementado de verdade, ver cloud/README.md.
+dispositivo). Os routers de auth/dispositivos/alertas/historico ficam
+para quando app/ (dashboard) for implementado de verdade, ver
+cloud/README.md.
 
 Responsabilidades:
 - Instanciar a aplicação FastAPI.
 - Registrar o router de app/api/routes/diagnostico.py.
 - Carregar o modelo .tflite em memória UMA VEZ na inicialização
-  (lifespan), via app/core/inference.py — nunca recarregar por
-  requisição. Se o modelo não existir ainda, a API sobe do mesmo jeito
-  (ver app/core/inference.py, resultado placeholder).
+  (lifespan), via app/core/inference.py. NUNCA recarregar o modelo a
+  cada requisição, isso destruiria a performance. Se o modelo ainda não
+  existir, a API sobe do mesmo jeito (ver app/core/inference.py,
+  resultado placeholder).
 - Não abre nenhum arquivo em disco fora do carregamento do modelo
   (regra 2, Blueprint Seção 4.4).
-- Expor GET /health: endpoint leve (não autenticado, não abre o corpo
-  da imagem/lógica de negócio) para o UptimeRobot pingar periodicamente
-  e manter o Supabase (pausa após 7 dias sem uso) e o Railway ativos —
-  ver infra/monitoring/uptimerobot.md.
+- Expor GET /health: endpoint leve (não autenticado, não mexe com a
+  imagem nem com lógica de negócio) para o UptimeRobot pingar
+  periodicamente e manter o Supabase (que pausa após 7 dias sem uso) e
+  o Railway ativos. Ver infra/monitoring/uptimerobot.md.
 
 Relação com o resto do sistema:
 - É o processo que o Railway executa (ver infra/railway/).
@@ -58,14 +60,17 @@ app = FastAPI(title="EcoVision API", lifespan=lifespan)
 
 @app.get("/health")
 async def health(response: Response, sessao: AsyncSession = Depends(get_session)) -> dict:
-    """Endpoint leve para o UptimeRobot — sem autenticação, sem lógica
-    de negócio. Faz um SELECT trivial pra confirmar que a conexão com o
-    banco (Supabase) está de pé, não só que o processo FastAPI está no ar.
+    """Endpoint leve para o UptimeRobot: sem autenticação, sem lógica
+    de negócio. Faz um SELECT trivial para confirmar que a conexão com
+    o banco (Supabase) está de pé, não só que o processo FastAPI está
+    no ar.
 
-    BUG CORRIGIDO: a primeira versão devolvia sempre HTTP 200, mesmo com
-    o banco fora do ar — só o corpo JSON mudava. Um monitor externo (ex.:
-    UptimeRobot) que olha o status code, não o corpo, nunca detectaria a
-    falha. Agora devolve 503 quando o banco não responde."""
+    ATENÇÃO, BUG JÁ CORRIGIDO AQUI: a primeira versão devolvia sempre
+    HTTP 200, mesmo com o banco fora do ar (só o corpo JSON mudava). Um
+    monitor externo como o UptimeRobot olha o status code, não o corpo
+    da resposta, então nunca detectaria a falha daquele jeito. Por isso
+    o código abaixo devolve 503 quando o banco não responde: nunca
+    remover essa parte achando que é redundante."""
     try:
         await sessao.execute(text("SELECT 1"))
     except Exception:
@@ -76,7 +81,7 @@ async def health(response: Response, sessao: AsyncSession = Depends(get_session)
 
 
 app.include_router(diagnostico.router)
-# TODO: app.include_router(auth.router) — quando o login do dashboard existir
+# TODO: app.include_router(auth.router), quando o login do dashboard existir
 # TODO: app.include_router(dispositivos.router)
 # TODO: app.include_router(alertas.router)
 # TODO: app.include_router(historico.router)

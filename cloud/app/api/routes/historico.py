@@ -20,5 +20,5 @@ Relação com o resto do sistema:
 
 # router = APIRouter()
 
-# TODO: GET /historico/diagnosticos — lista diagnósticos de um dispositivo
-# TODO: GET /historico/leituras — série temporal de leituras ambientais
+# TODO: GET /historico/diagnosticos: lista diagnósticos de um dispositivo
+# TODO: GET /historico/leituras: série temporal de leituras ambientais

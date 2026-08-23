@@ -4,8 +4,8 @@ edge/src/upload/uploader.py
 Upload HTTP dos registros pendentes para a API, com retry/backoff
 (Blueprint v3.0, Fase 2).
 
-Contrato assumido do endpoint (cloud/ ainda não implementado — conferir
-os dois lados quando cloud/app/api/routes/diagnostico.py existir):
+Contrato assumido do endpoint (cloud/app/api/routes/diagnostico.py já
+existe: reconferir os dois lados sempre que um dos dois mudar):
   POST {API_BASE_URL}/diagnostico
   Header: Authorization: <DEVICE_API_KEY>
   multipart/form-data:
@@ -36,8 +36,9 @@ from pathlib import Path
 
 if __name__ == "__main__":
     # Cron invoca este arquivo diretamente (`python edge/src/upload/uploader.py`),
-    # então a raiz do repositório não entra em sys.path por padrão — precisa
-    # ser adicionada manualmente para os imports `edge.src.*` funcionarem.
+    # então a raiz do repositório não entra em sys.path por padrão. Ela
+    # precisa ser adicionada manualmente para os imports `edge.src.*`
+    # funcionarem.
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 import requests
@@ -47,11 +48,12 @@ from urllib3.util.retry import Retry
 from edge.src import config
 from edge.src.queue import offline_queue
 
-# BUG CORRIGIDO: este módulo não tinha nenhum log. Como roda sozinho via
-# cron a cada 15min (crontab.example), sem isso não havia como saber, sem
-# SSH na estufa, se os uploads estavam de fato acontecendo. basicConfig()
-# é seguro de chamar de novo aqui mesmo quando main.py já chamou (é
-# no-op se o root logger já tem handler configurado).
+# ATENÇÃO, BUG JÁ CORRIGIDO AQUI: este módulo não tinha nenhum log.
+# Como roda sozinho via cron a cada 15min (crontab.example), sem isso
+# não havia como saber, sem SSH na estufa, se os uploads estavam de
+# fato acontecendo. basicConfig() é seguro de chamar de novo aqui,
+# mesmo quando main.py já chamou (é no-op se o root logger já tem
+# handler configurado).
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("ecovision.edge.upload")
 
@@ -78,10 +80,10 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
         # Imagem já foi removida (ex.: envio anterior parcialmente
         # confirmado). Não há o que reenviar; trata como concluído para
         # não travar a fila indefinidamente. Logado como warning (não
-        # info) porque também pode indicar um bug/corrupção real — sem
-        # isso não havia nenhum rastro desse caso acontecer.
+        # info) porque também pode indicar um bug ou corrupção real:
+        # sem isso não havia nenhum rastro desse caso acontecer.
         logger.warning(
-            "Registro %s sem imagem em %s — tratando como já enviado.",
+            "Registro %s sem imagem em %s, tratando como já enviado.",
             registro.get("id"), caminho_imagem,
         )
         return True
@@ -95,13 +97,14 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
     dados = {
         "device_id": registro["device_id"],
         "timestamp": registro["timestamp"],
-        # BUG CORRIGIDO: a API não recebia nenhum identificador estável da
-        # captura, então não dava pra distinguir uma foto nova de um
-        # reenvio (ex.: a API confirma HTTP 200, mas o processo cai antes
-        # de tirar o registro da fila local — no próximo ciclo, o mesmo
-        # registro seria reenviado como se fosse novo). O `id` já é
-        # gerado localmente por offline_queue.enfileirar(); agora ele
-        # também viaja pra API, que usa pra ignorar reenvios duplicados
+        # ATENÇÃO, BUG JÁ CORRIGIDO AQUI: a API não recebia nenhum
+        # identificador estável da captura, então não dava para
+        # distinguir uma foto nova de um reenvio (ex.: a API confirma
+        # HTTP 200, mas o processo cai antes de tirar o registro da fila
+        # local; no próximo ciclo, o mesmo registro seria reenviado como
+        # se fosse novo). O `id` já é gerado localmente por
+        # offline_queue.enfileirar(); agora ele também viaja para a API,
+        # que usa isso para ignorar reenvios duplicados
         # (ver cloud/app/api/routes/diagnostico.py).
         "idempotency_key": registro["id"],
         **leituras,
@@ -124,7 +127,7 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
 
     if not resposta.ok:
         logger.warning(
-            "API recusou o registro %s: HTTP %d — %s",
+            "API recusou o registro %s: HTTP %d, %s",
             registro.get("id"), resposta.status_code, resposta.text[:200],
         )
     return resposta.ok

@@ -15,13 +15,18 @@ Regras não negociáveis (Blueprint Seção 4.4 e Pontos de Atenção):
 
 Estado real do projeto nesta rodada: o modelo ainda não existe (ml/ é
 esqueleto). Em vez de a API recusar subir, ela sobe normalmente e
-qualquer chamada de inferência devolve um resultado placeholder,
-logado como warning — em 3 situações, todas tratadas do mesmo jeito:
-(a) tflite_runtime não está instalado no ambiente, (b) o arquivo do
-modelo não existe no caminho configurado, (c) o arquivo existe mas
-falha ao carregar (corrompido/formato inválido). Isso deixa o resto do
-pipeline (storage + banco) testável e implantável antes do time de ML
-entregar o modelo de verdade.
+qualquer chamada de inferência devolve um resultado placeholder, com
+um aviso (warning) no log. Isso acontece em 3 situações, todas
+tratadas do mesmo jeito: (a) tflite_runtime não está instalado no
+ambiente, (b) o arquivo do modelo não existe no caminho configurado,
+(c) o arquivo existe mas falha ao carregar (corrompido ou em formato
+inválido). Isso deixa o resto do pipeline (storage + banco) testável e
+implantável antes do time de ML entregar o modelo de verdade.
+
+ATENÇÃO: nenhum desses 3 casos derruba a API. Se algo aqui for alterado
+no futuro, manter esse comportamento é importante: uma falha no modelo
+nunca pode impedir o resto do sistema (upload da imagem, gravação no
+banco) de funcionar.
 
 Relação com o resto do sistema:
 - Chamado por app/api/routes/diagnostico.py a cada requisição do Pi.
@@ -46,25 +51,30 @@ RESULTADO_INDISPONIVEL = {
     "severidade": None,
 }
 
-# Frase fixa em toda recomendação de doença/praga — o sistema dá
-# orientação agronômica GERAL (pesquisada, com fonte, ver ADR 0006),
-# nunca prescrição de produto/dose, que exige responsabilidade técnica
-# de um engenheiro agrônomo.
+# Frase fixa que entra no final de toda recomendação de doença/praga.
+# O sistema dá apenas orientação agronômica GERAL (pesquisada, com fonte,
+# ver ADR 0006), nunca prescrição de produto ou dosagem: isso exige
+# responsabilidade técnica de um engenheiro agrônomo.
 _SUFIXO_RECOMENDACAO = " Consulte um engenheiro agrônomo para definir produto e dosagem específicos."
 
 # Mapeamento índice -> (classe, recomendação, severidade). As 10 classes
 # são as do dataset PlantVillage (tomate) usado em ml/ ("Frankenstein
-# Cirúrgico", ver ml/README.md) — recomendações e severidade pesquisadas
-# e com fontes citadas em docs/decisions/0006-recomendacoes-por-diagnostico.md.
-# Severidade ("alta" | "media"): "alta" para doenças sem cura (só controle
-# de vetor/prevenção) ou com potencial de perda total da lavoura segundo
-# a fonte citada; "media" para as demais, com tratamento/controle
-# disponível e progressão mais lenta.
+# Cirúrgico", ver ml/README.md). As recomendações e a severidade de cada
+# classe foram pesquisadas com fontes citadas em
+# docs/decisions/0006-recomendacoes-por-diagnostico.md.
 #
-# ATENÇÃO: a ORDEM aqui precisa bater exatamente com o índice de saída
-# do modelo .tflite real quando ml/ entregar o treino — se a ordem das
-# classes do treino for diferente desta lista, a recomendação sai
-# associada à classe errada. Conferir/ajustar nesse momento.
+# Severidade ("alta" | "media"): "alta" é para doenças sem cura (só dá
+# pra controlar o vetor ou prevenir) ou com risco de perda total da
+# lavoura segundo a fonte citada. "media" é para as demais, que têm
+# tratamento ou controle disponível e progressão mais lenta.
+#
+# CUIDADO, MUITO IMPORTANTE: a ORDEM desta lista precisa ser IGUAL ao
+# índice de saída do modelo .tflite real quando ml/ entregar o treino.
+# Se a ordem das classes usada no treino for diferente desta lista, o
+# sistema vai mostrar a recomendação errada para o agricultor (ex.:
+# recomendar tratamento de mofo de folha quando na verdade é
+# septoriose). Conferir e ajustar essa lista assim que o modelo real
+# chegar, antes de colocar em produção.
 _CLASSES_PLACEHOLDER: list[tuple[str, str | None, str | None]] = [
     ("saudavel", None, None),
     (
@@ -125,7 +135,7 @@ _CLASSES_PLACEHOLDER: list[tuple[str, str | None, str | None]] = [
     ),
     (
         "vira_cabeca",
-        "Causada por vírus transmitido pela mosca-branca — não há cura. O "
+        "Causada por vírus transmitido pela mosca-branca, sem cura. O "
         "foco é no controle do vetor: mudas em ambiente protegido, eliminar "
         "plantas daninhas hospedeiras, controlar a mosca-branca e remover "
         "plantas infectadas e restos de cultura."
@@ -135,7 +145,7 @@ _CLASSES_PLACEHOLDER: list[tuple[str, str | None, str | None]] = [
     (
         "mosaico",
         "Vírus transmitido por semente e por contato mecânico (mãos, "
-        "ferramentas) — não há cura. Priorize cultivares resistentes, use "
+        "ferramentas), sem cura. Priorize cultivares resistentes, use "
         "sementes certificadas e higienize mãos/ferramentas entre plantas."
         + _SUFIXO_RECOMENDACAO,
         "alta",  # virus sem cura
@@ -145,21 +155,23 @@ _CLASSES_PLACEHOLDER: list[tuple[str, str | None, str | None]] = [
 
 def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
     """Carrega o interpretador TFLite uma única vez, no startup da API.
-    Retorna None (em vez de levantar exceção) se o runtime não estiver
-    instalado ou o modelo não puder ser carregado — a API continua
-    funcionando com resultado placeholder nesse caso."""
+
+    IMPORTANTE: nunca levanta exceção. Se o runtime não estiver
+    instalado ou o modelo não puder ser carregado, retorna None e a API
+    continua funcionando normalmente, só que com resultado placeholder.
+    """
     try:
         from tflite_runtime.interpreter import Interpreter
     except ImportError:
         logger.warning(
-            "tflite_runtime não instalado — inferência vai devolver resultado "
+            "tflite_runtime não instalado: a inferência vai devolver resultado "
             "placeholder até o ambiente ter o pacote e um modelo de verdade."
         )
         return None
 
     if not Path(caminho_modelo).is_file():
         logger.warning(
-            "Modelo .tflite não encontrado em %s — inferência vai devolver "
+            "Modelo .tflite não encontrado em %s: a inferência vai devolver "
             "resultado placeholder até o time de ML entregar o modelo.",
             caminho_modelo,
         )
@@ -171,7 +183,7 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
         return interpretador
     except Exception:
         logger.warning(
-            "Falha ao carregar o modelo .tflite em %s — inferência vai devolver "
+            "Falha ao carregar o modelo .tflite em %s: a inferência vai devolver "
             "resultado placeholder.",
             caminho_modelo,
             exc_info=True,
@@ -180,14 +192,15 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
 
 
 def preprocessar_imagem(bytes_imagem: bytes) -> np.ndarray:
-    """Resize 224x224 + normalização [0,1], 100% em memória (BytesIO
-    implícito no Pillow — nenhuma escrita em disco)."""
+    """Redimensiona a imagem para 224x224 e normaliza os valores de cor
+    para o intervalo [0, 1]. Tudo em memória, sem gravar nada em disco
+    (o Pillow já resolve isso internamente ao ler do BytesIO)."""
     import io
 
     imagem = Image.open(io.BytesIO(bytes_imagem)).convert("RGB")
     imagem = imagem.resize(TAMANHO_ENTRADA)
     array = np.asarray(imagem, dtype=np.float32) / 255.0
-    return np.expand_dims(array, axis=0)  # batch de 1
+    return np.expand_dims(array, axis=0)  # adiciona a dimensão de "lote" (batch) de 1 imagem
 
 
 def rodar_inferencia(interpretador: Any | None, imagem_preprocessada: np.ndarray) -> dict:

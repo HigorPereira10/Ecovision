@@ -2,12 +2,12 @@
 cloud/alembic/env.py
 
 Gerado por `alembic init`, adaptado para:
-- Usar a MetaData real dos modelos (app/db/models.py) — habilita
+- Usar a MetaData real dos modelos (app/db/models.py), o que habilita
   `alembic revision --autogenerate` a partir daqui em diante.
 - Ler a URL do banco de app/config.py (settings.DATABASE_URL) em vez de
   alembic.ini, para não duplicar/desalinhar configuração.
 - Rodar as migrations com um engine assíncrono (asyncpg), já que o
-  projeto inteiro usa SQLAlchemy async (app/db/session.py) — ver
+  projeto inteiro usa SQLAlchemy async (app/db/session.py). Ver
   https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic.
 """
 

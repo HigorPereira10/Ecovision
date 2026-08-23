@@ -4,7 +4,7 @@ cloud/tests/test_inference.py
 O que este arquivo verifica, em português simples:
 
 O modelo de IA (.tflite) que de fato reconhece doenças na folha ainda
-não existe — quem treina isso é a camada ml/, que também está no
+não existe: quem treina isso é a camada ml/, que também está no
 início. Em vez de a API travar ou recusar subir por causa disso, ela
 deve continuar funcionando e devolver um resultado "placeholder"
 (faz-de-conta), avisando no log, para todo o resto do sistema (upload

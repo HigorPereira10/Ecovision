@@ -7,7 +7,7 @@ carregadas no Railway a partir das variáveis definidas no serviço
 ver infra/env/cloud.env.example para o template das chaves esperadas).
 
 Os campos JWT_* já existem aqui (com default) mesmo sem uso nesta
-rodada — o login do dashboard fica para quando app/ for implementado
+rodada. O login do dashboard fica para quando app/ for implementado
 de verdade, mas assim o .env.example não precisa mudar de novo depois.
 
 Relação com o resto do sistema:
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # --- Autenticação do dispositivo IoT (API Key estática) ---
     DEVICE_API_KEY: str
 
-    # --- Autenticação do dashboard (JWT) — não usada nesta rodada ---
+    # --- Autenticação do dashboard (JWT): não usada nesta rodada ---
     JWT_SECRET_KEY: str = "nao-usado-nesta-rodada"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440

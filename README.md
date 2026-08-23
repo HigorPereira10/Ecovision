@@ -113,6 +113,7 @@ Para garantir a estabilidade do sistema e evitar conflitos no código principal,
 ## ⚠️ Decisões e riscos em aberto (checar antes da Sprint 1)
 
 - **Framework de frontend** (Expo × PWA × Streamlit): [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
-- **Schema fino do banco de dados** (colunas das tabelas `registros_imagem`, `leituras_ambientais`, `diagnosticos`, `alertas`, usuários, dispositivos): ver `infra/supabase/schema.sql` e `cloud/app/db/models.py`.
+- **Signed URL × bucket público** para a leitura das imagens no dashboard: [`infra/supabase/storage_policies.md`](infra/supabase/storage_policies.md), bloqueada até o `app/` existir de verdade.
+- **API Key única e global do dispositivo** (`cloud/app/core/security.py`): aceitável com 1 Raspberry Pi físico ([ADR 0003](docs/decisions/0003-autenticacao-dual.md)), precisa virar uma chave por dispositivo antes de qualquer implantação com mais de um Pi.
 - **Calendário de sincronização** entre a ativação do trial do Railway, a coleta de campo (Sprint 9) e a data da banca: [`infra/calendar/sincronizacao.md`](infra/calendar/sincronizacao.md), ainda com datas "A DEFINIR".
 - **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver Fase 1 do Blueprint.

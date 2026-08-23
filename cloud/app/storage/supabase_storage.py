@@ -8,10 +8,10 @@ Convenção de nomenclatura definida no Blueprint: bucket "ecovision-imagens",
 caminho por dispositivo e timestamp: {device_id}/{timestamp}.jpg.
 
 Decisão de design: salvar_imagem() retorna o CAMINHO dentro do bucket,
-não uma URL resolvida — a escolha entre signed URL e bucket público
-(infra/supabase/storage_policies.md, ainda em aberto) fica pro código
-que LÊ a imagem depois (dashboard), sem acoplar essa decisão a este
-módulo nem exigir mudança de schema quando ela for tomada.
+não uma URL resolvida. A escolha entre signed URL e bucket público
+(infra/supabase/storage_policies.md, ainda em aberto) fica para o
+código que LÊ a imagem depois (dashboard), sem acoplar essa decisão a
+este módulo nem exigir mudança de schema quando ela for tomada.
 
 Relação com o resto do sistema:
 - Chamado por app/api/routes/diagnostico.py logo após a inferência,

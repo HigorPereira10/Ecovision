@@ -3,39 +3,41 @@ cloud/tests/test_diagnostico.py
 
 O que este arquivo verifica, em português simples:
 
-Este é o teste "de ponta a ponta" do endpoint POST /diagnostico —
-simula exatamente o que a Raspberry Pi manda (edge/src/upload/uploader.py):
+Este é o teste "de ponta a ponta" do endpoint POST /diagnostico.
+Simula exatamente o que a Raspberry Pi manda (edge/src/upload/uploader.py):
 uma imagem + device_id + timestamp + leituras de sensores, autenticado
 por API Key. Sem precisar de Supabase real nem de rede, confere:
 
-1. Sem a API Key certa (ausente ou errada), a API recusa com 401 — não
-   dá pra mandar fotos falsas se não souber a chave.
+1. Sem a API Key certa (ausente ou errada), a API recusa com 401: não
+   dá para mandar fotos falsas se não souber a chave.
 2. Com a API Key certa, a requisição funciona de ponta a ponta: a
-   imagem "sobe" para o storage (aqui, simulado — não existe Supabase
-   de verdade rodando no teste), e as 3 tabelas relacionadas
+   imagem "sobe" para o storage (aqui, simulado, já que não existe
+   Supabase de verdade rodando no teste), e as 3 tabelas relacionadas
    (registros_imagem, leituras_ambientais, diagnosticos) são gravadas
    corretamente no banco.
 3. Quando um sensor falhou na Pi (edge/src/main.py grava `None` nesse
    caso, que pode chegar aqui como campo ausente ou como a string
-   "None"), a API não trava — grava a leitura como nula no banco, em
+   "None"), a API não trava: grava a leitura como nula no banco, em
    vez de dar erro.
 4. Sem um modelo de IA real disponível (situação atual do projeto), o
    diagnóstico gravado é o placeholder "indisponivel", não um erro.
-5. Reenvio da MESMA captura (mesmo idempotency_key) — situação real:
-   a API confirma 200 mas o Pi cai antes de tirar o registro da fila
-   local, e no próximo ciclo ele reenvia a mesma foto. A API detecta e
-   devolve o diagnóstico já existente, sem duplicar a linha no banco.
-6. Imagem corrompida/inválida — a API recusa com 400 (erro claro), em
-   vez de travar com um 500 cru.
+5. Reenvio da MESMA captura (mesmo idempotency_key), uma situação
+   real: a API confirma 200 mas o Pi cai antes de tirar o registro da
+   fila local, e no próximo ciclo ele reenvia a mesma foto. A API
+   detecta e devolve o diagnóstico já existente, sem duplicar a linha
+   no banco.
+6. Imagem corrompida ou inválida: a API recusa com 400 (erro claro),
+   em vez de travar com um 500 cru.
 7. Diagnóstico que não é "saudavel" nem o placeholder "indisponivel"
    gera um alerta automático; o placeholder ("indisponivel", situação
    atual sem modelo de IA) não gera, porque avisar o produtor de uma
    classe que ainda não significa nada seria pior que não avisar.
-8. timestamp/leitura de sensor em formato inválido — recusado com 422
-   ANTES de subir a imagem pro storage (evita imagem órfã no bucket).
-9. Imagem maior que o limite (5MB) — recusada com 413, sem processar.
+8. timestamp ou leitura de sensor em formato inválido: recusado com
+   422 ANTES de subir a imagem para o storage (evita imagem órfã no
+   bucket).
+9. Imagem maior que o limite (5MB): recusada com 413, sem processar.
 10. Duas requisições com a MESMA idempotency_key "correndo" ao mesmo
-    tempo (checagem inicial não vê a outra ainda) — a segunda não
+    tempo (a checagem inicial ainda não vê a outra): a segunda não
     quebra com erro de chave duplicada, devolve o diagnóstico que já
     tinha sido criado pela primeira.
 """
@@ -56,13 +58,13 @@ from app.main import app
 
 
 async def _salvar_imagem_falso(device_id: str, timestamp: str, bytes_imagem: bytes) -> str:
-    """Substitui app.storage.supabase_storage.salvar_imagem nos testes —
+    """Substitui app.storage.supabase_storage.salvar_imagem nos testes:
     não existe Supabase real disponível, então nada de rede aqui."""
     return f"{device_id}/{timestamp}.jpg"
 
 
 def _imagem_falsa() -> bytes:
-    """Um JPEG minúsculo, mas de verdade — a etapa de pré-processamento
+    """Um JPEG minúsculo, mas de verdade: a etapa de pré-processamento
     (app/core/inference.py) precisa conseguir abrir a imagem."""
     buffer = BytesIO()
     Image.new("RGB", (10, 10), color=(80, 140, 60)).save(buffer, format="JPEG")
@@ -175,7 +177,7 @@ async def test_reenvio_com_mesma_idempotency_key_nao_duplica(monkeypatch):
         )
         segunda = client.post(
             "/diagnostico",
-            data=payload,  # mesma idempotency_key — simula o reenvio
+            data=payload,  # mesma idempotency_key: simula o reenvio
             files={"imagem": ("foto.jpg", BytesIO(_imagem_falsa()), "image/jpeg")},
             headers={"Authorization": "chave-de-teste-dispositivo"},
         )
@@ -291,7 +293,7 @@ async def test_leitura_fora_da_faixa_gera_alerta_ambiental(monkeypatch):
 async def test_doenca_e_risco_ambiental_juntos_correlaciona_no_texto(monkeypatch):
     """Quando doença e risco ambiental ocorrem no mesmo ciclo, a
     descricao do alerta de doenca deve citar isso (correlacao em texto,
-    ver ADR 0006 — nao e fusao de modelo, so uma mensagem mais util)."""
+    ver ADR 0006: nao e fusao de modelo, so uma mensagem mais util)."""
     monkeypatch.setattr(
         "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
     )
@@ -375,7 +377,7 @@ async def test_imagem_maior_que_limite_retorna_413(monkeypatch):
 async def test_corrida_de_idempotency_key_no_commit_nao_quebra(monkeypatch, tmp_path):
     """Simula a corrida: forca a checagem inicial a nao encontrar nada
     (como se as duas requisicoes tivessem chegado juntas), mas ja existe
-    de verdade uma linha com a mesma idempotency_key no banco — o commit
+    de verdade uma linha com a mesma idempotency_key no banco. O commit
     deve bater na constraint UNIQUE e o endpoint deve se recuperar,
     devolvendo o diagnostico ja existente em vez de um 500."""
     monkeypatch.setattr(
@@ -406,8 +408,8 @@ async def test_corrida_de_idempotency_key_no_commit_nao_quebra(monkeypatch, tmp_
         id_vencedor = diagnostico_vencedor.id
 
     # forca a checagem INICIAL da requisicao "perdedora" a nao ver a
-    # linha que acabou de ser commitada, simulando a janela de corrida —
-    # mas a segunda chamada (dentro do except IntegrityError, buscando
+    # linha que acabou de ser commitada, simulando a janela de corrida.
+    # Mas a segunda chamada (dentro do except IntegrityError, buscando
     # o vencedor de verdade) precisa continuar funcionando normalmente.
     busca_real = diagnostico_module._buscar_diagnostico_por_idempotency_key
     contador = {"chamadas": 0}

@@ -4,9 +4,9 @@ cloud/tests/test_alertas_ambientais.py
 O que este arquivo verifica, em português simples:
 
 As regras de "risco ambiental" (temperatura, umidade do ar e umidade do
-solo fora da faixa considerada segura para o tomateiro) — ver
-docs/decisions/0005-limiares-ambientais.md para de onde vieram esses
-números. Este teste confere que a função de avaliação:
+solo fora da faixa considerada segura para o tomateiro). Ver
+docs/decisions/0005-limiares-ambientais.md para saber de onde vieram
+esses números. Este teste confere que a função de avaliação:
 - não gera nada quando as leituras estão dentro da faixa ideal;
 - gera o alerta certo quando cada variável, isoladamente, sai da faixa;
 - consegue gerar mais de um alerta ao mesmo tempo (ex.: calor e solo

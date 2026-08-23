@@ -6,10 +6,10 @@ no ambiente de estufa (Blueprint v3.0, Fase 2).
 
 Decisão de implementação: cada linha da fila guarda só METADADOS (id,
 device_id, timestamp, leituras dos sensores e o caminho do arquivo de
-imagem) — a imagem comprimida é salva como arquivo separado em
+imagem). A imagem comprimida é salva como arquivo separado em
 edge/data/queue/images/{id}.jpg, não em base64 dentro do JSON, para não
-inflar ~33% o tamanho num SD card já limitado (Blueprint, BoM: microSD
-32GB compartilhado com o OS).
+inflar em ~33% o tamanho num SD card já limitado (Blueprint, BoM:
+microSD 32GB compartilhado com o OS).
 
 `fcntl.flock` protege o arquivo da fila contra corrupção se a captura
 (escreve) e a drenagem (lê/remove) rodarem ao mesmo tempo via cron.

@@ -7,16 +7,16 @@ via adafruit-circuitpython-dht (Blueprint v3.0, Fase 1 e 2).
 Precisão do sensor: ±0.5°C / ±2-5%RH. O BoM prevê 2 unidades (1 sobressalente).
 
 Biblioteca: usamos adafruit-circuitpython-dht (import adafruit_dht) em vez
-do antigo Adafruit_DHT — este último está descontinuado e tem histórico de
+do antigo Adafruit_DHT, que está descontinuado e tem histórico de
 falha de instalação em versões recentes do Raspberry Pi OS. A nova lib
 também deixa a integração consistente com o ADS1115 (mesma linha
 CircuitPython/Blinka, ver soil_moisture.py). Requer o pacote de sistema
 libgpiod2 (instalado em edge/scripts/install.sh).
 
-adafruit_dht levanta RuntimeError com frequência em leituras normais
-(erros de checksum/timing são esperados no protocolo 1-Wire do DHT22) —
-por isso o retry manual abaixo, em vez de tratar RuntimeError como falha
-definitiva na primeira tentativa.
+ATENÇÃO: adafruit_dht levanta RuntimeError com frequência em leituras
+normais (erros de checksum/timing são esperados no protocolo 1-Wire do
+DHT22). Por isso existe o retry manual abaixo, em vez de tratar
+RuntimeError como falha definitiva já na primeira tentativa.
 
 Relação com o resto do sistema:
 - Chamado por edge/src/main.py em cada ciclo de captura.
@@ -47,7 +47,7 @@ def _pino_board(pino: int):
 
 def ler_dht22(pino: int) -> dict:
     """Lê temperatura e umidade do ar. Levanta RuntimeError se falhar em
-    todas as tentativas (o DHT22 falha pontualmente com frequência —
+    todas as tentativas (o DHT22 falha pontualmente com frequência;
     isso é esperado, não indica sensor com defeito)."""
     dispositivo = adafruit_dht.DHT22(_pino_board(pino))
     try:
