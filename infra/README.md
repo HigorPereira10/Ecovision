@@ -62,3 +62,9 @@ e a nota em `infra/railway/README.md`.
   UptimeRobot — só dá pra fazer quando o serviço for de fato criado no
   painel do Railway (`infra/railway/README.md` já tem o start command
   e as variáveis prontas para colar).
+
+## Planejamento relacionado
+
+A explicação completa da estratégia Supabase × Railway (o que pode ser
+feito já vs. o que é deliberadamente adiado) está registrada em
+[`docs/planejamento/divisao-equipe-e-roadmap.md`](../docs/planejamento/divisao-equipe-e-roadmap.md#5-supabase--railway--por-que-a-estratégia-de-ativação-é-diferente).

@@ -1,9 +1,8 @@
 /**
  * app/src/services/api.ts
  *
- * ATENÇÃO: escrito sob a estrutura placeholder Expo/React Native, 
- * a decisão de framework de frontend AINDA ESTÁ PENDENTE. 
- * Ver app/README.md e docs/decisions/0002-frontend-framework-pendente.md.
+ * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Cliente HTTP central para consumir a API FastAPI (cloud/), sempre
  * autenticado via JWT do produtor. Regra do Blueprint (Seção 4.2, passo
