@@ -95,6 +95,15 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
     dados = {
         "device_id": registro["device_id"],
         "timestamp": registro["timestamp"],
+        # BUG CORRIGIDO: a API não recebia nenhum identificador estável da
+        # captura, então não dava pra distinguir uma foto nova de um
+        # reenvio (ex.: a API confirma HTTP 200, mas o processo cai antes
+        # de tirar o registro da fila local — no próximo ciclo, o mesmo
+        # registro seria reenviado como se fosse novo). O `id` já é
+        # gerado localmente por offline_queue.enfileirar(); agora ele
+        # também viaja pra API, que usa pra ignorar reenvios duplicados
+        # (ver cloud/app/api/routes/diagnostico.py).
+        "idempotency_key": registro["id"],
         **leituras,
     }
     headers = {"Authorization": config.DEVICE_API_KEY}

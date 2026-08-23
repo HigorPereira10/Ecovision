@@ -69,7 +69,7 @@ class _SessaoFalsaComSucesso:
         self.chamadas = []
 
     def post(self, url, data, files, headers, timeout):
-        self.chamadas.append({"url": url, "headers": headers})
+        self.chamadas.append({"url": url, "data": data, "headers": headers})
         return _RespostaFalsa(status_code=200, ok=True)
 
 
@@ -126,6 +126,10 @@ def test_envio_com_sucesso_remove_da_fila_e_apaga_imagem(monkeypatch, tmp_path):
     assert not (caminho_imagens / f"{id_registro}.jpg").exists()
     assert len(sessao_falsa.chamadas) == 1
     assert sessao_falsa.chamadas[0]["headers"]["Authorization"] is not None
+    # a API precisa desse campo pra detectar reenvios duplicados (ver
+    # cloud/app/api/routes/diagnostico.py) — sem ele, um reenvio depois de
+    # uma falha parcial criaria um registro repetido no banco.
+    assert sessao_falsa.chamadas[0]["data"]["idempotency_key"] == id_registro
 
 
 def test_falha_de_rede_mantem_registro_na_fila_e_preserva_imagem(monkeypatch, tmp_path):

@@ -88,6 +88,11 @@ cada teste e como rodar (WSL/Linux ou Windows).
 - **`edge/requirements.txt`**: `picamera2` não é instalado via pip aqui, 
   vem do `apt` em `install.sh` (`python3-picamera2`), porque depende
   de bindings do libcamera compilados para o sistema.
+- **`edge/src/upload/uploader.py`**: cada envio agora manda um
+  `idempotency_key` (o `id` já gerado por `offline_queue.enfileirar()`)
+  — sem isso, um reenvio após a API confirmar 200 mas o Pi cair antes de
+  tirar o registro da fila local criaria uma linha duplicada no banco
+  (ver `cloud/app/api/routes/diagnostico.py`).
 
 ## Pendências de grupo
 
