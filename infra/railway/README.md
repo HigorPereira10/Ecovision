@@ -11,13 +11,24 @@ segredos nem valores reais.
 - Nada de dado de negócio, nenhuma imagem, nenhum log em disco, tudo
   isso fica no Supabase (ver `infra/supabase/`) ou é enviado via `stdout`.
 
-## TODO de configuração (a fazer no painel do Railway)
+## Configuração (a fazer no painel do Railway)
 
-- Start command: TODO (ex.: `uvicorn app.main:app --workers 1 ...`,
-  definir junto com `cloud/app/main.py`).
-- Variáveis de ambiente: usar o template `infra/env/cloud.env.example`.
+- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`
+  (raiz do serviço apontando para `cloud/`; `$PORT` é injetado pelo
+  próprio Railway, não fixar um valor).
+- Root directory do serviço: `cloud/` (é onde ficam `app/`,
+  `requirements.txt` e `alembic/`).
+- Variáveis de ambiente: usar o template `infra/env/cloud.env.example`
+  (preencher com os valores reais do Supabase e a `DEVICE_API_KEY`
+  gerada — nunca commitar esses valores).
+- Migração do banco: rodar `alembic upgrade head` (de dentro de
+  `cloud/`) antes de subir uma versão nova, ou como um passo de deploy
+  automatizado — as migrations em `cloud/alembic/versions/` já cobrem
+  o schema atual (`registros_imagem`, `leituras_ambientais`,
+  `diagnosticos`, `alertas`, `usuarios`, `dispositivos`).
 - Deploy automático via GitHub Actions a cada push na `main`, ver
-  `.github/workflows/deploy-railway.yml`.
+  `.github/workflows/deploy-railway.yml` (ainda `workflow_dispatch`
+  manual de propósito — ativação adiada para perto da Sprint 9).
 
 ## Risco de timing (Blueprint Seção 4.5)
 

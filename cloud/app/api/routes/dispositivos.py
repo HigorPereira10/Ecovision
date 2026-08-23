@@ -17,6 +17,6 @@ Relação com o resto do sistema:
 
 # router = APIRouter()
 
-# TODO: GET /dispositivos — lista os dispositivos do produtor autenticado
-# TODO: POST /dispositivos — cadastra um novo dispositivo (Administrador)
-# TODO: GET /dispositivos/{id} — detalhe de um dispositivo
+# TODO: GET /dispositivos: lista os dispositivos do produtor autenticado
+# TODO: POST /dispositivos: cadastra um novo dispositivo (Administrador)
+# TODO: GET /dispositivos/{id}: detalhe de um dispositivo

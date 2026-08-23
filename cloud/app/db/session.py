@@ -1,25 +1,28 @@
 """
 cloud/app/db/session.py
 
-Configuração da conexão assíncrona com o Supabase Postgres, via
-SQLAlchemy async + asyncpg (Blueprint v3.0, Sumário Executivo).
-
-Responsabilidades quando implementado:
-- Criar o engine assíncrono a partir de settings.DATABASE_URL
-  (app/config.py).
-- Expor uma dependency `get_session()` para injeção nos endpoints
-  FastAPI (app/api/routes/*.py).
+Configuração da conexão assíncrona com o banco (Supabase Postgres em
+produção, via asyncpg; SQLite em memória nos testes, ver
+cloud/tests/conftest.py), via SQLAlchemy async.
 
 Relação com o resto do sistema:
-- Usado por todos os routers que leem/escrevem dados de negócio.
+- Usado por todos os routers que leem/escrevem dados de negócio, via a
+  dependency get_session().
 - As migrations correspondentes a este engine ficam em cloud/alembic/.
 """
 
-# from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-# from app.config import settings
+from collections.abc import AsyncGenerator
 
-# engine = create_async_engine(settings.DATABASE_URL)
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-# async def get_session() -> "AsyncSession":
-#     """Dependency FastAPI: fornece uma sessão async por requisição."""
-#     raise NotImplementedError
+from app.config import settings
+
+engine = create_async_engine(settings.DATABASE_URL)
+
+_SessionLocal = async_sessionmaker(bind=engine, expire_on_commit=False)
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency FastAPI: fornece uma sessão async por requisição."""
+    async with _SessionLocal() as sessao:
+        yield sessao

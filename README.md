@@ -6,6 +6,8 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 
 **Documento técnico de referência:** *Tech Stack - Ecovision (revisado)* (mantido na pasta compartilhada do grupo). Todas as decisões de arquitetura, hardware e software descritas neste repositório seguem esse documento; ele tem prioridade sobre qualquer divergência no TC1. Um índice de navegação rápida por seção está em [`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md).
 
+> ⚠️ O hardware de borda usado na prática é o **Raspberry Pi 3 Model B+ (Anatel)**, não o Pi Zero 2 W especificado no Blueprint — ver [ADR 0004](docs/decisions/0004-raspberry-pi-3b-plus.md).
+
 ---
 
 ## 📌 Links Úteis do Projeto
@@ -26,7 +28,7 @@ pastas deste monorepo.
 ┌──────────────┐      HTTPS POST /diagnostico       ┌──────────────────┐
 │  edge/       │  (imagem + leituras, API Key)      │  cloud/           │
 │  Raspberry   │ ──────────────────────────────────▶│  FastAPI          │
-│  Pi Zero 2 W │                                     │  no Railway       │
+│  Pi 3 B+     │                                     │  no Railway       │
 │              │                                     │  (TFLite Runtime  │
 │  captura,    │                                     │   em memória,     │
 │  compressão, │                                     │   sem gravação    │
@@ -76,7 +78,7 @@ correspondente do Blueprint:
 * [`app/`](app/README.md): Dashboard/app do produtor rural. Framework: **Expo (React Native), decisão confirmada**: ver [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
 * [`cloud/`](cloud/README.md): Backend FastAPI no Railway, integração com Supabase (Postgres + Storage), autenticação.
 * [`docs/`](docs/README.md): Documentação técnica (ADRs, atas) e escrita acadêmica do TCC.
-* [`edge/`](edge/README.md): Software do Raspberry Pi Zero 2 W: captura, sensores, fila offline.
+* [`edge/`](edge/README.md): Software do Raspberry Pi 3 Model B+: captura, sensores, fila offline.
 * [`infra/`](infra/README.md): Deploy (Railway), schema/políticas do Supabase, variáveis de ambiente, calendário de sincronização.
 * [`ml/`](ml/README.md): Pipeline de treino de IA (Google Colab), dataset "Frankenstein Cirúrgico", exportação `.tflite`.
 
@@ -123,6 +125,7 @@ Detalhes e cronograma passo a passo em
 
 ## ⚠️ Decisões e riscos em aberto (checar antes da Sprint 1)
 
-- **Schema fino do banco de dados** (colunas das tabelas `registros_imagem`, `leituras_ambientais`, `diagnosticos`, `alertas`, usuários, dispositivos): ver `infra/supabase/schema.sql` e `cloud/app/db/models.py`.
+- **Signed URL × bucket público** para a leitura das imagens no dashboard: [`infra/supabase/storage_policies.md`](infra/supabase/storage_policies.md), bloqueada até o `app/` existir de verdade.
+- **API Key única e global do dispositivo** (`cloud/app/core/security.py`): aceitável com 1 Raspberry Pi físico ([ADR 0003](docs/decisions/0003-autenticacao-dual.md)), precisa virar uma chave por dispositivo antes de qualquer implantação com mais de um Pi.
 - **Calendário de sincronização** entre a ativação do trial do Railway, a coleta de campo (Sprint 9) e a data da banca: [`infra/calendar/sincronizacao.md`](infra/calendar/sincronizacao.md), ainda com datas "A DEFINIR".
 - **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver [`docs/planejamento/lista-compras-hardware.md`](docs/planejamento/lista-compras-hardware.md).

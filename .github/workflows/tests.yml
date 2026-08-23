@@ -1,0 +1,41 @@
+name: Testes automatizados (edge + cloud)
+
+# Roda só quando edge/ ou cloud/ mudam — evita rodar (e mandar e-mail de
+# falha) em commits de documentação/outras camadas que não têm relação
+# com esses testes.
+on:
+  push:
+    paths:
+      - "edge/**"
+      - "cloud/**"
+      - ".github/workflows/tests.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "edge/**"
+      - "cloud/**"
+
+jobs:
+  edge-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # so as dependencias de teste — edge/requirements.txt tem pacotes
+      # especificos de Raspberry Pi (picamera2, RPi.GPIO) que nao
+      # instalam (nem sao necessarios) num runner comum do GitHub.
+      - run: pip install -r edge/tests/requirements-test.txt
+      - run: pytest edge/tests -v
+
+  cloud-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r cloud/requirements.txt -r cloud/tests/requirements-test.txt
+      - working-directory: cloud
+        run: pytest tests -v
