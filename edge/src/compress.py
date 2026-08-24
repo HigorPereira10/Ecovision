@@ -15,8 +15,16 @@ Relação com o resto do sistema:
   (edge/src/queue/offline_queue.py) e, depois, é enviada para a API.
 """
 
-# from PIL import Image
+import io
 
-# def comprimir_imagem(bytes_imagem_crua: bytes, quality: int = 70) -> bytes:
-#     """Comprime para JPEG, alvo de 150-250KB."""
-#     raise NotImplementedError
+from PIL import Image
+
+
+def comprimir_imagem(bytes_imagem_crua: bytes, quality: int = 70) -> bytes:
+    """Comprime para JPEG, alvo de 150-250KB."""
+    imagem = Image.open(io.BytesIO(bytes_imagem_crua))
+    imagem = imagem.convert("RGB")
+
+    buffer = io.BytesIO()
+    imagem.save(buffer, format="JPEG", quality=quality, optimize=True)
+    return buffer.getvalue()

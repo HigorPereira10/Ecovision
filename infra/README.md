@@ -55,8 +55,13 @@ e a nota em `infra/railway/README.md`.
 
 - Datas reais do calendário de sincronização (`infra/calendar/sincronizacao.md`)
   — dependem da data da banca, ainda não confirmada pela coordenação.
-- Schema fino das tabelas em `infra/supabase/schema.sql` (mesma pendência
-  de `cloud/app/db/models.py`).
+- Decisão signed URL vs. bucket público para leitura das imagens no
+  dashboard (`infra/supabase/storage_policies.md`) — bloqueada até o
+  `app/` do dashboard existir de verdade.
+- Ativação do trial do Railway e configuração do monitor no
+  UptimeRobot — só dá pra fazer quando o serviço for de fato criado no
+  painel do Railway (`infra/railway/README.md` já tem o start command
+  e as variáveis prontas para colar).
 
 ## Planejamento relacionado
 

@@ -20,7 +20,11 @@ diferencial acadêmico do trabalho (validação com dados reais do Pi).
 
 ## Consequências
 
-- Requer cabo FFC específico para o conector CSI de 22 pinos do Pi Zero
-  (a Camera V3 vem com cabo para Pi 4, adaptador necessário).
+- ~~Requer cabo FFC específico para o conector CSI de 22 pinos do Pi
+  Zero (a Camera V3 vem com cabo para Pi 4, adaptador necessário).~~
+  **Atualizado (ver [ADR 0004](0004-raspberry-pi-3b-plus.md)):** o
+  hardware de borda passou a ser o Raspberry Pi 3 Model B+, que usa o
+  conector CSI padrão de 15 pinos (mesmo do Pi 4) — o cabo que já
+  acompanha a Camera Module 3 serve diretamente, sem adaptador.
 - **Ação pendente:** revisar o texto do TC1 (Tabela 2 e Seção 5.3.1) para
   remover toda menção à V2/8MP.

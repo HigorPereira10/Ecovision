@@ -1,9 +1,10 @@
 # edge/requirements.txt
 #
-# Dependências do software de borda (Raspberry Pi Zero 2 W), conforme
-# Tech Stack Blueprint v3.0, Fase 2.
+# Dependências do software de borda (Raspberry Pi 3 Model B+, Anatel —
+# ver docs/decisions/0004-raspberry-pi-3b-plus.md), conforme Tech Stack
+# Blueprint v3.0, Fase 2.
 #
-# Ainda sem versões fixadas, fixar ao configurar o Pi. 
+# Ainda sem versões fixadas, fixar ao configurar o Pi.
 # Algumas dessas libs (picamera2, RPi.GPIO) só instalam/funcionam
 # de fato em hardware Raspberry Pi.
 
@@ -11,18 +12,26 @@
 # Raspberry Pi OS Lite (64-bit): necessário para Picamera2 e libs modernas.
 
 # --- Câmera ---
-# picamera2                 # biblioteca oficial, autofoco programático (AfMode.AUTO)
+# picamera2 — NÃO instalar via pip aqui. É instalado via apt em
+# edge/scripts/install.sh (python3-picamera2), porque depende de bindings
+# do libcamera compilados para o sistema; pip puro é frágil/não suportado
+# para esse pacote. O venv usa --system-site-packages para enxergá-lo.
 
 # --- Compressão de imagem ---
-# pillow
+pillow
 # (garantir libjpeg-turbo instalado no SO, não é um pacote pip)
 
 # --- GPIO / Sensores ---
-# RPi.GPIO                  # controle do MOSFET do Ring LED
-# Adafruit_DHT               # sensor DHT22 (temperatura/umidade do ar)
-# Adafruit-Blinka
-# adafruit-circuitpython-ads1x15   # ADC ADS1115 (sensor de umidade do solo)
+RPi.GPIO
+Adafruit-Blinka
+adafruit-circuitpython-ads1x15
+adafruit-circuitpython-dht   # DHT22 — substitui o legado Adafruit_DHT (descontinuado,
+                              # instalação frágil em Raspberry Pi OS atual). Requer
+                              # libgpiod2 no sistema (instalado em install.sh).
 
 # --- Rede, fila e agendamento ---
-# requests                  # upload HTTP com retry/backoff
+requests
 # (fcntl, cron, pathlib são stdlib/SO, não entram no requirements.txt)
+
+# --- Configuração ---
+python-dotenv  # carrega edge/.env (cron não faz isso sozinho)

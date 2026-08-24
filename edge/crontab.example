@@ -4,10 +4,13 @@
 # - Captura de imagem + leituras: a cada 2 horas.
 # - Drenagem da fila offline / upload: a cada 15 minutos.
 #
-# Este arquivo é um exemplo/documentação, instalar de fato via
-# `crontab -e` no Pi (automatizado futuramente por edge/scripts/install.sh).
-# Caminhos e ambiente virtual (venv) devem ser ajustados para o setup real.
+# Instalado automaticamente por edge/scripts/install.sh, que substitui os
+# placeholders /caminho/... pelos caminhos reais do venv e do repositório
+# antes de instalar via `crontab`. Para instalar manualmente, rodar
+# `crontab -e` e colar as duas linhas abaixo já com os caminhos ajustados.
+#
+# Logs vão para edge/data/logs/ (dentro do repo, dono é o próprio usuário
+# que roda o cron) em vez de /var/log/, que normalmente exige root.
 
-# TODO (esqueleto, ajustar caminhos reais ao implementar):
-# 0 */2 * * *  /caminho/venv/bin/python /caminho/edge/src/main.py        >> /var/log/ecovision-captura.log 2>&1
-# */15 * * * * /caminho/venv/bin/python /caminho/edge/src/upload/uploader.py >> /var/log/ecovision-upload.log 2>&1
+0 */2 * * *  /caminho/venv/bin/python /caminho/edge/src/main.py            >> /caminho/edge/data/logs/captura.log 2>&1
+*/15 * * * * /caminho/venv/bin/python /caminho/edge/src/upload/uploader.py >> /caminho/edge/data/logs/upload.log 2>&1
