@@ -12,6 +12,7 @@
  */
 
 import React, { useEffect, useState } from "react";
+import { Pressable, Text } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
@@ -21,14 +22,27 @@ import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
 import FinanceiroScreen from "../screens/FinanceiroScreen";
-import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges } from "../services/auth";
+import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges, logout } from "../services/auth";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
+function BotaoLogout() {
+  return (
+    <Pressable onPress={() => logout()} style={{ marginRight: 16 }}>
+      <Text style={{ color: "#E53935", fontWeight: "bold" }}>Sair</Text>
+    </Pressable>
+  );
+}
+
 function AppTabs() {
   return (
-    <Tab.Navigator screenOptions={{ headerShown: true }}>
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: true,
+        headerRight: () => <BotaoLogout />,
+      }}
+    >
       <Tab.Screen name="Alertas" component={AlertasScreen} />
       <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} />
       <Tab.Screen name="Historico" component={HistoricoScreen} />
