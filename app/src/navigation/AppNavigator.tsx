@@ -2,13 +2,16 @@
  * app/src/navigation/AppNavigator.tsx
  *
  * Framework: Expo (React Native) — decisão confirmada pelo grupo.
- * Navegação do app (React Navigation): Login -> (Alertas | Diagnóstico |
- * Histórico | Financeiro), com guarda de rota baseada na presença de
- * um JWT válido (app/src/services/auth.ts).
+ * Navegação do app (React Navigation): Welcome -> Login -> (Alertas |
+ * Diagnóstico | Histórico | Financeiro), com guarda de rota baseada na
+ * presença de um JWT válido (app/src/services/auth.ts).
  *
  * VERSÃO MOCK: isAuthenticated() checa o SecureStore local (sem API real).
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
  * automaticamente a login()/logout(), trocando de tela sem reload.
+ *
+ * Alteração desta versão: adicionada WelcomeScreen como rota inicial do
+ * stack de não-autenticado (tela de apresentação antes do login).
  */
 
 import React, { useEffect, useState } from "react";
@@ -17,6 +20,7 @@ import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
+import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
@@ -77,7 +81,10 @@ export default function AppNavigator() {
         {isAuthenticated ? (
           <Stack.Screen name="AppTabs" component={AppTabs} />
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>
