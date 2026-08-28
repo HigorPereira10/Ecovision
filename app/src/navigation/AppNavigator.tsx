@@ -2,16 +2,18 @@
  * app/src/navigation/AppNavigator.tsx
  *
  * Framework: Expo (React Native) — decisão confirmada pelo grupo.
- * Navegação do app (React Navigation): Welcome -> Login -> (Alertas |
- * Diagnóstico | Histórico | Financeiro), com guarda de rota baseada na
- * presença de um JWT válido (app/src/services/auth.ts).
+ * Navegação do app (React Navigation): Welcome -> Login -> (Dashboard |
+ * Alertas | Diagnóstico | Histórico | Financeiro), com guarda de rota
+ * baseada na presença de um JWT válido (app/src/services/auth.ts).
  *
  * VERSÃO MOCK: isAuthenticated() checa o SecureStore local (sem API real).
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
  * automaticamente a login()/logout(), trocando de tela sem reload.
  *
- * Alteração desta versão: adicionada WelcomeScreen como rota inicial do
- * stack de não-autenticado (tela de apresentação antes do login).
+ * Alteração desta versão: aba "Diagnostico" passa a usar headerShown:
+ * false, igual a Dashboard, porque a tela agora tem seu próprio header
+ * customizado (logo + título). Sem isso, apareceriam dois headers
+ * sobrepostos (o nativo do Tab.Navigator + o da tela).
  */
 
 import React, { useEffect, useState } from "react";
@@ -22,6 +24,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 
 import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
+import DashboardScreen from "../screens/DashboardScreen";
 import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
@@ -48,9 +51,14 @@ function AppTabs() {
       }}
     >
       <Tab.Screen name="Alertas" component={AlertasScreen} />
-      <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} />
+      <Tab.Screen
+        name="Diagnostico"
+        component={DiagnosticoScreen}
+        options={{ headerShown: false, title: 'Diagnóstico' }}
+      />
       <Tab.Screen name="Historico" component={HistoricoScreen} />
       <Tab.Screen name="Financeiro" component={FinanceiroScreen} />
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false, title: 'Início' }} />
     </Tab.Navigator>
   );
 }
@@ -59,10 +67,8 @@ export default function AppNavigator() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // checagem inicial (ex: usuário já tinha logado antes e fechou o app)
     checkIsAuthenticated().then(setIsAuthenticated);
 
-    // escuta mudanças disparadas por login()/logout() em qualquer tela
     const unsubscribe = subscribeAuthChanges((autenticado) => {
       setIsAuthenticated(autenticado);
     });
@@ -70,7 +76,6 @@ export default function AppNavigator() {
     return unsubscribe;
   }, []);
 
-  // ainda não sabemos se está logado -> não renderiza nada por enquanto
   if (isAuthenticated === null) {
     return null;
   }
