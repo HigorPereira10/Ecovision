@@ -25,3 +25,7 @@ edge/data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Machine Learning / Datasets locais (Ignorar imagens e arquivos pesados)
+ml/data/
+*.zip
