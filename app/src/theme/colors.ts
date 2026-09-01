@@ -23,5 +23,8 @@ export const colors = {
   textOnDark: "#D9E6C9",
 
   // Estados
-  danger: "#C0392B",
+  danger: "#C0392B", // também usado como cor de severidade "Crítico"
+  cuidado: "#D9A227", // severidade "Cuidado" (âmbar/mostarda)
+  informativo: "#8C9086", // severidade "Informativo" (cinza neutro)
+  novoBadgeBg: "rgba(255,255,255,0.25)", // fundo do selo "novo" sobre as faixas coloridas
 };

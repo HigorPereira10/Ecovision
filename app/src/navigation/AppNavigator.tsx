@@ -50,7 +50,7 @@ function AppTabs() {
         headerRight: () => <BotaoLogout />,
       }}
     >
-      <Tab.Screen name="Alertas" component={AlertasScreen} />
+      <Tab.Screen name="Alertas" component={AlertasScreen} options={{ headerShown: false }} />
       <Tab.Screen
         name="Diagnostico"
         component={DiagnosticoScreen}
