@@ -24,7 +24,7 @@ const REFRESH_TOKEN_KEY = "ecovision_refresh_token";
 
 // Credencial mockada — usar para testar o login enquanto a API não existe.
 const USUARIO_MOCK = {
-  email: "joao.pereira@exemplo.com",
+  email: "teste@exemplo.com",
   senha: "tomate123",
 };
 

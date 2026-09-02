@@ -10,10 +10,10 @@
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
  * automaticamente a login()/logout(), trocando de tela sem reload.
  *
- * Alteração desta versão: aba "Diagnostico" passa a usar headerShown:
- * false, igual a Dashboard, porque a tela agora tem seu próprio header
- * customizado (logo + título). Sem isso, apareceriam dois headers
- * sobrepostos (o nativo do Tab.Navigator + o da tela).
+ * Alteração desta versão: aba "Historico" passa a usar headerShown:
+ * false, igual a Dashboard e Diagnostico, porque a tela agora tem seu
+ * próprio header customizado (logo + título). Sem isso, apareciam dois
+ * headers sobrepostos (o nativo do Tab.Navigator + o da tela).
  */
 
 import React, { useEffect, useState } from "react";
@@ -56,7 +56,11 @@ function AppTabs() {
         component={DiagnosticoScreen}
         options={{ headerShown: false, title: 'Diagnóstico' }}
       />
-      <Tab.Screen name="Historico" component={HistoricoScreen} />
+      <Tab.Screen
+        name="Historico"
+        component={HistoricoScreen}
+        options={{ headerShown: false, title: 'Histórico' }}
+      />
       <Tab.Screen name="Financeiro" component={FinanceiroScreen} />
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false, title: 'Início' }} />
     </Tab.Navigator>
