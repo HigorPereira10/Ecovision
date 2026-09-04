@@ -61,7 +61,7 @@ function AppTabs() {
         component={HistoricoScreen}
         options={{ headerShown: false, title: 'Histórico' }}
       />
-      <Tab.Screen name="Financeiro" component={FinanceiroScreen} />
+      <Tab.Screen name="Financeiro" component={FinanceiroScreen} options={{ headerShown: false }} />
       <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false, title: 'Início' }} />
     </Tab.Navigator>
   );

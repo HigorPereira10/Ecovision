@@ -1,0 +1,44 @@
+[
+  {
+    "id": "g001",
+    "categoria": "Fungicida",
+    "descricao": "Compra de fungicida cúprico",
+    "valor": 150.00,
+    "data": "2026-09-02T04:00:00.000Z"
+  },
+  {
+    "id": "g002",
+    "categoria": "Fertilizante",
+    "descricao": "Fertilizante NPK 20kg",
+    "valor": 320.50,
+    "data": "2026-09-01T04:00:00.000Z"
+  },
+  {
+    "id": "g003",
+    "categoria": "Mão de obra",
+    "descricao": "Diária de manejo",
+    "valor": 180.00,
+    "data": "2026-08-31T04:00:00.000Z"
+  },
+  {
+    "id": "g004",
+    "categoria": "Energia",
+    "descricao": "Energia da estufa (mensal)",
+    "valor": 240.90,
+    "data": "2026-08-30T02:00:00.000Z"
+  },
+  {
+    "id": "g005",
+    "categoria": "Sementes",
+    "descricao": "Sementes de tomate híbrido",
+    "valor": 96.30,
+    "data": "2026-08-28T09:15:00.000Z"
+  },
+  {
+    "id": "g006",
+    "categoria": "Fertilizante",
+    "descricao": "Adubo orgânico",
+    "valor": 90.00,
+    "data": "2026-08-27T15:40:00.000Z"
+  }
+]
