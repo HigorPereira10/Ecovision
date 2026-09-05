@@ -26,9 +26,11 @@ sudo apt install -y libjpeg-turbo-progs libturbojpeg0-dev
 
 echo "==> 3/6: Instalando dependências de sistema do Picamera2/libcamera"
 sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps \
-  python3-venv python3-pip i2c-tools libgpiod2
-# libgpiod2: exigido pelo Blinka/adafruit-circuitpython-dht (leitura do DHT22)
-# em Raspberry Pi OS Bullseye+ — ver edge/src/sensors/dht22.py.
+  python3-venv python3-pip i2c-tools libgpiod3
+# libgpiod3: exigido pelo Blinka/adafruit-circuitpython-dht (leitura do DHT22)
+# em Raspberry Pi OS Bullseye+ — ver edge/src/sensors/dht22.py. Nome do pacote
+# mudou de libgpiod2 pra libgpiod3 a partir do Debian trixie (bump de ABI da
+# libgpiod upstream).
 
 echo "==> 4/6: Criando/ativando virtualenv e instalando requirements.txt"
 python3 -m venv --system-site-packages "$VENV_DIR"
