@@ -1,7 +1,7 @@
 /**
  * app/src/components/charts/DiagnosticoChart.tsx
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Gráfico de série temporal para leituras ambientais e/ou histórico de

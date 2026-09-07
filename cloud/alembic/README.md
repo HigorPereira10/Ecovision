@@ -10,7 +10,7 @@ Migrations do schema Postgres (Supabase), geradas a partir de
 
 A migration `0001_schema_inicial.py` foi escrita à mão (sem
 `--autogenerate`, sem conexão real com um Postgres disponível no
-momento) espelhando `app/db/models.py` — as 6 tabelas do schema
+momento) espelhando `app/db/models.py`, as 6 tabelas do schema
 combinado (ver `cloud/README.md`), mas só `registros_imagem`,
 `leituras_ambientais` e `diagnosticos` são de fato usadas nesta rodada.
 

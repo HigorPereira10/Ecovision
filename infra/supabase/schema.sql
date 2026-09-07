@@ -1,6 +1,6 @@
 -- infra/supabase/schema.sql
 --
--- Schema Postgres do Supabase, espelhando cloud/app/db/models.py — a
+-- Schema Postgres do Supabase, espelhando cloud/app/db/models.py. A
 -- fonte de verdade real é cloud/alembic/versions/0001_schema_inicial.py
 -- (é o que de fato roda via `alembic upgrade head`). Este arquivo é uma
 -- cópia de leitura fácil para revisão/discussão em grupo, sem precisar
@@ -15,7 +15,7 @@
 
 -- Uma captura do Pi. caminho_arquivo guarda só o CAMINHO dentro do
 -- bucket "ecovision-imagens" (ex. "pi-teste/2026-08-22T10-00-00.jpg"),
--- não a URL resolvida — a escolha entre signed URL e bucket público
+-- não a URL resolvida. A escolha entre signed URL e bucket público
 -- (ver storage_policies.md, ainda em aberto) fica pro lado que LÊ a
 -- imagem depois. capturado_em é o timestamp que o Pi mandou; criado_em
 -- é quando a API recebeu (podem divergir bastante: a fila offline do
@@ -47,7 +47,7 @@ CREATE TABLE leituras_ambientais (
 );
 
 -- Resultado da inferência TFLite. classe_prevista fica "indisponivel"
--- e confianca 0.0 enquanto o modelo real (ml/) não existir — ver
+-- e confianca 0.0 enquanto o modelo real (ml/) não existir; ver
 -- cloud/app/core/inference.py.
 CREATE TABLE diagnosticos (
     id                 SERIAL PRIMARY KEY,
@@ -83,7 +83,7 @@ CREATE INDEX ix_dispositivos_device_id ON dispositivos (device_id);
 
 -- Alertas derivados de diagnósticos e/ou leituras fora da faixa
 -- esperada. severidade ('alta' | 'media') vem de app/core/inference.py
--- (doença) ou app/core/alertas_ambientais.py (ambiental) — ver
+-- (doença) ou app/core/alertas_ambientais.py (ambiental); ver
 -- docs/decisions/0005 e 0006 para a origem de cada valor.
 CREATE TABLE alertas (
     id             SERIAL PRIMARY KEY,

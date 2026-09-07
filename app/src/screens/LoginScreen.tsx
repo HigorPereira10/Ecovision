@@ -1,7 +1,7 @@
 /**
  * app/src/screens/LoginScreen.tsx
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Tela de login do produtor, consumindo POST /auth/login

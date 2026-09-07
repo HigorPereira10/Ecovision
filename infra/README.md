@@ -45,21 +45,21 @@ e a nota em `infra/railway/README.md`.
 
 - **Zero gravação em disco no Railway**: reforçado aqui como restrição
   de infraestrutura, não só de código (Seção 4.4).
-- **Trial do Railway expira 30 dias corridos após ativação** — não são
+- **Trial do Railway expira 30 dias corridos após ativação**: não são
   30 dias de uso. Sincronizar com a data real da banca (Seção 4.5/4.6).
   Reservar ~R$30-50 para o plano Hobby como contingência.
-- **Supabase pausa após 7 dias de inatividade** — mitigar com ping
+- **Supabase pausa após 7 dias de inatividade**: mitigar com ping
   periódico via UptimeRobot, configurado já na Sprint 6.
 
 ## Pendências de grupo
 
-- Datas reais do calendário de sincronização (`infra/calendar/sincronizacao.md`)
-  — dependem da data da banca, ainda não confirmada pela coordenação.
+- Datas reais do calendário de sincronização (`infra/calendar/sincronizacao.md`),
+  que dependem da data da banca, ainda não confirmada pela coordenação.
 - Decisão signed URL vs. bucket público para leitura das imagens no
-  dashboard (`infra/supabase/storage_policies.md`) — bloqueada até o
+  dashboard (`infra/supabase/storage_policies.md`), bloqueada até o
   `app/` do dashboard existir de verdade.
 - Ativação do trial do Railway e configuração do monitor no
-  UptimeRobot — só dá pra fazer quando o serviço for de fato criado no
+  UptimeRobot, que só dá pra fazer quando o serviço for de fato criado no
   painel do Railway (`infra/railway/README.md` já tem o start command
   e as variáveis prontas para colar).
 

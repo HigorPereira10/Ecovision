@@ -1,15 +1,15 @@
-# edge — Software de Borda (Raspberry Pi 3 Model B+)
+# edge: Software de Borda (Raspberry Pi 3 Model B+)
 
 Referência arquitetural: **Tech Stack Blueprint Consolidado v3.0, Fase 2 (Software de Borda)**.
 
-> Hardware: **Raspberry Pi 3 Model B+ (Anatel)** — troca em relação ao
+> Hardware: **Raspberry Pi 3 Model B+ (Anatel)**, troca em relação ao
 > Pi Zero 2 W do Blueprint original, ver
 > [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md).
 
 ## Papel desta camada
 
 O Pi realiza **exclusivamente** captura, compressão e transmissão.
-**Nenhuma inferência de IA roda aqui** — decisão arquitetural deliberada
+**Nenhuma inferência de IA roda aqui**: decisão arquitetural deliberada
 validada no Blueprint, independente da capacidade do hardware (o Pi 3B+,
 quad-core Cortex-A53 @1.4GHz / 1GB RAM, tem folga de sobra para
 captura/compressão/fila, mas a inferência continua no backend por
@@ -54,18 +54,18 @@ edge/
 ## Testes automatizados
 
 A parte do código que não depende de hardware (fila offline + envio
-para a API) tem testes automatizados em [`edge/tests/`](tests/README.md)
-— cobrindo, sem precisar da Raspberry Pi física, o ciclo completo de
+para a API) tem testes automatizados em [`edge/tests/`](tests/README.md),
+cobrindo, sem precisar da Raspberry Pi física, o ciclo completo de
 guardar fotos pendentes, confirmar envio, e os casos de falha de rede.
 Ver [`edge/tests/README.md`](tests/README.md) para uma explicação de
 cada teste e como rodar (WSL/Linux ou Windows).
 
 ## Pontos de atenção herdados do Blueprint
 
-- Verificar `libjpeg-turbo` ativo antes de medir velocidade de compressão
-  — sem ele, o Pillow é ~5x mais lento.
-- O Ring LED **precisa** passar pelo MOSFET (ver `edge/src/actuators/led_flash.py`)
-  — ligação direta ao GPIO pode danificar o pino ou o Pi.
+- Verificar `libjpeg-turbo` ativo antes de medir velocidade de compressão:
+  sem ele, o Pillow é ~5x mais lento.
+- O Ring LED **precisa** passar pelo MOSFET (ver `edge/src/actuators/led_flash.py`):
+  ligação direta ao GPIO pode danificar o pino ou o Pi.
 - A Camera Module 3 usa o conector CSI **padrão de 15 pinos** do Pi 3B+
   (mesmo do Pi 4), o cabo que já acompanha a câmera serve direto, sem
   adaptador (diferente do Pi Zero, que usava um conector mini de 22
@@ -89,8 +89,8 @@ cada teste e como rodar (WSL/Linux ou Windows).
   vem do `apt` em `install.sh` (`python3-picamera2`), porque depende
   de bindings do libcamera compilados para o sistema.
 - **`edge/src/upload/uploader.py`**: cada envio agora manda um
-  `idempotency_key` (o `id` já gerado por `offline_queue.enfileirar()`)
-  — sem isso, um reenvio após a API confirmar 200 mas o Pi cair antes de
+  `idempotency_key` (o `id` já gerado por `offline_queue.enfileirar()`),
+  pois sem isso, um reenvio após a API confirmar 200 mas o Pi cair antes de
   tirar o registro da fila local criaria uma linha duplicada no banco
   (ver `cloud/app/api/routes/diagnostico.py`).
 

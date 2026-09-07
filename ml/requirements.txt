@@ -4,7 +4,7 @@
 # Tech Stack Blueprint v3.0, Sumário Executivo (camada "IA / Treino").
 #
 # Ainda sem versões fixadas. No Colab, várias dessas libs já vêm
-# pré-instaladas (tensorflow, numpy) — fixar versões apenas se necessário
+# pré-instaladas (tensorflow, numpy); fixar versões apenas se necessário
 # para reprodutibilidade.
 
 # --- Treino e exportação ---

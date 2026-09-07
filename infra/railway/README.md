@@ -20,15 +20,15 @@ segredos nem valores reais.
   `requirements.txt` e `alembic/`).
 - Variáveis de ambiente: usar o template `infra/env/cloud.env.example`
   (preencher com os valores reais do Supabase e a `DEVICE_API_KEY`
-  gerada — nunca commitar esses valores).
+  gerada, nunca commitar esses valores).
 - Migração do banco: rodar `alembic upgrade head` (de dentro de
   `cloud/`) antes de subir uma versão nova, ou como um passo de deploy
-  automatizado — as migrations em `cloud/alembic/versions/` já cobrem
+  automatizado. As migrations em `cloud/alembic/versions/` já cobrem
   o schema atual (`registros_imagem`, `leituras_ambientais`,
   `diagnosticos`, `alertas`, `usuarios`, `dispositivos`).
 - Deploy automático via GitHub Actions a cada push na `main`, ver
   `.github/workflows/deploy-railway.yml` (ainda `workflow_dispatch`
-  manual de propósito — ativação adiada para perto da Sprint 9).
+  manual de propósito, ativação adiada para perto da Sprint 9).
 
 ## Risco de timing (Blueprint Seção 4.5)
 

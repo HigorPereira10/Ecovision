@@ -1,16 +1,16 @@
-# Supabase Storage — bucket `ecovision-imagens`
+# Supabase Storage: bucket `ecovision-imagens`
 
 Componente adicionado nesta revisão do Blueprint (v3.0, Seção 4.2),
 não existia no Blueprint v2.0, apesar da tabela `registros_imagem` já
 prever o campo `caminho_arquivo`.
 
-## Configuração planejada (TODO — a fazer no console do Supabase)
+## Configuração planejada (TODO: a fazer no console do Supabase)
 
 - Nome do bucket: `ecovision-imagens`.
 - Convenção de caminho: `{device_id}/{timestamp}.jpg` (facilita auditoria
   e possível reuso do dataset de campo em retreino futuro do modelo).
 - Acesso: apenas a API (backend, via `SUPABASE_SERVICE_ROLE_KEY`) escreve
-  no bucket. O frontend nunca acessa o Supabase diretamente — sempre via
+  no bucket. O frontend nunca acessa o Supabase diretamente, sempre via
   API (Blueprint Seção 4.2, passo 5).
 - Política de leitura das imagens exibidas no dashboard: TODO: decidir
   entre URLs assinadas (signed URLs, mais restritivo) ou bucket com

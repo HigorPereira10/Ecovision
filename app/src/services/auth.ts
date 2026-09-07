@@ -1,7 +1,7 @@
 /**
  * app/src/services/auth.ts
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Lógica de autenticação do produtor: login, armazenamento seguro do
@@ -22,7 +22,7 @@ import * as SecureStore from "expo-secure-store";
 const ACCESS_TOKEN_KEY = "ecovision_access_token";
 const REFRESH_TOKEN_KEY = "ecovision_refresh_token";
 
-// Credencial mockada — usar para testar o login enquanto a API não existe.
+// Credencial mockada, usar para testar o login enquanto a API não existe.
 const USUARIO_MOCK = {
   email: "joao.pereira@exemplo.com",
   senha: "tomate123",

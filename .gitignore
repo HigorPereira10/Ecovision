@@ -7,7 +7,7 @@ venv/
 *.egg-info/
 .pytest_cache/
 
-# Segredos reais (nunca versionar — usar os .example em infra/env/)
+# Segredos reais (nunca versionar, usar os .example em infra/env/)
 .env
 *.env
 !*.env.example

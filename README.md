@@ -6,7 +6,7 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 
 **Documento técnico de referência:** *Tech Stack - Ecovision (revisado)* (mantido na pasta compartilhada do grupo). Todas as decisões de arquitetura, hardware e software descritas neste repositório seguem esse documento; ele tem prioridade sobre qualquer divergência no TC1. Um índice de navegação rápida por seção está em [`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md).
 
-> ⚠️ O hardware de borda usado na prática é o **Raspberry Pi 3 Model B+ (Anatel)**, não o Pi Zero 2 W especificado no Blueprint — ver [ADR 0004](docs/decisions/0004-raspberry-pi-3b-plus.md).
+> ⚠️ O hardware de borda usado na prática é o **Raspberry Pi 3 Model B+ (Anatel)**, não o Pi Zero 2 W especificado no Blueprint; ver [ADR 0004](docs/decisions/0004-raspberry-pi-3b-plus.md).
 
 ---
 
@@ -14,7 +14,7 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 * **Quadro de Tarefas (Kanban):** [GitHub Projects](https://github.com/users/HigorPereira10/projects/1)
 * **Comunicação da Equipa:** [Servidor do Discord](https://discord.gg/3R8CkSaxx)
 * **Documentação de Texto (TCC):** [Pasta Partilhada no Google Drive](https://drive.google.com/drive/folders/1x9B_vlEw8Yn10jC9kYOUhRTUJoWjrQXT?usp=drive_link)
-* **Protótipos de UI (Figma):** *(link a preencher — Igor é responsável por organizar e manter este link atualizado)*
+* **Protótipos de UI (Figma):** *(link a preencher; Igor é responsável por organizar e manter este link atualizado)*
 
 ---
 
@@ -115,10 +115,10 @@ Para garantir a estabilidade do sistema e evitar conflitos no código principal,
 
 | Pessoa | Responsabilidade |
 |---|---|
-| João | `ml/` — pipeline de IA completo |
-| Amanda | `app/` — frontend/dashboard (Expo/React Native, decisão confirmada) |
-| Higor | `cloud/` + `infra/` + `edge/` — banco de dados, backend/API, scripts do Raspberry Pi |
-| Igor | Documentação do projeto (ADRs, atas, organização do Drive e do Figma, pautas/decisões de reunião) — nas primeiras semanas, também apoia a Amanda no `app/`, alinhando diretamente com ela |
+| João | `ml/`: pipeline de IA completo |
+| Amanda | `app/`: frontend/dashboard (Expo/React Native, decisão confirmada) |
+| Higor | `cloud/` + `infra/` + `edge/`: banco de dados, backend/API, scripts do Raspberry Pi |
+| Igor | Documentação do projeto (ADRs, atas, organização do Drive e do Figma, pautas/decisões de reunião); nas primeiras semanas, também apoia a Amanda no `app/`, alinhando diretamente com ela |
 
 Detalhes e cronograma passo a passo em
 [`docs/planejamento/divisao-equipe-e-roadmap.md`](docs/planejamento/divisao-equipe-e-roadmap.md).

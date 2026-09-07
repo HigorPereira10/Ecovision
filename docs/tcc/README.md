@@ -1,7 +1,7 @@
 # docs/tcc
 
 Espelho local dos capítulos da escrita acadêmica do TCC (o documento
-"oficial" fica na pasta compartilhada do Google Drive do grupo — ver
+"oficial" fica na pasta compartilhada do Google Drive do grupo (ver
 link no README raiz). Útil para versionar rascunhos técnicos que citam
 diretamente arquivos deste repositório (ex.: trechos de código,
 resultados de avaliação do modelo).

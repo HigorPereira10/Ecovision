@@ -1,7 +1,7 @@
 /**
  * app/src/screens/HistoricoScreen.tsx
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Histórico de leituras ambientais. Versão inicial em lista simples,
  * com dados mockados (src/mocks/leituras.json). Gráfico via
  * DiagnosticoChart será integrado depois.

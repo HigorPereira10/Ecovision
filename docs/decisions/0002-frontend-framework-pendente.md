@@ -1,4 +1,4 @@
-# ADR 0002 — Framework de frontend: Expo (React Native)
+# ADR 0002: Framework de frontend: Expo (React Native)
 
 **Status:** ✅ **Decidido.** O grupo confirmou Expo (React Native) como
 framework do `app/`. React PWA e Streamlit não serão usados.
@@ -13,7 +13,7 @@ framework do `app/`. React PWA e Streamlit não serão usados.
 Esta era a decisão de maior risco de cronograma do projeto, porque
 poderia envolver trocar de linguagem de programação (Python →
 JavaScript/TypeScript) sob prazo fixo. O Blueprint não fechava uma
-escolha única — definia o critério de decisão (a pergunta de confiança
+escolha única: definia o critério de decisão (a pergunta de confiança
 em Expo/React Native) e exigia que o grupo decidisse antes da Sprint 1.
 
 ### Comparativo que embasou a decisão (ver Blueprint Seção 5 para a tabela completa)
@@ -29,7 +29,7 @@ em Expo/React Native) e exigia que o grupo decidisse antes da Sprint 1.
 
 O grupo confirmou **Expo (React Native)**. A pasta `app/` já estava
 estruturada dessa forma desde a reestruturação inicial do repositório
-(como scaffolding, na época sem decisão fechada) — essa estrutura
+(como scaffolding, na época sem decisão fechada), e essa estrutura
 **passa a ser definitiva**, não mais um placeholder.
 
 Amanda é a responsável técnica pela camada `app/`; Igor a apoia nas
@@ -41,10 +41,10 @@ para a divisão de equipe completa).
 
 - Os avisos de "decisão pendente" nos cabeçalhos de `app/src/*` e em
   `app/README.md` estão desatualizados e devem ser lidos como
-  históricos — a estrutura Expo é a definitiva.
+  históricos: a estrutura Expo é a definitiva.
 - Push notifications nativas (Expo Notifications) seguem viáveis como
   planejado no Blueprint, já que PWA/Streamlit (que não as suportam)
   foram descartados.
-- Nenhum retrabalho de framework é esperado a partir de agora — o app
+- Nenhum retrabalho de framework é esperado a partir de agora: o app
   segue em JavaScript/TypeScript, com Victory Native para gráficos e
   React Navigation.

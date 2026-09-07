@@ -1,11 +1,11 @@
 /**
  * app/src/screens/DiagnosticoScreen.tsx
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Exibe o diagnóstico mais recente, incluindo a foto da folha. A URL
- * da imagem vem PRONTA da API (Blueprint Seção 4.2, passo 5) — esta
+ * da imagem vem PRONTA da API (Blueprint Seção 4.2, passo 5); esta
  * tela nunca busca a imagem diretamente no Supabase Storage.
  *
  * Versão atual usa dados mockados (src/mocks/diagnosticos.json) até

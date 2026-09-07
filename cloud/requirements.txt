@@ -13,7 +13,7 @@ uvicorn[standard]        # 1 worker apenas, conforme decisão do Blueprint
 python-multipart         # necessario para os campos Form()/UploadFile de /diagnostico
 
 # --- Inferência ---
-# tflite-runtime não tem wheel para todas as plataformas (ex.: Windows) —
+# tflite-runtime não tem wheel para todas as plataformas (ex.: Windows):
 # instalar manualmente no ambiente de deploy (Railway roda Linux x86_64,
 # onde o wheel oficial existe). Sem isso instalado, a API sobe do mesmo
 # jeito e devolve diagnostico placeholder (ver app/core/inference.py).

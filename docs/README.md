@@ -1,4 +1,4 @@
-# docs — Documentação Técnica e Acadêmica
+# docs: Documentação Técnica e Acadêmica
 
 Centraliza a documentação que não é código: referência arquitetural,
 decisões registradas, atas de reunião e a escrita acadêmica do TCC.
@@ -13,7 +13,10 @@ docs/
 │   ├── 0001-camera-module-3.md
 │   ├── 0002-frontend-framework-pendente.md  # decisão final: Expo (React Native)
 │   ├── 0003-autenticacao-dual.md
-│   └── 0004-divisao-equipe-final.md
+│   ├── 0004-raspberry-pi-3b-plus.md
+│   ├── 0005-limiares-ambientais.md
+│   ├── 0006-recomendacoes-por-diagnostico.md
+│   └── 0007-divisao-equipe-final.md
 ├── planejamento/                # divisão de equipe, roadmap, lista de compras
 │   ├── divisao-equipe-e-roadmap.md
 │   ├── lista-compras-hardware.md
@@ -24,7 +27,7 @@ docs/
 
 ## Sobre o Tech Stack Blueprint
 
-O documento **"EcoVision — Tech Stack Blueprint Consolidado, TC2, v3.0"**
+O documento **"EcoVision: Tech Stack Blueprint Consolidado, TC2, v3.0"**
 é a fonte única de verdade arquitetural do projeto (substitui o TC1 em
 decisões técnicas). Ele não foi duplicado neste repositório, mantém-se
 na pasta compartilhada do grupo (Google Drive, ver link no README raiz).
@@ -40,7 +43,7 @@ para que fiquem visíveis e não se percam entre conversas.
 ## Planejamento (`docs/planejamento/`)
 
 A divisão de equipe final está registrada em
-[ADR 0004](decisions/0004-divisao-equipe-final.md): João em `ml/`,
+[ADR 0007](decisions/0007-divisao-equipe-final.md): João em `ml/`,
 Amanda em `app/`, Higor em `cloud/`+`infra/`+`edge/`, Igor na
 documentação do projeto (+ apoio à Amanda no `app/` nas primeiras
 semanas).

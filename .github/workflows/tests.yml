@@ -1,6 +1,6 @@
 name: Testes automatizados (edge + cloud)
 
-# Roda só quando edge/ ou cloud/ mudam — evita rodar (e mandar e-mail de
+# Roda só quando edge/ ou cloud/ mudam, evitando rodar (e mandar e-mail de
 # falha) em commits de documentação/outras camadas que não têm relação
 # com esses testes.
 on:
@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      # so as dependencias de teste — edge/requirements.txt tem pacotes
+      # so as dependencias de teste: edge/requirements.txt tem pacotes
       # especificos de Raspberry Pi (picamera2, RPi.GPIO) que nao
       # instalam (nem sao necessarios) num runner comum do GitHub.
       - run: pip install -r edge/tests/requirements-test.txt

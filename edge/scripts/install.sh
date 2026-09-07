@@ -3,7 +3,7 @@
 # edge/scripts/install.sh
 #
 # Script de setup do ambiente no Raspberry Pi 3 Model B+ (Anatel), Raspberry
-# Pi OS Lite 64-bit — ver docs/decisions/0004-raspberry-pi-3b-plus.md pela
+# Pi OS Lite 64-bit. Ver docs/decisions/0004-raspberry-pi-3b-plus.md pela
 # troca de hardware (era Pi Zero 2 W). Necessário 64-bit para Picamera2/libcamera,
 # conforme Tech Stack Blueprint v3.0, Fase 2.
 #
@@ -28,7 +28,7 @@ echo "==> 3/6: Instalando dependências de sistema do Picamera2/libcamera"
 sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps \
   python3-venv python3-pip i2c-tools libgpiod3
 # libgpiod3: exigido pelo Blinka/adafruit-circuitpython-dht (leitura do DHT22)
-# em Raspberry Pi OS Bullseye+ — ver edge/src/sensors/dht22.py. Nome do pacote
+# em Raspberry Pi OS Bullseye+; ver edge/src/sensors/dht22.py. Nome do pacote
 # mudou de libgpiod2 pra libgpiod3 a partir do Debian trixie (bump de ABI da
 # libgpiod upstream).
 
@@ -40,7 +40,7 @@ python3 -m venv --system-site-packages "$VENV_DIR"
 
 echo "==> 5/6: Instalando o crontab a partir de edge/crontab.example"
 # Os logs do cron (crontab.example) vão para dentro do repo, não /var/log/
-# (que normalmente exige root) — garantir que o diretório já existe antes
+# (que normalmente exige root). Garantir que o diretório já existe antes
 # do cron tentar escrever neles pela primeira vez.
 mkdir -p "$REPO_ROOT/edge/data/logs"
 CRONTAB_TMP="$(mktemp)"
@@ -55,7 +55,7 @@ echo "==> 6/6: Variáveis de ambiente"
 ENV_FILE="$REPO_ROOT/edge/.env"
 if [ ! -f "$ENV_FILE" ]; then
   cp "$REPO_ROOT/infra/env/edge.env.example" "$ENV_FILE"
-  echo "    Criado $ENV_FILE a partir do template — edite com os valores reais"
+  echo "    Criado $ENV_FILE a partir do template, edite com os valores reais"
   echo "    (API_BASE_URL, DEVICE_API_KEY, DEVICE_ID, pinos GPIO, calibração do solo)."
 else
   echo "    $ENV_FILE já existe, não foi sobrescrito."

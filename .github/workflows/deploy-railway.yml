@@ -7,13 +7,13 @@
 # ver infra/README.md e infra/railway/README.md para as demais notas de deploy.
 #
 # AINDA NÃO IMPLEMENTADO: o gatilho abaixo é `workflow_dispatch` (só roda quando
-# alguém aciona manualmente pela aba Actions) de propósito — a ativação do
+# alguém aciona manualmente pela aba Actions) de propósito. A ativação do
 # Railway é deliberadamente adiada até perto da Sprint 9 (ver
 # docs/planejamento/divisao-equipe-e-roadmap.md, Seção 5). Trocar para
 # `on: push: branches: [main]` só quando o deploy automático for de fato
 # implementado.
 
-name: Deploy Railway (placeholder — não implementado)
+name: Deploy Railway (placeholder, não implementado)
 
 on:
   workflow_dispatch: {}
@@ -22,7 +22,7 @@ jobs:
   placeholder:
     runs-on: ubuntu-latest
     steps:
-      - name: Placeholder — deploy real ainda não implementado
+      - name: Placeholder, deploy real ainda não implementado
         run: |
           echo "Este workflow ainda não faz deploy de verdade."
           echo "TODO quando implementado:"

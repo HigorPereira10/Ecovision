@@ -1,7 +1,7 @@
 /**
  * app/src/notifications/pushNotifications.ts
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
  * Push notifications nativas via Expo Notifications, um dos

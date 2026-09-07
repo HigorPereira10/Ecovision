@@ -1,7 +1,7 @@
-# app — Frontend / Aplicativo
+# app: Frontend / Aplicativo
 
 > ✅ **Framework definido: Expo (React Native).** Decisão confirmada
-> pelo grupo — ver [ADR 0002](../docs/decisions/0002-frontend-framework-pendente.md).
+> pelo grupo, ver [ADR 0002](../docs/decisions/0002-frontend-framework-pendente.md).
 > A estrutura abaixo, que já existia como scaffolding desde a
 > reestruturação inicial do repositório, é agora a definitiva.
 >
@@ -33,5 +33,5 @@ app/
 ```
 
 > Nota: os cabeçalhos dos arquivos em `app/src/` ainda podem trazer o
-> aviso "decisão de framework pendente" escrito antes desta confirmação
-> — está desatualizado, a decisão é Expo/React Native (ver ADR 0002).
+> aviso "decisão de framework pendente" escrito antes desta confirmação.
+> Está desatualizado, a decisão é Expo/React Native (ver ADR 0002).

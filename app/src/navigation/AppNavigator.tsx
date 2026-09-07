@@ -1,7 +1,7 @@
 /**
  * app/src/navigation/AppNavigator.tsx
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Navegação do app (React Navigation): Login -> (Alertas | Diagnóstico |
  * Histórico | Financeiro), com guarda de rota baseada na presença de
  * um JWT válido (app/src/services/auth.ts).

@@ -1,4 +1,4 @@
-# ADR 0003 — Autenticação dual (API Key + JWT/bcrypt)
+# ADR 0003: Autenticação dual (API Key + JWT/bcrypt)
 
 **Status:** Decidido (Tech Stack Blueprint v3.0, Seção 4.3).
 

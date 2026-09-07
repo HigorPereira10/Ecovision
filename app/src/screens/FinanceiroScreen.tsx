@@ -1,8 +1,8 @@
 /**
  * app/src/screens/FinanceiroScreen.tsx
  *
- * Framework: Expo (React Native) — decisão confirmada pelo grupo.
- * Tela financeira MOCK — sem integração de backend real (Blueprint v3.0).
+ * Framework: Expo (React Native), decisão confirmada pelo grupo.
+ * Tela financeira MOCK, sem integração de backend real (Blueprint v3.0).
  */
 
 import React from "react";
@@ -13,7 +13,7 @@ export default function FinanceiroScreen() {
     <View style={styles.container}>
       <Text style={styles.titulo}>Financeiro</Text>
       <Text style={styles.aviso}>
-        Dados simulados — sem integração real com o backend por enquanto.
+        Dados simulados, sem integração real com o backend por enquanto.
       </Text>
 
       <View style={styles.card}>
