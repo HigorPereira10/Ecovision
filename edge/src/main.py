@@ -11,6 +11,8 @@ Fluxo:
    _ler_sensores()).
 2. Acionar o Ring LED via MOSFET (actuators/led_flash.py), abraçando a
    captura da foto para garantir sincronismo real entre flash e câmera.
+   Espera LED_FLASH_DURATION_SECONDS com o LED já aceso antes de disparar
+   a câmera, para a foto não sair mal iluminada.
 3. Capturar a foto (capture.py) com autofoco.
 4. Comprimir a imagem (compress.py).
 5. Enfileirar o pacote (imagem + leituras) na fila offline
@@ -29,6 +31,7 @@ Relação com o resto do sistema:
 
 import logging
 import sys
+import time
 from pathlib import Path
 
 if __name__ == "__main__":
@@ -79,6 +82,9 @@ def ciclo_de_captura() -> None:
 
     led_flash.ligar_led(config.LED_MOSFET_PIN)
     try:
+        # Espera o LED estabilizar antes de disparar a câmera, para a foto
+        # não sair mal iluminada por causa do LED ainda subindo de brilho.
+        time.sleep(config.LED_FLASH_DURATION_SECONDS)
         imagem_crua = capture.capturar_imagem()
     finally:
         led_flash.desligar_led(config.LED_MOSFET_PIN)
