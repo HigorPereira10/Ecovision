@@ -8,8 +8,13 @@
  * da imagem vem PRONTA da API (Blueprint Seção 4.2, passo 5) — esta
  * tela nunca busca a imagem diretamente no Supabase Storage.
  *
- * Versão atual usa dados mockados (src/mocks/diagnosticos.json e
- * src/mocks/imagens.json) até o endpoint da API estar definido/pronto.
+ * ATUALIZAÇÃO: esta tela passou a consumir services/diagnosticos.ts
+ * (getDiagnosticos / getImagemDoRegistro) em vez de importar
+ * diagnosticos.json e imagens.json diretamente. O serviço já existia
+ * e já era usado pela tela de Histórico, mas o Diagnóstico ainda
+ * estava lendo os JSONs direto — quebrando a regra de "nenhuma tela
+ * acessa mock direto" documentada no relatório de progresso. Ajustado
+ * aqui junto com o tratamento de loading/erro.
  *
  * NOTA: imagens.json hoje só tem 1 registro, mas diagnosticos.json
  * tem 6 (registro_imagem_id de 1 a 6). Enquanto isso não é corrigido,
@@ -32,27 +37,19 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  RefreshControl,
 } from 'react-native';
-import diagnosticosMock from '../mocks/diagnosticos.json';
-import imagensMock from '../mocks/imagens.json';
+import {
+  getDiagnosticos,
+  getImagemDoRegistro,
+  Diagnostico,
+  RegistroImagem,
+} from '../services/diagnosticos';
+import { EstadoCarregamento } from '../components/EstadoCarregamento';
+import { EstadoErro } from '../components/EstadoErro';
+import { AvisoErroInline } from '../components/AvisoErroInline';
+import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
-
-type Diagnostico = {
-  id: number;
-  registro_imagem_id: number;
-  classificacao: string;
-  confianca: number;
-  recomendacao: string;
-  timestamp: string;
-};
-
-type RegistroImagem = {
-  id: number;
-  dispositivo_id: number;
-  caminho_arquivo: string;
-  resolucao: string;
-  timestamp: string;
-};
 
 const MODELO_IA = 'MobileNetV2 (TFLite)';
 
@@ -67,10 +64,6 @@ function isSaudavel(classificacao: string): boolean {
   return normalizarTexto(classificacao).includes('saudavel');
 }
 
-function getRegistroImagem(id: number): RegistroImagem | undefined {
-  return (imagensMock as RegistroImagem[]).find((img) => img.id === id);
-}
-
 function formatarData(timestamp: string): string {
   return new Date(timestamp).toLocaleString('pt-BR', {
     day: '2-digit',
@@ -81,13 +74,40 @@ function formatarData(timestamp: string): string {
   });
 }
 
+interface DadosDiagnostico {
+  diagnosticos: Diagnostico[];
+  imagensPorRegistro: Map<number, RegistroImagem>;
+}
+
+async function buscarDadosDiagnostico(): Promise<DadosDiagnostico> {
+  const diagnosticos = await getDiagnosticos();
+  const imagensPorRegistro = new Map<number, RegistroImagem>();
+
+  await Promise.all(
+    diagnosticos.map(async (d) => {
+      const imagem = await getImagemDoRegistro(d.registro_imagem_id);
+      if (imagem) imagensPorRegistro.set(d.registro_imagem_id, imagem);
+    })
+  );
+
+  return { diagnosticos, imagensPorRegistro };
+}
+
 export default function DiagnosticoScreen() {
-  const diagnosticos = diagnosticosMock as Diagnostico[];
-  const [diagnosticoAtualId, setDiagnosticoAtualId] = useState<number>(diagnosticos[0]?.id);
+  const { dados, carregando, atualizando, erro, recarregar, atualizar } =
+    useCarregamentoAssincrono(buscarDadosDiagnostico, []);
 
-  const diagnostico = diagnosticos.find((d) => d.id === diagnosticoAtualId);
+  const [diagnosticoAtualId, setDiagnosticoAtualId] = useState<number | null>(null);
 
-  if (!diagnostico) {
+  if (carregando && !dados) {
+    return <EstadoCarregamento />;
+  }
+
+  if (erro && !dados) {
+    return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
+  }
+
+  if (!dados || dados.diagnosticos.length === 0) {
     return (
       <View style={styles.centro}>
         <Text style={styles.textoVazio}>Nenhum diagnóstico disponível ainda.</Text>
@@ -95,7 +115,10 @@ export default function DiagnosticoScreen() {
     );
   }
 
-  const registroImagem = getRegistroImagem(diagnostico.registro_imagem_id);
+  const idSelecionado = diagnosticoAtualId ?? dados.diagnosticos[0].id;
+  const diagnostico =
+    dados.diagnosticos.find((d) => d.id === idSelecionado) ?? dados.diagnosticos[0];
+  const registroImagem = dados.imagensPorRegistro.get(diagnostico.registro_imagem_id);
   const saudavel = isSaudavel(diagnostico.classificacao);
   const corStatus = saudavel ? colors.oliveGreen : colors.danger;
   const confiancaPercentual = Math.round(diagnostico.confianca * 100);
@@ -111,7 +134,15 @@ export default function DiagnosticoScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={atualizando} onRefresh={atualizar} colors={[colors.oliveGreen]} />
+        }
+      >
+        {erro && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
+
         {registroImagem ? (
           <Image source={{ uri: registroImagem.caminho_arquivo }} style={styles.imagem} />
         ) : (
@@ -154,8 +185,8 @@ export default function DiagnosticoScreen() {
         <Text style={styles.secaoTitulo}>Resultados recentes</Text>
 
         <View style={styles.grid}>
-          {diagnosticos.map((item) => {
-            const itemImagem = getRegistroImagem(item.registro_imagem_id);
+          {dados.diagnosticos.map((item) => {
+            const itemImagem = dados.imagensPorRegistro.get(item.registro_imagem_id);
             const itemSaudavel = isSaudavel(item.classificacao);
             const itemCor = itemSaudavel ? colors.oliveGreen : colors.danger;
             const selecionado = item.id === diagnostico.id;

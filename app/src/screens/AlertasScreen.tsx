@@ -1,10 +1,20 @@
 /**
  * app/src/screens/AlertasScreen.tsx
  *
- * Tela de Alertas: lista de alertas mockados, filtráveis por severidade
+ * Tela de Alertas: lista de alertas, filtráveis por severidade
  * (Crítico / Cuidado / Informativo), com status lido/não lido e ação
- * "Marcar como lido" (estado local por enquanto — troca por
- * PATCH /alertas/{id}/lido quando a API do Higor estiver pronta).
+ * "Marcar como lido".
+ *
+ * Os dados vêm de services/alertas.ts (camada de serviço), nunca do
+ * JSON mockado diretamente — quando a API do Higor estiver pronta,
+ * só a implementação interna de getAlertas()/marcarAlertaLido() muda
+ * (PATCH /alertas/{id}/lido), esta tela não precisa ser tocada.
+ *
+ * Loading/erro/refresh padronizados via useCarregamentoAssincrono
+ * (mesmo hook usado nas outras telas). "Marcar como lido" tem seu
+ * próprio tratamento de erro local (erroMarcarLido), separado do erro
+ * de carregamento da lista — uma falha ao marcar não deve esconder a
+ * lista inteira.
  *
  * Header customizado (logo + título) segue o mesmo padrão do
  * DashboardScreen — a aba "Alertas" no AppNavigator precisa estar com
@@ -12,27 +22,19 @@
  * problema já resolvido no DiagnosticoScreen).
  */
 
-import React, { useState, useMemo } from 'react';
-import { View, Text, FlatList, StyleSheet, Pressable, Image } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, FlatList, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import alertasMock from '../mocks/alertas.json';
+import { getAlertas, marcarAlertaLido, Alerta, SeveridadeAlerta } from '../services/alertas';
+import { EstadoCarregamento } from '../components/EstadoCarregamento';
+import { EstadoErro } from '../components/EstadoErro';
+import { AvisoErroInline } from '../components/AvisoErroInline';
+import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
 
-type Severidade = 'critico' | 'cuidado' | 'informativo';
+type Filtro = 'todos' | SeveridadeAlerta;
 
-interface Alerta {
-  id: number;
-  tipo: string;
-  severidade: Severidade;
-  titulo: string;
-  descricao: string;
-  lido: boolean;
-  timestamp: string;
-}
-
-type Filtro = 'todos' | Severidade;
-
-const SEVERIDADE_CONFIG: Record<Severidade, { label: string; cor: string; icone: keyof typeof Ionicons.glyphMap }> = {
+const SEVERIDADE_CONFIG: Record<SeveridadeAlerta, { label: string; cor: string; icone: keyof typeof Ionicons.glyphMap }> = {
   critico: { label: 'Crítico', cor: colors.danger, icone: 'warning' },
   cuidado: { label: 'Cuidado', cor: colors.cuidado, icone: 'warning' },
   informativo: { label: 'Informativo', cor: colors.informativo, icone: 'information-circle' },
@@ -53,16 +55,30 @@ function formatarData(timestamp: string) {
 }
 
 export default function AlertasScreen() {
-  const [alertas, setAlertas] = useState<Alerta[]>(alertasMock as Alerta[]);
-  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const { dados: alertas, carregando, atualizando, erro, recarregar, atualizar } =
+    useCarregamentoAssincrono(getAlertas, []);
 
-  function marcarComoLido(id: number) {
-    // TODO: quando a API estiver pronta, trocar por PATCH /alertas/{id}/lido
-    setAlertas((prev) => prev.map((a) => (a.id === id ? { ...a, lido: true } : a)));
+  const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [marcandoId, setMarcandoId] = useState<number | null>(null);
+  const [erroMarcarLido, setErroMarcarLido] = useState<string | null>(null);
+
+  async function marcarComoLido(id: number) {
+    setMarcandoId(id);
+    setErroMarcarLido(null);
+    try {
+      await marcarAlertaLido(id);
+      // Refaz a busca pra refletir o estado persistido pelo serviço —
+      // no futuro, pelo backend real, que passa a ser a fonte da verdade.
+      await atualizar();
+    } catch (e) {
+      setErroMarcarLido('Não foi possível marcar como lido. Tente novamente.');
+    } finally {
+      setMarcandoId(null);
+    }
   }
 
   const alertasFiltrados = useMemo(
-    () => (filtro === 'todos' ? alertas : alertas.filter((a) => a.severidade === filtro)),
+    () => (!alertas ? [] : filtro === 'todos' ? alertas : alertas.filter((a) => a.severidade === filtro)),
     [alertas, filtro]
   );
 
@@ -77,7 +93,7 @@ export default function AlertasScreen() {
       <View style={styles.filtrosContainer}>
         {FILTROS.map((f) => {
           const selecionado = filtro === f.chave;
-          const cor = f.chave === 'todos' ? colors.oliveGreen : SEVERIDADE_CONFIG[f.chave as Severidade].cor;
+          const cor = f.chave === 'todos' ? colors.oliveGreen : SEVERIDADE_CONFIG[f.chave as SeveridadeAlerta].cor;
           return (
             <Pressable
               key={f.chave}
@@ -103,48 +119,71 @@ export default function AlertasScreen() {
         })}
       </View>
 
-      <FlatList
-        style={styles.lista}
-        contentContainerStyle={styles.listaConteudo}
-        data={alertasFiltrados}
-        keyExtractor={(item) => String(item.id)}
-        ListEmptyComponent={<Text style={styles.vazioTexto}>Nenhum alerta nesta categoria.</Text>}
-        renderItem={({ item }) => {
-          const config = SEVERIDADE_CONFIG[item.severidade];
-          return (
-            <View style={styles.card}>
-              <View style={[styles.faixa, { backgroundColor: config.cor }]}>
-                <View style={styles.faixaEsquerda}>
-                  <Ionicons name={config.icone} size={16} color={colors.white} />
-                  <Text style={styles.faixaTexto}>{config.label}</Text>
-                </View>
-                {!item.lido && (
-                  <View style={styles.novoBadge}>
-                    <Text style={styles.novoTexto}>novo</Text>
+      {carregando && !alertas ? (
+        <EstadoCarregamento />
+      ) : erro && !alertas ? (
+        <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />
+      ) : (
+        <FlatList
+          style={styles.lista}
+          contentContainerStyle={styles.listaConteudo}
+          data={alertasFiltrados}
+          keyExtractor={(item) => String(item.id)}
+          refreshing={atualizando}
+          onRefresh={atualizar}
+          ListHeaderComponent={
+            (erro && alertas) || erroMarcarLido ? (
+              <View>
+                {erro && alertas && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
+                {erroMarcarLido && <AvisoErroInline mensagem={erroMarcarLido} />}
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={<Text style={styles.vazioTexto}>Nenhum alerta nesta categoria.</Text>}
+          renderItem={({ item }) => {
+            const config = SEVERIDADE_CONFIG[item.severidade];
+            const marcandoEsteItem = marcandoId === item.id;
+            return (
+              <View style={styles.card}>
+                <View style={[styles.faixa, { backgroundColor: config.cor }]}>
+                  <View style={styles.faixaEsquerda}>
+                    <Ionicons name={config.icone} size={16} color={colors.white} />
+                    <Text style={styles.faixaTexto}>{config.label}</Text>
                   </View>
-                )}
-              </View>
+                  {!item.lido && (
+                    <View style={styles.novoBadge}>
+                      <Text style={styles.novoTexto}>novo</Text>
+                    </View>
+                  )}
+                </View>
 
-              <View style={styles.corpo}>
-                <Text style={styles.titulo}>{item.titulo}</Text>
-                <Text style={[styles.descricao, { color: config.cor }]}>{item.descricao}</Text>
-                <Text style={styles.data}>{formatarData(item.timestamp)}</Text>
+                <View style={styles.corpo}>
+                  <Text style={styles.titulo}>{item.titulo}</Text>
+                  <Text style={[styles.descricao, { color: config.cor }]}>{item.descricao}</Text>
+                  <Text style={styles.data}>{formatarData(item.timestamp)}</Text>
 
-                <Pressable
-                  style={[styles.botao, item.lido && styles.botaoLido]}
-                  onPress={() => marcarComoLido(item.id)}
-                  disabled={item.lido}
-                >
-                  <Ionicons name="checkmark" size={16} color={item.lido ? colors.textMuted : colors.oliveGreen} />
-                  <Text style={[styles.botaoTexto, item.lido && styles.botaoTextoLido]}>
-                    {item.lido ? 'Lido' : 'Marcar como lido'}
-                  </Text>
-                </Pressable>
+                  <Pressable
+                    style={[styles.botao, item.lido && styles.botaoLido]}
+                    onPress={() => marcarComoLido(item.id)}
+                    disabled={item.lido || marcandoEsteItem}
+                  >
+                    {marcandoEsteItem ? (
+                      <ActivityIndicator size="small" color={colors.oliveGreen} />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark" size={16} color={item.lido ? colors.textMuted : colors.oliveGreen} />
+                        <Text style={[styles.botaoTexto, item.lido && styles.botaoTextoLido]}>
+                          {item.lido ? 'Lido' : 'Marcar como lido'}
+                        </Text>
+                      </>
+                    )}
+                  </Pressable>
+                </View>
               </View>
-            </View>
-          );
-        }}
-      />
+            );
+          }}
+        />
+      )}
     </View>
   );
 }

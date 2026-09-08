@@ -6,18 +6,20 @@
  * de camada de dados do DashboardScreen — nunca lê os JSONs direto,
  * sempre via services/.
  *
+ * Loading/erro/refresh padronizados via useCarregamentoAssincrono
+ * (mesmo hook usado nas outras telas).
+ *
  * Header sem botão de voltar por enquanto (a ser implementado quando
  * a navegação para esta tela deixar de ser só pela tab bar).
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   Image,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 
@@ -32,6 +34,10 @@ import {
 import { FiltroDropdown } from '../components/FiltroDropdown';
 import { UmidadeBarChart } from '../components/UmidadeBarChart';
 import { DiagnosticoHistoricoCard } from '../components/DiagnosticoHistoricoCard';
+import { EstadoCarregamento } from '../components/EstadoCarregamento';
+import { EstadoErro } from '../components/EstadoErro';
+import { AvisoErroInline } from '../components/AvisoErroInline';
+import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { OPCOES_PERIODO, filtrarPorPeriodo } from '../utils/periodo';
 
 const OPCAO_TODOS_CAMPOS = { valor: 'todos', rotulo: 'Todos os campos' };
@@ -40,55 +46,40 @@ interface DiagnosticoComImagem extends Diagnostico {
   caminhoImagem: string | null;
 }
 
+interface DadosHistorico {
+  leituras: LeituraAmbiental[];
+  diagnosticos: DiagnosticoComImagem[];
+}
+
+async function buscarDadosHistorico(): Promise<DadosHistorico> {
+  const [leituras, diagnosticos] = await Promise.all([getHistoricoLeituras(), getDiagnosticos()]);
+
+  const diagnosticosComImagem: DiagnosticoComImagem[] = await Promise.all(
+    diagnosticos.map(async (d) => {
+      const imagem = await getImagemDoRegistro(d.registro_imagem_id);
+      const caminho = imagem?.caminho_arquivo ?? null;
+      // Só usamos a imagem se for URL remota (http/https). Caminhos
+      // locais de mock não são resolvíveis dinamicamente pelo Metro —
+      // ver nota em services/diagnosticos.ts.
+      const caminhoValido = caminho && /^https?:\/\//.test(caminho) ? caminho : null;
+      return { ...d, caminhoImagem: caminhoValido };
+    })
+  );
+
+  return { leituras, diagnosticos: diagnosticosComImagem };
+}
+
 export default function HistoricoScreen() {
-  const [leituras, setLeituras] = useState<LeituraAmbiental[]>([]);
-  const [diagnosticos, setDiagnosticos] = useState<DiagnosticoComImagem[]>([]);
-  const [carregando, setCarregando] = useState(true);
-  const [atualizando, setAtualizando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const { dados, carregando, atualizando, erro, recarregar, atualizar } =
+    useCarregamentoAssincrono(buscarDadosHistorico, []);
 
   // TODO: trocar padrão para '48h' quando os mocks estiverem com
   // timestamps relativos à data atual (hoje os mocks são de ago/2026).
   const [periodoSelecionado, setPeriodoSelecionado] = useState('todos');
   const [campoSelecionado, setCampoSelecionado] = useState('todos');
 
-  const carregarDados = useCallback(async () => {
-    try {
-      setErro(null);
-      const [hist, diags] = await Promise.all([getHistoricoLeituras(), getDiagnosticos()]);
-
-      const diagsComImagem: DiagnosticoComImagem[] = await Promise.all(
-        diags.map(async (d) => {
-          const imagem = await getImagemDoRegistro(d.registro_imagem_id);
-          const caminho = imagem?.caminho_arquivo ?? null;
-          // Só usamos a imagem se for URL remota (http/https). Caminhos
-          // locais de mock não são resolvíveis dinamicamente pelo Metro —
-          // ver nota em services/diagnosticos.ts.
-          const caminhoValido = caminho && /^https?:\/\//.test(caminho) ? caminho : null;
-          return { ...d, caminhoImagem: caminhoValido };
-        })
-      );
-
-      setLeituras(hist);
-      setDiagnosticos(diagsComImagem);
-    } catch (e) {
-      setErro('Não foi possível carregar o histórico.');
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      setCarregando(true);
-      await carregarDados();
-      setCarregando(false);
-    })();
-  }, [carregarDados]);
-
-  const onRefresh = async () => {
-    setAtualizando(true);
-    await carregarDados();
-    setAtualizando(false);
-  };
+  const leituras = dados?.leituras ?? [];
+  const diagnosticos = dados?.diagnosticos ?? [];
 
   const opcoesCampo = useMemo(() => {
     const idsUnicos = Array.from(new Set(leituras.map((l) => l.dispositivo_id)));
@@ -118,12 +109,12 @@ export default function HistoricoScreen() {
     return resultado;
   }, [diagnosticos, horasSelecionadas, campoSelecionado, dispositivoUnicoId]);
 
-  if (carregando) {
-    return (
-      <View style={styles.centro}>
-        <ActivityIndicator size="large" color={colors.oliveGreen} />
-      </View>
-    );
+  if (carregando && !dados) {
+    return <EstadoCarregamento />;
+  }
+
+  if (erro && !dados) {
+    return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
   return (
@@ -138,7 +129,7 @@ export default function HistoricoScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={atualizando} onRefresh={onRefresh} colors={[colors.oliveGreen]} />
+          <RefreshControl refreshing={atualizando} onRefresh={atualizar} colors={[colors.oliveGreen]} />
         }
       >
         <View style={styles.linhaFiltros}>
@@ -157,7 +148,7 @@ export default function HistoricoScreen() {
           />
         </View>
 
-        {erro && <Text style={styles.erroTexto}>{erro}</Text>}
+        {erro && dados && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
 
         <UmidadeBarChart leituras={leiturasFiltradas} />
 
@@ -235,6 +226,4 @@ const styles = StyleSheet.create({
   },
   leituraData: { fontSize: 13, color: colors.textDark, fontWeight: '600' },
   leituraValores: { fontSize: 13, color: colors.textMuted },
-  centro: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.cream },
-  erroTexto: { color: colors.danger, fontSize: 13, textAlign: 'center', marginBottom: 8 },
 });

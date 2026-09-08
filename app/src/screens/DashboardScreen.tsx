@@ -1,17 +1,20 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   ScrollView,
   StyleSheet,
   RefreshControl,
-  ActivityIndicator,
   Image,
 } from 'react-native';
 import { getUltimaLeitura, getHistoricoLeituras, LeituraAmbiental } from '../services/leituras';
 import { LeituraCard } from '../components/LeituraCard';
 import { SituacaoSanitariaCard } from '../components/SituacaoSanitariaCard';
 import { SerieTemporalCard } from '../components/SerieTemporalCard';
+import { EstadoCarregamento } from '../components/EstadoCarregamento';
+import { EstadoErro } from '../components/EstadoErro';
+import { AvisoErroInline } from '../components/AvisoErroInline';
+import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
 
 // TODO: ajustar quando confirmarmos o schema real de diagnosticos.json
@@ -20,6 +23,12 @@ import diagnosticosMock from '../mocks/diagnosticos.json';
 interface DiagnosticoResumo {
   saudaveis: number;
   comDoenca: number;
+}
+
+interface DadosDashboard {
+  leitura: LeituraAmbiental | null;
+  historico: LeituraAmbiental[];
+  situacao: DiagnosticoResumo;
 }
 
 function calcularSituacaoSanitaria(): DiagnosticoResumo {
@@ -43,54 +52,23 @@ function calcularSituacaoSanitaria(): DiagnosticoResumo {
   return { saudaveis, comDoenca };
 }
 
+async function buscarDadosDashboard(): Promise<DadosDashboard> {
+  const [leitura, historico] = await Promise.all([getUltimaLeitura(), getHistoricoLeituras()]);
+  return { leitura, historico, situacao: calcularSituacaoSanitaria() };
+}
+
 export default function DashboardScreen() {
-  const [leitura, setLeitura] = useState<LeituraAmbiental | null>(null);
-  const [historico, setHistorico] = useState<LeituraAmbiental[]>([]);
-  const [situacao, setSituacao] = useState<DiagnosticoResumo>({ saudaveis: 0, comDoenca: 0 });
-  const [carregando, setCarregando] = useState(true);
-  const [atualizando, setAtualizando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const { dados, carregando, atualizando, erro, recarregar, atualizar } =
+    useCarregamentoAssincrono(buscarDadosDashboard, []);
 
-  const carregarDados = useCallback(async () => {
-    try {
-      setErro(null);
-      const [ultima, hist] = await Promise.all([getUltimaLeitura(), getHistoricoLeituras()]);
-      setLeitura(ultima);
-      setHistorico(hist);
-      setSituacao(calcularSituacaoSanitaria());
-    } catch (e) {
-      setErro('Não foi possível carregar os dados do painel.');
-    }
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      setCarregando(true);
-      await carregarDados();
-      setCarregando(false);
-    })();
-  }, [carregarDados]);
-
-  const onRefresh = async () => {
-    setAtualizando(true);
-    await carregarDados();
-    setAtualizando(false);
-  };
-
-  if (carregando) {
-    return (
-      <View style={styles.centro}>
-        <ActivityIndicator size="large" color={colors.oliveGreen} />
-      </View>
-    );
+  // Carga inicial ainda não terminou e não há nada na tela ainda.
+  if (carregando && !dados) {
+    return <EstadoCarregamento />;
   }
 
-  if (erro) {
-    return (
-      <View style={styles.centro}>
-        <Text style={styles.erroTexto}>{erro}</Text>
-      </View>
-    );
+  // Carga inicial falhou e não há nada na tela pra mostrar.
+  if (erro && !dados) {
+    return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
   return (
@@ -108,20 +86,27 @@ export default function DashboardScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={atualizando} onRefresh={onRefresh} colors={[colors.oliveGreen]} />
+          <RefreshControl refreshing={atualizando} onRefresh={atualizar} colors={[colors.oliveGreen]} />
         }
       >
-        <SituacaoSanitariaCard saudaveis={situacao.saudaveis} comDoenca={situacao.comDoenca} />
+        {/* Refresh falhou mas ainda temos os últimos dados bons na tela */}
+        {erro && dados && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
 
-        {leitura && (
-          <View style={styles.linhaCards}>
-            <LeituraCard titulo="Temperatura" valor={leitura.temperatura} unidade="°C" icone="🌡️" />
-            <LeituraCard titulo="Umid. ar" valor={leitura.umidade_ar} unidade="%" icone="💧" />
-            <LeituraCard titulo="Umid. solo" valor={leitura.umidade_solo} unidade="%" icone="🌱" />
-          </View>
+        {dados && (
+          <>
+            <SituacaoSanitariaCard saudaveis={dados.situacao.saudaveis} comDoenca={dados.situacao.comDoenca} />
+
+            {dados.leitura && (
+              <View style={styles.linhaCards}>
+                <LeituraCard titulo="Temperatura" valor={dados.leitura.temperatura} unidade="°C" icone="🌡️" />
+                <LeituraCard titulo="Umid. ar" valor={dados.leitura.umidade_ar} unidade="%" icone="💧" />
+                <LeituraCard titulo="Umid. solo" valor={dados.leitura.umidade_solo} unidade="%" icone="🌱" />
+              </View>
+            )}
+
+            <SerieTemporalCard leituras={dados.historico} />
+          </>
         )}
-
-        <SerieTemporalCard leituras={historico} />
       </ScrollView>
     </View>
   );
@@ -160,17 +145,5 @@ const styles = StyleSheet.create({
   linhaCards: {
     flexDirection: 'row',
     marginBottom: 12,
-  },
-  centro: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.cream,
-  },
-  erroTexto: {
-    color: colors.danger,
-    fontSize: 15,
-    textAlign: 'center',
-    paddingHorizontal: 24,
   },
 });

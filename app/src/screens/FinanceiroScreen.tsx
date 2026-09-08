@@ -10,12 +10,20 @@
  * Dados persistidos em AsyncStorage (ver src/services/gastos.ts),
  * semeados a partir do mock `gastos.json` na primeira execução.
  *
+ * Loading/erro/refresh padronizados via useCarregamentoAssincrono.
+ * Particularidade desta tela: a busca depende de `mesSelecionado`, e
+ * trocar de mês dispara uma nova busca (deps do hook). Pra não sumir
+ * com o conteúdo da tela a cada troca de mês (como acontecia antes,
+ * com carregando bloqueando a tela inteira), mantemos os dados do mês
+ * anterior visíveis e só mostramos um spinner pequeno ao lado do
+ * seletor enquanto o novo mês carrega.
+ *
  * Header customizado (logo + título) igual ao padrão do Dashboard —
  * headerShown: false precisa estar setado no Tab.Screen "Financeiro"
  * no AppNavigator para não duplicar o header nativo.
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -43,6 +51,10 @@ import { ResumoFinanceiroCard } from '../components/ResumoFinanceiroCard';
 import { GastosPorCategoriaChart } from '../components/GastosPorCategoriaChart';
 import { GastoListItem } from '../components/GastoListItem';
 import { FormularioGastoModal } from '../components/FormularioGastoModal';
+import { EstadoCarregamento } from '../components/EstadoCarregamento';
+import { EstadoErro } from '../components/EstadoErro';
+import { AvisoErroInline } from '../components/AvisoErroInline';
+import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 
 const NOMES_MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -62,46 +74,29 @@ function ehMesmoMesEAno(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
 
+interface DadosFinanceiro {
+  gastos: Gasto[];
+  resumo: ResumoFinanceiro;
+  totalGeral: number;
+}
+
 export default function FinanceiroScreen() {
   const [mesSelecionado, setMesSelecionado] = useState<Date>(inicioDoMes(new Date()));
-  const [gastos, setGastos] = useState<Gasto[]>([]);
-  const [resumo, setResumo] = useState<ResumoFinanceiro | null>(null);
-  const [totalGeral, setTotalGeral] = useState<number>(0);
-  const [carregando, setCarregando] = useState(true);
-  const [atualizando, setAtualizando] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
-  const [modalVisivel, setModalVisivel] = useState(false);
-  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
-  const carregarDados = useCallback(async () => {
-    try {
-      setErro(null);
-      const [listaGastos, resumoFinanceiro, totalGeralAtual] = await Promise.all([
-        getGastosPorMes(mesSelecionado),
-        getResumoFinanceiro(mesSelecionado),
-        getGastoTotalGeral(),
-      ]);
-      setGastos(listaGastos);
-      setResumo(resumoFinanceiro);
-      setTotalGeral(totalGeralAtual);
-    } catch (e) {
-      setErro('Não foi possível carregar os dados financeiros.');
-    }
+  const buscarDadosFinanceiro = useCallback(async (): Promise<DadosFinanceiro> => {
+    const [gastos, resumo, totalGeral] = await Promise.all([
+      getGastosPorMes(mesSelecionado),
+      getResumoFinanceiro(mesSelecionado),
+      getGastoTotalGeral(),
+    ]);
+    return { gastos, resumo, totalGeral };
   }, [mesSelecionado]);
 
-  useEffect(() => {
-    (async () => {
-      setCarregando(true);
-      await carregarDados();
-      setCarregando(false);
-    })();
-  }, [carregarDados]);
+  const { dados, carregando, atualizando, erro, recarregar, atualizar } =
+    useCarregamentoAssincrono(buscarDadosFinanceiro, [mesSelecionado]);
 
-  const onRefresh = async () => {
-    setAtualizando(true);
-    await carregarDados();
-    setAtualizando(false);
-  };
+  const [modalVisivel, setModalVisivel] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   const mesAtual = inicioDoMes(new Date());
   const estaNoMesAtual = ehMesmoMesEAno(mesSelecionado, mesAtual);
@@ -115,14 +110,14 @@ export default function FinanceiroScreen() {
     setMesSelecionado((atual) => new Date(atual.getFullYear(), atual.getMonth() + 1, 1));
   };
 
-  const handleSalvarGasto = async (dados: {
+  const handleSalvarGasto = async (dadosGasto: {
     categoria: string;
     descricao: string;
     valor: number;
     data: string;
   }) => {
-    await registrarGasto(dados);
-    await carregarDados();
+    await registrarGasto(dadosGasto);
+    await atualizar();
   };
 
   const confirmarExclusao = (gasto: Gasto) => {
@@ -145,7 +140,7 @@ export default function FinanceiroScreen() {
     try {
       const removido = await excluirGasto(id);
       if (removido) {
-        await carregarDados();
+        await atualizar();
       } else {
         Alert.alert('Aviso', 'Esse gasto já não existe mais na lista.');
       }
@@ -156,20 +151,15 @@ export default function FinanceiroScreen() {
     }
   };
 
-  if (carregando) {
-    return (
-      <View style={styles.centro}>
-        <ActivityIndicator size="large" color={colors.oliveGreen} />
-      </View>
-    );
+  // Só bloqueia a tela inteira na primeiríssima carga (sem nenhum
+  // dado ainda). Trocar de mês depois disso não derruba a tela — ver
+  // o spinner pequeno ao lado do seletor de mês abaixo.
+  if (carregando && !dados) {
+    return <EstadoCarregamento />;
   }
 
-  if (erro) {
-    return (
-      <View style={styles.centro}>
-        <Text style={styles.erroTexto}>{erro}</Text>
-      </View>
-    );
+  if (erro && !dados) {
+    return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
   return (
@@ -187,17 +177,24 @@ export default function FinanceiroScreen() {
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={atualizando} onRefresh={onRefresh} colors={[colors.oliveGreen]} />
+          <RefreshControl refreshing={atualizando} onRefresh={atualizar} colors={[colors.oliveGreen]} />
         }
       >
+        {erro && dados && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
+
         <View style={styles.seletorMes}>
           <Pressable onPress={voltarMes} hitSlop={10} style={styles.seletorBotao}>
             <Ionicons name="chevron-back" size={20} color={colors.darkGreen} />
           </Pressable>
 
-          <Text style={styles.seletorTexto}>
-            {resumo ? formatarMesReferencia(resumo.mesReferencia) : ''}
-          </Text>
+          <View style={styles.seletorTextoContainer}>
+            <Text style={styles.seletorTexto}>
+              {dados ? formatarMesReferencia(dados.resumo.mesReferencia) : ''}
+            </Text>
+            {carregando && dados && (
+              <ActivityIndicator size="small" color={colors.oliveGreen} style={styles.seletorSpinner} />
+            )}
+          </View>
 
           <Pressable
             onPress={avancarMes}
@@ -213,19 +210,19 @@ export default function FinanceiroScreen() {
           </Pressable>
         </View>
 
-        {resumo && (
+        {dados && (
           <ResumoFinanceiroCard
-            totalGasto={resumo.totalGasto}
-            quantidadeLancamentos={resumo.quantidadeLancamentos}
+            totalGasto={dados.resumo.totalGasto}
+            quantidadeLancamentos={dados.resumo.quantidadeLancamentos}
           />
         )}
 
         <Text style={styles.totalGeralTexto}>
-          Total geral (todos os períodos): {formatarMoeda(totalGeral)}
+          Total geral (todos os períodos): {formatarMoeda(dados?.totalGeral ?? 0)}
         </Text>
 
-        {resumo && resumo.porCategoria.length > 0 && (
-          <GastosPorCategoriaChart porCategoria={resumo.porCategoria} />
+        {dados && dados.resumo.porCategoria.length > 0 && (
+          <GastosPorCategoriaChart porCategoria={dados.resumo.porCategoria} />
         )}
 
         <Pressable style={styles.botaoNovoGasto} onPress={() => setModalVisivel(true)}>
@@ -233,13 +230,13 @@ export default function FinanceiroScreen() {
         </Pressable>
 
         <Text style={styles.tituloSecao}>
-          Transações de {resumo ? formatarMesReferencia(resumo.mesReferencia) : ''}
+          Transações de {dados ? formatarMesReferencia(dados.resumo.mesReferencia) : ''}
         </Text>
 
-        {gastos.length === 0 ? (
+        {!dados || dados.gastos.length === 0 ? (
           <Text style={styles.vazio}>Nenhum gasto registrado neste mês.</Text>
         ) : (
-          gastos.map((g) => (
+          dados.gastos.map((g) => (
             <GastoListItem
               key={g.id}
               gasto={g}
@@ -305,10 +302,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  seletorTextoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   seletorTexto: {
     color: colors.textDark,
     fontSize: 16,
     fontWeight: '700',
+  },
+  seletorSpinner: {
+    marginTop: 1,
   },
   totalGeralTexto: {
     color: colors.textMuted,
@@ -341,17 +346,5 @@ const styles = StyleSheet.create({
     fontSize: 13,
     textAlign: 'center',
     paddingVertical: 20,
-  },
-  centro: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.cream,
-  },
-  erroTexto: {
-    color: colors.danger,
-    fontSize: 15,
-    textAlign: 'center',
-    paddingHorizontal: 24,
   },
 });
