@@ -13,6 +13,7 @@ import { SituacaoSanitariaCard } from '../components/SituacaoSanitariaCard';
 import { SerieTemporalCard } from '../components/SerieTemporalCard';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
+import { EstadoVazio } from '../components/EstadoVazio';
 import { AvisoErroInline } from '../components/AvisoErroInline';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
@@ -71,6 +72,13 @@ export default function DashboardScreen() {
     return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
+  // Dispositivo existe mas ainda não enviou nenhuma leitura nem gerou
+  // nenhum diagnóstico — cenário plausível logo após o cadastro do
+  // sensor, antes do IoT começar a reportar dados.
+  const semNenhumDado =
+    dados && !dados.leitura && dados.historico.length === 0 &&
+    dados.situacao.saudaveis === 0 && dados.situacao.comDoenca === 0;
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -92,20 +100,29 @@ export default function DashboardScreen() {
         {/* Refresh falhou mas ainda temos os últimos dados bons na tela */}
         {erro && dados && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
 
-        {dados && (
-          <>
-            <SituacaoSanitariaCard saudaveis={dados.situacao.saudaveis} comDoenca={dados.situacao.comDoenca} />
+        {semNenhumDado ? (
+          <EstadoVazio
+            icone="leaf-outline"
+            titulo="Nenhuma leitura recebida ainda"
+            subtitulo="Assim que o dispositivo começar a enviar dados da estufa, eles aparecem aqui."
+            variante="secao"
+          />
+        ) : (
+          dados && (
+            <>
+              <SituacaoSanitariaCard saudaveis={dados.situacao.saudaveis} comDoenca={dados.situacao.comDoenca} />
 
-            {dados.leitura && (
-              <View style={styles.linhaCards}>
-                <LeituraCard titulo="Temperatura" valor={dados.leitura.temperatura} unidade="°C" icone="🌡️" />
-                <LeituraCard titulo="Umid. ar" valor={dados.leitura.umidade_ar} unidade="%" icone="💧" />
-                <LeituraCard titulo="Umid. solo" valor={dados.leitura.umidade_solo} unidade="%" icone="🌱" />
-              </View>
-            )}
+              {dados.leitura && (
+                <View style={styles.linhaCards}>
+                  <LeituraCard titulo="Temperatura" valor={dados.leitura.temperatura} unidade="°C" icone="🌡️" />
+                  <LeituraCard titulo="Umid. ar" valor={dados.leitura.umidade_ar} unidade="%" icone="💧" />
+                  <LeituraCard titulo="Umid. solo" valor={dados.leitura.umidade_solo} unidade="%" icone="🌱" />
+                </View>
+              )}
 
-            <SerieTemporalCard leituras={dados.historico} />
-          </>
+              <SerieTemporalCard leituras={dados.historico} />
+            </>
+          )
         )}
       </ScrollView>
     </View>

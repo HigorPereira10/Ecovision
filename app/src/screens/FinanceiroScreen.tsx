@@ -18,6 +18,12 @@
  * anterior visíveis e só mostramos um spinner pequeno ao lado do
  * seletor enquanto o novo mês carrega.
  *
+ * ATUALIZAÇÃO (Dia 25): estado vazio de transações passou a usar o
+ * componente compartilhado EstadoVazio, e registrar/excluir um gasto
+ * com sucesso agora mostra um toast leve (useToastSucesso) como
+ * confirmação visual, além do Alert nativo de confirmação de exclusão
+ * (que continua igual).
+ *
  * Header customizado (logo + título) igual ao padrão do Dashboard —
  * headerShown: false precisa estar setado no Tab.Screen "Financeiro"
  * no AppNavigator para não duplicar o header nativo.
@@ -53,8 +59,11 @@ import { GastoListItem } from '../components/GastoListItem';
 import { FormularioGastoModal } from '../components/FormularioGastoModal';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
+import { EstadoVazio } from '../components/EstadoVazio';
 import { AvisoErroInline } from '../components/AvisoErroInline';
+import { ToastSucesso } from '../components/ToastSucesso';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
+import { useToastSucesso } from '../hooks/useToastSucesso';
 
 const NOMES_MESES = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -97,6 +106,7 @@ export default function FinanceiroScreen() {
 
   const [modalVisivel, setModalVisivel] = useState(false);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
+  const { mensagem: mensagemToast, mostrarToast } = useToastSucesso();
 
   const mesAtual = inicioDoMes(new Date());
   const estaNoMesAtual = ehMesmoMesEAno(mesSelecionado, mesAtual);
@@ -118,6 +128,7 @@ export default function FinanceiroScreen() {
   }) => {
     await registrarGasto(dadosGasto);
     await atualizar();
+    mostrarToast('Gasto registrado com sucesso');
   };
 
   const confirmarExclusao = (gasto: Gasto) => {
@@ -141,6 +152,7 @@ export default function FinanceiroScreen() {
       const removido = await excluirGasto(id);
       if (removido) {
         await atualizar();
+        mostrarToast('Gasto excluído');
       } else {
         Alert.alert('Aviso', 'Esse gasto já não existe mais na lista.');
       }
@@ -234,7 +246,12 @@ export default function FinanceiroScreen() {
         </Text>
 
         {!dados || dados.gastos.length === 0 ? (
-          <Text style={styles.vazio}>Nenhum gasto registrado neste mês.</Text>
+          <EstadoVazio
+            icone="wallet-outline"
+            titulo="Nenhum gasto registrado neste mês"
+            subtitulo="Toque em “Registrar novo gasto” para adicionar o primeiro lançamento."
+            variante="secao"
+          />
         ) : (
           dados.gastos.map((g) => (
             <GastoListItem
@@ -252,6 +269,8 @@ export default function FinanceiroScreen() {
         onFechar={() => setModalVisivel(false)}
         onSalvar={handleSalvarGasto}
       />
+
+      <ToastSucesso mensagem={mensagemToast} />
     </View>
   );
 }
@@ -340,11 +359,5 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     marginBottom: 10,
-  },
-  vazio: {
-    color: colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
-    paddingVertical: 20,
   },
 });

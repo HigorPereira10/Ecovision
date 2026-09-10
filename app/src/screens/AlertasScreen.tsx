@@ -14,22 +14,39 @@
  * (mesmo hook usado nas outras telas). "Marcar como lido" tem seu
  * próprio tratamento de erro local (erroMarcarLido), separado do erro
  * de carregamento da lista — uma falha ao marcar não deve esconder a
- * lista inteira.
+ * lista inteira. Um sucesso ao marcar mostra um toast leve
+ * (useToastSucesso) como confirmação visual.
  *
  * Header customizado (logo + título) segue o mesmo padrão do
  * DashboardScreen — a aba "Alertas" no AppNavigator precisa estar com
  * headerShown: false, senão aparecem dois headers sobrepostos (mesmo
  * problema já resolvido no DiagnosticoScreen).
+ *
+ * Notificações locais (Dia 22-23, Blueprint Fase 5): o botão de sino
+ * no header dispara uma notificação de demonstração
+ * (dispararNotificacaoTeste), e useFocusEffect roda uma verificação
+ * automática (verificarNovosAlertasNaoLidos) toda vez que a tela ganha
+ * foco, simulando o que futuramente será um push real vindo do
+ * backend. Ver services/notificacoes.ts para detalhes.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { getAlertas, marcarAlertaLido, Alerta, SeveridadeAlerta } from '../services/alertas';
+import {
+  inicializarNotificacoes,
+  dispararNotificacaoTeste,
+  verificarNovosAlertasNaoLidos,
+} from '../services/notificacoes';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
+import { EstadoVazio } from '../components/EstadoVazio';
 import { AvisoErroInline } from '../components/AvisoErroInline';
+import { ToastSucesso } from '../components/ToastSucesso';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
+import { useToastSucesso } from '../hooks/useToastSucesso';
 import { colors } from '../theme/colors';
 
 type Filtro = 'todos' | SeveridadeAlerta;
@@ -61,6 +78,17 @@ export default function AlertasScreen() {
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [marcandoId, setMarcandoId] = useState<number | null>(null);
   const [erroMarcarLido, setErroMarcarLido] = useState<string | null>(null);
+  const { mensagem: mensagemToast, mostrarToast } = useToastSucesso();
+
+  // Verificação automática de novos alertas não lidos toda vez que a
+  // tela ganha foco — simula, do lado do app, o que futuramente será
+  // um evento de push vindo do backend (Blueprint Fase 5).
+  useFocusEffect(
+    useCallback(() => {
+      inicializarNotificacoes();
+      verificarNovosAlertasNaoLidos();
+    }, [])
+  );
 
   async function marcarComoLido(id: number) {
     setMarcandoId(id);
@@ -70,6 +98,7 @@ export default function AlertasScreen() {
       // Refaz a busca pra refletir o estado persistido pelo serviço —
       // no futuro, pelo backend real, que passa a ser a fonte da verdade.
       await atualizar();
+      mostrarToast('Alerta marcado como lido');
     } catch (e) {
       setErroMarcarLido('Não foi possível marcar como lido. Tente novamente.');
     } finally {
@@ -87,7 +116,9 @@ export default function AlertasScreen() {
       <View style={styles.header}>
         <Image source={require('../../assets/images/logo-ecovision.png')} style={styles.logo} />
         <Text style={styles.headerTitulo}>Seus Alertas</Text>
-        <View style={{ width: 32 }} />
+        <Pressable onPress={dispararNotificacaoTeste} hitSlop={8}>
+          <Ionicons name="notifications-outline" size={24} color={colors.white} />
+        </Pressable>
       </View>
 
       <View style={styles.filtrosContainer}>
@@ -139,7 +170,18 @@ export default function AlertasScreen() {
               </View>
             ) : null
           }
-          ListEmptyComponent={<Text style={styles.vazioTexto}>Nenhum alerta nesta categoria.</Text>}
+          ListEmptyComponent={
+            <EstadoVazio
+              icone="notifications-off-outline"
+              titulo={filtro === 'todos' ? 'Nenhum alerta ainda' : 'Nenhum alerta nesta categoria'}
+              subtitulo={
+                filtro === 'todos'
+                  ? 'Quando algo pedir atenção na sua estufa, o alerta aparece aqui.'
+                  : 'Tente outro filtro de severidade para ver os demais alertas.'
+              }
+              variante="secao"
+            />
+          }
           renderItem={({ item }) => {
             const config = SEVERIDADE_CONFIG[item.severidade];
             const marcandoEsteItem = marcandoId === item.id;
@@ -184,6 +226,8 @@ export default function AlertasScreen() {
           }}
         />
       )}
+
+      <ToastSucesso mensagem={mensagemToast} />
     </View>
   );
 }
@@ -223,7 +267,6 @@ const styles = StyleSheet.create({
   filtroTexto: { fontSize: 13, fontWeight: '600', color: colors.textDark },
   lista: { flex: 1 },
   listaConteudo: { padding: 12, paddingBottom: 24 },
-  vazioTexto: { textAlign: 'center', color: colors.textMuted, marginTop: 32, fontSize: 14 },
   card: {
     backgroundColor: colors.white,
     borderRadius: 12,

@@ -27,6 +27,10 @@
  * stack empilhado — por isso não tem botão de voltar. headerShown está
  * como false na definição da aba em AppNavigator.tsx, e o header abaixo
  * (logo + título) segue o mesmo padrão do DashboardScreen.
+ *
+ * ATUALIZAÇÃO (Dia 25): estado "nenhum diagnóstico ainda" passou a usar
+ * o componente compartilhado EstadoVazio, no mesmo padrão visual das
+ * outras telas, em vez do bloco de texto solto que havia antes.
  */
 
 import React, { useState } from 'react';
@@ -47,6 +51,7 @@ import {
 } from '../services/diagnosticos';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
+import { EstadoVazio } from '../components/EstadoVazio';
 import { AvisoErroInline } from '../components/AvisoErroInline';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
@@ -109,8 +114,20 @@ export default function DiagnosticoScreen() {
 
   if (!dados || dados.diagnosticos.length === 0) {
     return (
-      <View style={styles.centro}>
-        <Text style={styles.textoVazio}>Nenhum diagnóstico disponível ainda.</Text>
+      <View style={styles.container}>
+        <View style={styles.header}>
+          <Image
+            source={require('../../assets/images/logo-ecovision.png')}
+            style={styles.logo}
+          />
+          <Text style={styles.headerTitulo}>Diagnóstico de Campo</Text>
+          <View style={{ width: 32 }} />
+        </View>
+        <EstadoVazio
+          icone="scan-outline"
+          titulo="Nenhum diagnóstico disponível ainda"
+          subtitulo="Assim que a IA analisar as primeiras imagens da estufa, os resultados aparecem aqui."
+        />
       </View>
     );
   }
@@ -378,15 +395,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginTop: 4,
     textAlign: 'center',
-  },
-  centro: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.cream,
-  },
-  textoVazio: {
-    fontSize: 14,
-    color: '#666',
   },
 });

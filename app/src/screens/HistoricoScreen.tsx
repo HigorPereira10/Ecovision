@@ -9,6 +9,11 @@
  * Loading/erro/refresh padronizados via useCarregamentoAssincrono
  * (mesmo hook usado nas outras telas).
  *
+ * ATUALIZAÇÃO (Dia 25): os avisos de "nenhum resultado no período"
+ * (tanto pra diagnósticos quanto pra leituras) passaram a usar o
+ * componente compartilhado EstadoVazio (variante "secao"), no mesmo
+ * padrão visual das outras telas.
+ *
  * Header sem botão de voltar por enquanto (a ser implementado quando
  * a navegação para esta tela deixar de ser só pela tab bar).
  */
@@ -36,6 +41,7 @@ import { UmidadeBarChart } from '../components/UmidadeBarChart';
 import { DiagnosticoHistoricoCard } from '../components/DiagnosticoHistoricoCard';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
+import { EstadoVazio } from '../components/EstadoVazio';
 import { AvisoErroInline } from '../components/AvisoErroInline';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { OPCOES_PERIODO, filtrarPorPeriodo } from '../utils/periodo';
@@ -117,6 +123,8 @@ export default function HistoricoScreen() {
     return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
+  const filtroAtivo = periodoSelecionado !== 'todos' || campoSelecionado !== 'todos';
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -154,7 +162,12 @@ export default function HistoricoScreen() {
 
         <Text style={styles.secaoTitulo}>Diagnósticos de campo</Text>
         {diagnosticosFiltrados.length === 0 ? (
-          <Text style={styles.vazioTexto}>Nenhum diagnóstico no período selecionado.</Text>
+          <EstadoVazio
+            icone="scan-outline"
+            titulo="Nenhum diagnóstico no período selecionado"
+            subtitulo={filtroAtivo ? 'Tente ampliar o período ou trocar o campo selecionado.' : undefined}
+            variante="secao"
+          />
         ) : (
           diagnosticosFiltrados.map((d) => (
             <DiagnosticoHistoricoCard key={d.id} diagnostico={d} caminhoImagem={d.caminhoImagem} />
@@ -163,7 +176,12 @@ export default function HistoricoScreen() {
 
         <Text style={styles.secaoTitulo}>Leituras ambientais</Text>
         {leiturasFiltradas.length === 0 ? (
-          <Text style={styles.vazioTexto}>Nenhuma leitura no período selecionado.</Text>
+          <EstadoVazio
+            icone="water-outline"
+            titulo="Nenhuma leitura no período selecionado"
+            subtitulo={filtroAtivo ? 'Tente ampliar o período ou trocar o campo selecionado.' : undefined}
+            variante="secao"
+          />
         ) : (
           leiturasFiltradas.map((l) => (
             <View key={l.id} style={styles.leituraItem}>
@@ -214,7 +232,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginTop: 4,
   },
-  vazioTexto: { fontSize: 13, color: colors.textMuted, marginBottom: 12 },
   leituraItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
