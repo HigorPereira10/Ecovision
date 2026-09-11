@@ -21,10 +21,15 @@ prever o campo `caminho_arquivo`.
   público), e signed URLs expiram/podem ser revogadas, ao contrário de
   um link público que vaza para sempre. Como o frontend já é obrigado a
   passar pela API mesmo (regra acima), gerar a signed URL ali não é
-  esforço extra real. **Ainda não implementado**: a função de gerar a
-  signed URL em `cloud/app/storage/supabase_storage.py` e o consumo dela
-  em `cloud/app/api/routes/historico.py` (hoje um esqueleto/TODO) ficam
-  para quando a tela de histórico do app for construída de verdade.
+  esforço extra real. Reconfirmado com o grupo em 2026-09-11 (a mesma
+  decisão de já estava aqui não tinha chegado até o código, que ainda
+  dizia "em aberto" em alguns comentários).
+- **Implementado**: `gerar_url_assinada_imagem()` em
+  `cloud/app/storage/supabase_storage.py` (validade de 1h, ver
+  `_EXPIRACAO_URL_ASSINADA_SEGUNDOS`), consumida por `GET /diagnosticos`
+  em `cloud/app/api/routes/historico.py`. Retorna `None` (não levanta
+  erro) se a geração da URL falhar para uma imagem específica, para não
+  derrubar a lista inteira por causa de um item.
 
 ## Relação com o resto do sistema
 

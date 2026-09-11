@@ -55,6 +55,14 @@ def avaliar_inatividade_dispositivo(
     if agora is None:
         agora = datetime.now(timezone.utc)
 
+    # SQLite (usado nos testes, ver cloud/tests/conftest.py) nao
+    # preserva timezone ao ler de volta uma coluna DateTime(timezone=True):
+    # o valor volta "naive". _agora_utc() (app/db/models.py) sempre grava
+    # em UTC, entao assumir UTC aqui e seguro tanto no Postgres real
+    # quanto nesse caso do SQLite de teste.
+    if ultima_captura_em is not None and ultima_captura_em.tzinfo is None:
+        ultima_captura_em = ultima_captura_em.replace(tzinfo=timezone.utc)
+
     if ultima_captura_em is None:
         return (
             "Dispositivo nunca reportou dados",

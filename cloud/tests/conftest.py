@@ -36,8 +36,9 @@ os.environ.setdefault("DEVICE_API_KEY", "chave-de-teste-dispositivo")
 
 import pytest_asyncio  # noqa: E402
 
-from app.db.models import Base  # noqa: E402
-from app.db.session import engine  # noqa: E402
+from app.core.security import criar_access_token, gerar_hash_senha  # noqa: E402
+from app.db.models import Base, Usuario  # noqa: E402
+from app.db.session import _SessionLocal, engine  # noqa: E402
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -49,3 +50,27 @@ async def _banco_limpo():
     yield
     async with engine.begin() as conexao:
         await conexao.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture
+async def usuario_produtor() -> Usuario:
+    """Cria um produtor de teste no banco (email/senha conhecidos,
+    usados por test_auth.py). Usado também por outros testes que
+    só precisam de QUALQUER usuário válido para gerar um token."""
+    async with _SessionLocal() as sessao:
+        usuario = Usuario(
+            email="produtor@teste.com",
+            senha_hash=gerar_hash_senha("senha-correta"),
+            papel="produtor",
+        )
+        sessao.add(usuario)
+        await sessao.commit()
+        await sessao.refresh(usuario)
+        return usuario
+
+
+@pytest_asyncio.fixture
+async def token_produtor(usuario_produtor: Usuario) -> str:
+    """Access token JWT válido para um produtor de teste, pronto para
+    usar no header Authorization dos endpoints do dashboard."""
+    return criar_access_token(usuario_produtor.id, usuario_produtor.papel)

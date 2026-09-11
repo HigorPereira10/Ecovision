@@ -67,15 +67,17 @@ offline do edge (`edge/README.md`, `docs/decisions/*`).
 ## Implementação
 
 - `cloud/app/core/alertas_dispositivo.py` (função pura de decisão).
-- Consumido futuramente por `GET /alertas`
-  (`cloud/app/api/routes/alertas.py`, ainda não implementado, depende
-  da autenticação do produtor, ADR 0003, ainda stub).
+- Consumido por `GET /alertas` (`cloud/app/api/routes/alertas.py`).
+
+**Formato do item sintético na resposta (decidido):** `AlertaOut`
+(`cloud/app/db/schemas.py`) tem os campos `id: int | None` e
+`sintetico: bool`. O item de dispositivo inativo vem com `id: null` e
+`sintetico: true`; todos os alertas reais vêm com `sintetico: false`.
+`PATCH /alertas/{id}/lido` só aceita um `id` de uma linha real: como o
+item sintético nunca tem uma linha na tabela `alertas`, qualquer
+tentativa de marcá-lo como lido cai naturalmente num 404.
 
 ## Pendências
 
 - Os múltiplos 2x/4x podem precisar de ajuste após a validação em
   campo (Sprint 9).
-- Quando `GET /alertas` for implementado, decidir o formato exato do
-  item sintético na resposta (ele não tem `id` de uma linha real da
-  tabela `alertas`, precisa de um jeito de o frontend não tentar dar
-  `PATCH .../lido` nele como se fosse um alerta comum).

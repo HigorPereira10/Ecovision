@@ -4,14 +4,15 @@ cloud/app/main.py
 Ponto de entrada da API FastAPI, servida via Uvicorn com 1 worker
 (Tech Stack Blueprint v3.0, Fase 4 / Sumário Executivo).
 
-Nesta rodada só o router de diagnostico é registrado (caminho do
-dispositivo). Os routers de auth/dispositivos/alertas/historico ficam
-para quando app/ (dashboard) for implementado de verdade, ver
+Routers registrados: diagnostico.py (caminho do dispositivo), auth.py,
+historico.py e alertas.py (caminho do dashboard). O router de
+dispositivos.py (CRUD administrativo) ainda fica para quando existir
+RBAC por dono de dispositivo (mais de 1 dispositivo físico), ver
 cloud/README.md.
 
 Responsabilidades:
 - Instanciar a aplicação FastAPI.
-- Registrar o router de app/api/routes/diagnostico.py.
+- Registrar os routers de app/api/routes/*.py.
 - Carregar o modelo .tflite em memória UMA VEZ na inicialização
   (lifespan), via app/core/inference.py. NUNCA recarregar o modelo a
   cada requisição, isso destruiria a performance. Se o modelo ainda não
@@ -40,7 +41,7 @@ from fastapi import Depends, FastAPI, Response, status
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes import diagnostico
+from app.api.routes import alertas, auth, diagnostico, historico
 from app.config import settings
 from app.core.inference import carregar_modelo_tflite
 from app.db.session import get_session
@@ -81,7 +82,8 @@ async def health(response: Response, sessao: AsyncSession = Depends(get_session)
 
 
 app.include_router(diagnostico.router)
-# TODO: app.include_router(auth.router), quando o login do dashboard existir
-# TODO: app.include_router(dispositivos.router)
-# TODO: app.include_router(alertas.router)
-# TODO: app.include_router(historico.router)
+app.include_router(auth.router)
+app.include_router(historico.router)
+app.include_router(alertas.router)
+# TODO: app.include_router(dispositivos.router), quando RBAC por
+# dispositivo/dono for necessario (mais de 1 dispositivo fisico).

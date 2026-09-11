@@ -61,6 +61,16 @@ def test_limiar_exato_de_8h_ainda_nao_e_alta():
     assert resultado[2] == "media"
 
 
+def test_funciona_com_timestamp_sem_timezone():
+    # SQLite (usado nos testes de integracao, ver conftest.py) devolve
+    # DateTime(timezone=True) como "naive" na leitura; a funcao precisa
+    # aceitar isso sem quebrar (ver alertas_dispositivo.py).
+    ultima_sem_tz = (AGORA - timedelta(hours=10)).replace(tzinfo=None)
+    resultado = avaliar_inatividade_dispositivo(ultima_sem_tz, AGORA)
+    assert resultado is not None
+    assert resultado[2] == "alta"
+
+
 def test_dispositivo_nunca_reportou_gera_alerta_alta():
     resultado = avaliar_inatividade_dispositivo(None, AGORA)
     assert resultado is not None

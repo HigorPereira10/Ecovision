@@ -6,9 +6,11 @@ carregadas no Railway a partir das variáveis definidas no serviço
 (nunca hardcoded, nunca em arquivo .env versionado,
 ver infra/env/cloud.env.example para o template das chaves esperadas).
 
-Os campos JWT_* já existem aqui (com default) mesmo sem uso nesta
-rodada. O login do dashboard fica para quando app/ for implementado
-de verdade, mas assim o .env.example não precisa mudar de novo depois.
+Os campos JWT_* são usados por app/core/security.py (login do
+dashboard, ADR 0003). JWT_SECRET_KEY tem um valor padrão só para dev
+local/testes: em produção (Railway), DEVE ser sobrescrito por uma
+variável de ambiente de verdade (ex.: `python -c "import secrets;
+print(secrets.token_urlsafe(48))"`), nunca o valor abaixo.
 
 Relação com o resto do sistema:
 - Consumido por app/main.py, app/core/security.py, app/core/inference.py,
@@ -34,8 +36,10 @@ class Settings(BaseSettings):
     # --- Autenticação do dispositivo IoT (API Key estática) ---
     DEVICE_API_KEY: str
 
-    # --- Autenticação do dashboard (JWT): não usada nesta rodada ---
-    JWT_SECRET_KEY: str = "nao-usado-nesta-rodada"
+    # --- Autenticação do dashboard (JWT) ---
+    # Valor padrão só serve para dev local/testes (32+ bytes para evitar
+    # o InsecureKeyLengthWarning do PyJWT); produção sobrescreve via env var.
+    JWT_SECRET_KEY: str = "chave-de-desenvolvimento-local-nao-usar-em-producao"
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30

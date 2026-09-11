@@ -31,10 +31,11 @@ supabase                  # cliente oficial (cobre Postgres + Storage)
 # --- Processamento de imagem (100% em memória, via BytesIO) ---
 pillow
 
-# --- Autenticação do dispositivo (API Key) ---
-# JWT/bcrypt do dashboard ficam para quando app/ for implementado:
-# pyjwt
-# passlib[bcrypt]
+# --- Autenticação do dispositivo (API Key) e do dashboard (JWT/bcrypt) ---
+# bcrypt usado diretamente (nao via passlib): passlib esta sem manutencao
+# e tem incompatibilidade conhecida com versoes recentes do pacote bcrypt.
+pyjwt
+bcrypt
 
 # --- Configuração ---
 python-dotenv
