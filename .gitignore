@@ -15,10 +15,14 @@ venv/
 # Dados em runtime (fila offline do edge/, cache local)
 edge/data/
 
+# Documentos de referência internos (não sobem para o GitHub)
+/Referencia/
+
 # app/ (Expo/React Native)
 /ecovision-app
 /app/node_modules
 /app/package-lock.json
+/app/.expo/
 
 # IDE / SO
 .vscode/
