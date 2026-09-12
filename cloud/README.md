@@ -10,14 +10,13 @@ Camada de backend do EcoVision. Referência arquitetural completa: **Tech Stack 
 - Fala com o **Supabase** (Postgres + Storage) para persistir dados estruturados e imagens. O Supabase nunca é acessado diretamente pelo frontend, sempre através desta API.
 - Implementa as duas pontas de autenticação decididas no Blueprint (Seção 4.3):
   - **API Key estática** para o dispositivo IoT (Raspberry Pi → API): **implementada**.
-  - **JWT de curta duração (24h) + refresh token (30 dias) + bcrypt** para o login do produtor no dashboard: **não implementada nesta rodada**, ver "Escopo" abaixo.
+  - **JWT de curta duração (24h) + refresh token (30 dias) + bcrypt** para o login do produtor no dashboard: **implementada**.
 
-## Escopo implementado nesta rodada
+## Escopo implementado
 
-Combinado com o grupo: o `app/` (dashboard, Expo/React Native) ainda está no
-mesmo estágio de esqueleto que o `cloud/` estava antes desta rodada, só
-telas e mocks JSON, sem login nem consumo de API de verdade. Por isso, esta
-rodada cobre **só o caminho do dispositivo**:
+Cobre o caminho do dispositivo (POST /diagnostico) e o caminho do
+dashboard (login + consultas), com o app/ (Amanda) ainda consumindo
+mocks locais até integrar de verdade contra estes endpoints:
 
 - ✅ `POST /diagnostico`: recebe imagem + leituras do Pi, roda inferência
   (com fallback se não houver modelo `.tflite` ainda, ver `app/core/inference.py`),
@@ -58,9 +57,26 @@ rodada cobre **só o caminho do dispositivo**:
   bucket); imagem acima de 5MB é recusada com 413; e uma corrida entre
   duas requisições com a mesma `idempotency_key` não derruba mais a
   requisição com um erro de chave duplicada.
-- ⏳ **Não implementado ainda**: login/JWT/bcrypt do dashboard, RBAC, e as
-  rotas `auth`, `dispositivos`, `alertas`, `historico`, ficam para quando
-  alguém for implementar o `app/` de verdade.
+- ✅ `POST /auth/login` e `POST /auth/refresh`: login do produtor
+  (JWT + bcrypt, [ADR 0003](../docs/decisions/0003-autenticacao-dual.md)).
+  Primeira conta semeada manualmente via `scripts/seed_usuario_teste.py`
+  (mesmas credenciais do mock do `app/`), sem endpoint de cadastro nesta
+  rodada.
+- ✅ `GET /leituras` e `GET /diagnosticos`: consulta histórica, exigem
+  login, com filtro opcional `?horas=N`. `GET /diagnosticos` resolve a
+  imagem numa signed URL temporária (bucket privado, ver
+  `infra/supabase/storage_policies.md`), não quebra a lista se a
+  geração da URL falhar para um item.
+- ✅ `GET /alertas` e `PATCH /alertas/{id}/lido`: lista alertas reais
+  (doença/ambiente) MAIS um item sintético (não gravado no banco) de
+  "dispositivo inativo" quando o dispositivo para de reportar
+  ([ADR 0008](../docs/decisions/0008-deteccao-dispositivo-inativo.md)).
+- ✅ CORS liberado (`allow_origins=["*"]`), necessário para a versão web
+  do Expo chamar a API do navegador; seguro aqui porque a autenticação é
+  via header `Authorization`, não cookie.
+- ⏳ **Não implementado ainda**: `GET/POST /dispositivos` (CRUD
+  administrativo) e RBAC por dono de dispositivo, ficam para quando
+  existir mais de 1 dispositivo físico real.
 
 ## Fluxo de dados que esta camada implementa (Blueprint, Seção 4.2)
 
@@ -69,7 +85,8 @@ rodada cobre **só o caminho do dispositivo**:
 3. Grava a imagem no **Supabase Storage** (bucket `ecovision-imagens`) e recebe o caminho salvo.
 4. Grava caminho + diagnóstico + leituras nas tabelas do **Supabase Postgres**.
 5. Descarta o buffer da imagem da RAM.
-6. Serve o dashboard/app através de endpoints autenticados via JWT, pendente, ver "Escopo" acima.
+6. Serve o dashboard/app através dos endpoints autenticados via JWT
+   (`/auth/*`, `/leituras`, `/diagnosticos`, `/alertas`), ver "Escopo" acima.
 
 ## Schema do banco (6 tabelas)
 
@@ -79,15 +96,20 @@ grupo). IDs são inteiros autoincremento (portável entre o Postgres real e
 o SQLite usado nos testes).
 
 - **`registros_imagem`**, **`leituras_ambientais`**, **`diagnosticos`**:
-  gravadas de verdade por `POST /diagnostico` nesta rodada.
-- **`alertas`**, **`usuarios`**, **`dispositivos`**: schema pronto, ainda
-  não populadas (dashboard).
+  gravadas por `POST /diagnostico`.
+- **`alertas`**: gravada por `POST /diagnostico` (doença/ambiente),
+  lida e atualizada (`lido`) pelo dashboard via `GET`/`PATCH /alertas`.
+- **`usuarios`**: populada manualmente via
+  `scripts/seed_usuario_teste.py` (sem endpoint de cadastro ainda).
+- **`dispositivos`**: schema pronto, ainda não populada (só 1
+  dispositivo físico, sem CRUD/RBAC por dono nesta rodada).
 
 Decisão de design: `registros_imagem.caminho_arquivo` guarda só o
-**caminho** dentro do bucket, não a URL resolvida: a escolha entre signed
-URL e bucket público (`infra/supabase/storage_policies.md`, ainda em
-aberto) fica pro código que **lê** a imagem depois, sem acoplar essa
-decisão ao schema.
+**caminho** dentro do bucket, não a URL resolvida. A escolha entre
+signed URL e bucket público (`infra/supabase/storage_policies.md`) foi
+**decidida por signed URL** e está implementada em
+`app/storage/supabase_storage.py`, gerada sob demanda por
+`GET /diagnosticos` (não persistida: expira, não faz sentido guardar).
 
 ## Estrutura
 
@@ -96,11 +118,13 @@ cloud/
 ├── app/
 │   ├── main.py              # entrypoint FastAPI + Uvicorn (1 worker)
 │   ├── config.py            # variáveis de ambiente / settings
-│   ├── api/routes/          # endpoints HTTP (só diagnostico.py implementado)
-│   ├── core/                # segurança (API Key) e inferência TFLite
+│   ├── api/routes/          # endpoints HTTP (diagnostico, auth, historico, alertas)
+│   ├── core/                # segurança (API Key + JWT/bcrypt), inferência TFLite,
+│   │                        # regras de alerta (ambiental e dispositivo inativo)
 │   ├── db/                  # SQLAlchemy async, modelos, schemas Pydantic
-│   └── storage/             # integração com Supabase Storage
+│   └── storage/             # integração com Supabase Storage (upload + signed URL)
 ├── alembic/                 # migrations do schema Postgres (inicializado)
+├── scripts/                 # seed_usuario_teste.py (primeira conta de produtor)
 ├── tests/                   # testes automatizados (ver cloud/tests/README.md)
 └── requirements.txt
 ```
@@ -120,6 +144,7 @@ cd cloud
 pip install -r requirements.txt
 cp ../infra/env/cloud.env.example .env   # preencher com credenciais reais ou de teste
 alembic upgrade head                      # cria o schema no Postgres/DATABASE_URL configurado
+python -m scripts.seed_usuario_teste      # cria a conta de teste do produtor (login do dashboard)
 uvicorn app.main:app --reload
 ```
 
@@ -128,10 +153,10 @@ Sem um `.tflite` real em `TFLITE_MODEL_PATH`, a API sobe normalmente e
 
 ## Pendências de grupo
 
-- Login/JWT do dashboard + rotas de auth/dispositivos/alertas/histórico,
-  quando `app/` for implementado de verdade.
-- Decidir signed URL vs bucket público para leitura de imagens no
-  dashboard (`infra/supabase/storage_policies.md`).
+- `GET/POST /dispositivos` (CRUD administrativo) + RBAC por dono de
+  dispositivo, quando existir mais de 1 dispositivo físico real.
+- Endpoint de cadastro de produtor (hoje só existe a conta semeada
+  manualmente via `scripts/seed_usuario_teste.py`).
 - **Chave de API única e global** (`app/core/security.py`): `device_id`
   não é validado contra nenhum cadastro, aceitável com 1 dispositivo
   físico (ADR 0003), mas precisa virar chave por dispositivo antes de

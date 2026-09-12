@@ -38,6 +38,7 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Response, status
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,6 +58,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="EcoVision API", lifespan=lifespan)
+
+# CORS: necessário para a versão web do Expo (app/) rodando em outra
+# origem (localhost:PORTA em dev, um domínio próprio se publicada)
+# conseguir chamar a API pelo navegador. O app nativo (Expo Go/iOS/
+# Android) não é afetado por CORS, isso é uma restrição só de browser.
+#
+# allow_origins=["*"] é aceitável aqui porque a autenticação é via
+# header Authorization (Bearer <JWT>), nunca cookie: diferente de auth
+# por cookie, um header custom só é enviado se o código JS do próprio
+# app decidir mandar, então um site malicioso em outra aba não consegue
+# "andar de carona" na sessão do produtor só por ele estar logado.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
