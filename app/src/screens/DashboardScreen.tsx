@@ -114,9 +114,27 @@ export default function DashboardScreen() {
 
               {dados.leitura && (
                 <View style={styles.linhaCards}>
-                  <LeituraCard titulo="Temperatura" valor={dados.leitura.temperatura} unidade="°C" icone="🌡️" />
-                  <LeituraCard titulo="Umid. ar" valor={dados.leitura.umidade_ar} unidade="%" icone="💧" />
-                  <LeituraCard titulo="Umid. solo" valor={dados.leitura.umidade_solo} unidade="%" icone="🌱" />
+                  <LeituraCard
+                    titulo="Temperatura"
+                    valor={dados.leitura.temperatura}
+                    unidade="°C"
+                    icone="thermometer-outline"
+                    cor={colors.laranjaTemperatura}
+                  />
+                  <LeituraCard
+                    titulo="Umid. ar"
+                    valor={dados.leitura.umidade_ar}
+                    unidade="%"
+                    icone="water-outline"
+                    cor={colors.azulUmidade}
+                  />
+                  <LeituraCard
+                    titulo="Umid. solo"
+                    valor={dados.leitura.umidade_solo}
+                    unidade="%"
+                    icone="leaf-outline"
+                    cor={colors.oliveGreen}
+                  />
                 </View>
               )}
 

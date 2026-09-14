@@ -27,4 +27,8 @@ export const colors = {
   cuidado: "#D9A227", // severidade "Cuidado" (âmbar/mostarda)
   informativo: "#8C9086", // severidade "Informativo" (cinza neutro)
   novoBadgeBg: "rgba(255,255,255,0.25)", // fundo do selo "novo" sobre as faixas coloridas
+
+  // Cores de categoria das leituras ambientais (cards do Dashboard)
+  laranjaTemperatura: "#D9772E",
+  azulUmidade: "#3E7CB8",
 };

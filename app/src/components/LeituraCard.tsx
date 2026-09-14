@@ -1,23 +1,25 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 
 interface LeituraCardProps {
   titulo: string;
   valor: number;
   unidade: string;
-  icone?: string;
+  icone: keyof typeof Ionicons.glyphMap;
+  cor: string;
 }
 
-export function LeituraCard({ titulo, valor, unidade, icone }: LeituraCardProps) {
+export function LeituraCard({ titulo, valor, unidade, icone, cor }: LeituraCardProps) {
   return (
     <View style={styles.card}>
-      {icone && <Text style={styles.icone}>{icone}</Text>}
+      <Ionicons name={icone} size={20} color={cor} style={styles.icone} />
       <Text style={styles.valor}>
         {valor.toFixed(1)}
         <Text style={styles.unidade}>{unidade}</Text>
       </Text>
-      <Text style={styles.titulo}>{titulo}</Text>
+      <Text style={[styles.titulo, { color: cor }]}>{titulo}</Text>
     </View>
   );
 }
@@ -32,7 +34,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   icone: {
-    fontSize: 20,
     marginBottom: 4,
   },
   valor: {
@@ -47,7 +48,7 @@ const styles = StyleSheet.create({
   },
   titulo: {
     fontSize: 12,
-    color: colors.textMuted,
+    fontWeight: '600',
     marginTop: 2,
   },
 });

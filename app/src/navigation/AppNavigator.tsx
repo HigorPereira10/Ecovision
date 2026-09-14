@@ -3,24 +3,23 @@
  *
  * Framework: Expo (React Native) — decisão confirmada pelo grupo.
  * Navegação do app (React Navigation): Welcome -> Login -> (Dashboard |
- * Alertas | Diagnóstico | Histórico | Financeiro), com guarda de rota
- * baseada na presença de um JWT válido (app/src/services/auth.ts).
+ * Alertas | Diagnóstico | Histórico | Financeiro | Perfil), com guarda
+ * de rota baseada na presença de um JWT válido (app/src/services/auth.ts).
  *
  * VERSÃO MOCK: isAuthenticated() checa o SecureStore local (sem API real).
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
  * automaticamente a login()/logout(), trocando de tela sem reload.
  *
- * Alteração desta versão: aba "Historico" passa a usar headerShown:
- * false, igual a Dashboard e Diagnostico, porque a tela agora tem seu
- * próprio header customizado (logo + título). Sem isso, apareciam dois
+ * Todas as abas usam headerShown: false porque cada tela desenha seu
+ * próprio header customizado (logo + título). Sem isso, aparecem dois
  * headers sobrepostos (o nativo do Tab.Navigator + o da tela).
  */
 
 import React, { useEffect, useState } from "react";
-import { Pressable, Text } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 
 import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
@@ -29,40 +28,41 @@ import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
 import FinanceiroScreen from "../screens/FinanceiroScreen";
-import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges, logout } from "../services/auth";
+import PerfilScreen from "../screens/PerfilScreen";
+import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges } from "../services/auth";
+import { colors } from "../theme/colors";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function BotaoLogout() {
-  return (
-    <Pressable onPress={() => logout()} style={{ marginRight: 16 }}>
-      <Text style={{ color: "#E53935", fontWeight: "bold" }}>Sair</Text>
-    </Pressable>
-  );
-}
+// Mapa nome-da-rota -> ícone Ionicons, usado pelo tabBarIcon abaixo.
+const ICONES_TAB: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Dashboard: "home-outline",
+  Alertas: "notifications-outline",
+  Diagnostico: "camera-outline",
+  Historico: "time-outline",
+  Financeiro: "cash-outline",
+  Perfil: "person-outline",
+};
 
 function AppTabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: true,
-        headerRight: () => <BotaoLogout />,
-      }}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.oliveGreen,
+        tabBarInactiveTintColor: colors.informativo,
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name={ICONES_TAB[route.name]} size={size} color={color} />
+        ),
+      })}
     >
-      <Tab.Screen name="Alertas" component={AlertasScreen} options={{ headerShown: false }} />
-      <Tab.Screen
-        name="Diagnostico"
-        component={DiagnosticoScreen}
-        options={{ headerShown: false, title: 'Diagnóstico' }}
-      />
-      <Tab.Screen
-        name="Historico"
-        component={HistoricoScreen}
-        options={{ headerShown: false, title: 'Histórico' }}
-      />
-      <Tab.Screen name="Financeiro" component={FinanceiroScreen} options={{ headerShown: false }} />
-      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ headerShown: false, title: 'Início' }} />
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Início" }} />
+      <Tab.Screen name="Alertas" component={AlertasScreen} />
+      <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} options={{ title: "Diagnóstico" }} />
+      <Tab.Screen name="Historico" component={HistoricoScreen} options={{ title: "Histórico" }} />
+      <Tab.Screen name="Financeiro" component={FinanceiroScreen} />
+      <Tab.Screen name="Perfil" component={PerfilScreen} />
     </Tab.Navigator>
   );
 }
