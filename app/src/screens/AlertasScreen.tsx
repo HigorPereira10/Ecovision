@@ -29,7 +29,8 @@
  * foco, simulando o que futuramente será um push real vindo do
  * backend. Ver services/notificacoes.ts para detalhes.
  */
-
+console.log(env.apiUrl)
+import { env } from '../config/env';
 import React, { useMemo, useState, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -305,5 +306,5 @@ const styles = StyleSheet.create({
   },
   botaoLido: { borderColor: '#DADAD2', backgroundColor: '#F2F2ED' },
   botaoTexto: { color: colors.oliveGreen, fontWeight: '700', fontSize: 13 },
-  botaoTextoLido: { color: colors.textMuted },
+  botaoTextoLido: { color: colors.textMuted }
 });
