@@ -22,18 +22,36 @@ pasta compartilhada do grupo, ver README raiz). O conteúdo completo NÃO
 
 Padrão declarado: **Arquitetura em Camadas (Layered)**. A topologia
 física segue o modelo de referência de IoT em 3 camadas (percepção/
-borda, rede/nuvem, aplicação), e a camada de nuvem (`cloud/`) por si só
-já segue o padrão de camadas internamente: `api/routes` nunca acessa o
-banco direto, sempre chama `core`; `core` nunca fala com o Supabase
-direto, sempre passa por `db`/`storage`. Cada camada só conhece a
-camada logo abaixo dela.
+borda, rede/nuvem, aplicação). Dentro da camada de nuvem (`cloud/`),
+`api/routes` é a única camada que conhece as demais: cada rota chama
+`core` (regras de negócio puras, sem I/O), `db` e `storage` diretamente
+conforme a necessidade, sem passar por uma cadeia fixa. `core` não
+depende de `db` nem de `storage`, e nenhuma dessas três camadas conhece
+`api/routes` de volta, o que preserva a regra de dependência unidirecional
+da Arquitetura em Camadas (checado direto nos imports do código em
+2026-09-20, não é só teoria de diagrama).
 
 Padrões como Event-Driven, Space-Based ou CQRS + Event Sourcing (às
 vezes recomendados de forma genérica para cenários de IoT) não se
 encaixam aqui: o dispositivo não opera em tempo real, captura a cada
 intervalo fixo (2h) e manda uma requisição HTTP isolada por vez, sem
 volume de eventos concorrentes nem necessidade de replay/auditoria de
-eventos que justificasse a complexidade extra desses padrões.
+eventos que justificasse a complexidade extra desses padrões. Isso foi
+conferido contra o material de referência da disciplina:
+- [O que é EDA (AWS)](https://aws.amazon.com/pt/what-is/eda/): a própria
+  AWS lista como público-alvo da EDA workloads com tráfego variável/em
+  picos e processamento sob demanda no lugar de lotes periódicos, o
+  oposto do nosso caso (captura em lote a cada 2h).
+- [Arquitetura de referência de Data Analytics Serverless (AWS)](https://aws.amazon.com/pt/blogs/aws-brasil/aws-serverless-data-analytics-arquitetura-de-referencia/):
+  mesmo a própria AWS descreve seu pipeline de dados de referência como
+  "arquitetura em camadas orientada a componentes", não como EDA, mesmo
+  tendo gatilhos por evento em uma das camadas.
+- [CQRS na AWS com Amazon SQS](https://aws.amazon.com/pt/blogs/aws-brasil/cqrs-na-aws-sincronizando-os-servicos-de-command-e-query-com-o-amazon-sqs/):
+  o próprio autor da AWS afirma que separar em dois serviços/bancos "só
+  compensa quando precisamos de escalabilidades diferentes ou bancos de
+  dados diferentes para atender a comandos e consultas", nenhum dos
+  quais é o caso do EcoVision (leitura e escrita de baixo volume, mesmo
+  banco).
 
 Fonte editável: `diagramas/arquitetura-em-camadas.svg`.
 
