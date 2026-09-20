@@ -12,6 +12,8 @@ Relação com o resto do sistema:
 - LeituraOut: usado por app/api/routes/leituras.py.
 - DiagnosticoHistoricoOut: usado por app/api/routes/diagnosticos.py.
 - AlertaOut: usado por app/api/routes/alertas.py.
+- UsuarioOut: usado por app/api/routes/usuarios.py.
+- DispositivoOut: usado por app/api/routes/dispositivos.py.
 """
 
 from datetime import datetime
@@ -104,3 +106,33 @@ class AlertaOut(BaseModel):
     lido: bool = False
     criado_em: datetime
     sintetico: bool = False
+
+
+class UsuarioOut(BaseModel):
+    """Resposta de GET /usuarios/me (tela de Perfil do app)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    nome: str | None
+    email: str
+
+
+class DispositivoOut(BaseModel):
+    """Item de GET /dispositivos. `status` ('ativo' | 'inativo') é
+    computado sob demanda a partir da última captura recebida daquele
+    device_id, reaproveitando app/core/alertas_dispositivo.py (ADR
+    0008), não é uma coluna gravada no banco.
+
+    Campos que a tela de Perfil do app já desenha mas ainda não existem
+    de verdade aqui (localização por campo/setor, limiares configuráveis
+    por dispositivo): decisão do grupo em 2026-09-14 de deixar isso só
+    como funcionalidade visual do app por enquanto, sem schema novo,
+    até existir mais de 1 dispositivo físico de verdade."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    device_id: str
+    nome: str | None
+    status: str
+    criado_em: datetime

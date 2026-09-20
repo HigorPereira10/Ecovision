@@ -74,9 +74,20 @@ mocks locais até integrar de verdade contra estes endpoints:
 - ✅ CORS liberado (`allow_origins=["*"]`), necessário para a versão web
   do Expo chamar a API do navegador; seguro aqui porque a autenticação é
   via header `Authorization`, não cookie.
-- ⏳ **Não implementado ainda**: `GET/POST /dispositivos` (CRUD
-  administrativo) e RBAC por dono de dispositivo, ficam para quando
-  existir mais de 1 dispositivo físico real.
+- ✅ `GET /usuarios/me`: nome e email do produtor logado, para a tela de
+  Perfil do `app/`.
+- ✅ `GET /dispositivos`: lista os dispositivos IoT cadastrados, com um
+  `status` ("ativo"/"inativo") calculado a partir da última captura
+  recebida (reaproveita [ADR 0008](../docs/decisions/0008-deteccao-dispositivo-inativo.md)).
+  Decisão do grupo em 2026-09-14: mesmo com só 1 dispositivo físico
+  hoje, a rota já devolve uma lista de verdade, pensando num produtor
+  com mais de uma estufa no futuro; campos de localização (campo/setor)
+  e limiares configuráveis por dispositivo, que a tela de Perfil já
+  desenha, ficam só como funcionalidade visual do app por enquanto, sem
+  schema novo no banco.
+- ⏳ **Não implementado ainda**: `POST /dispositivos` (cadastro) e RBAC
+  por dono de dispositivo, ficam para quando existir mais de 1
+  dispositivo físico real.
 
 ## Fluxo de dados que esta camada implementa (Blueprint, Seção 4.2)
 
@@ -86,7 +97,8 @@ mocks locais até integrar de verdade contra estes endpoints:
 4. Grava caminho + diagnóstico + leituras nas tabelas do **Supabase Postgres**.
 5. Descarta o buffer da imagem da RAM.
 6. Serve o dashboard/app através dos endpoints autenticados via JWT
-   (`/auth/*`, `/leituras`, `/diagnosticos`, `/alertas`), ver "Escopo" acima.
+   (`/auth/*`, `/leituras`, `/diagnosticos`, `/alertas`, `/usuarios/me`,
+   `/dispositivos`), ver "Escopo" acima.
 
 ## Schema do banco (6 tabelas)
 
@@ -101,8 +113,9 @@ o SQLite usado nos testes).
   lida e atualizada (`lido`) pelo dashboard via `GET`/`PATCH /alertas`.
 - **`usuarios`**: populada manualmente via
   `scripts/seed_usuario_teste.py` (sem endpoint de cadastro ainda).
-- **`dispositivos`**: schema pronto, ainda não populada (só 1
-  dispositivo físico, sem CRUD/RBAC por dono nesta rodada).
+- **`dispositivos`**: populada manualmente via
+  `scripts/seed_dispositivo_teste.py`, lida por `GET /dispositivos`
+  (sem cadastro nem RBAC por dono nesta rodada).
 
 Decisão de design: `registros_imagem.caminho_arquivo` guarda só o
 **caminho** dentro do bucket, não a URL resolvida. A escolha entre
@@ -118,13 +131,15 @@ cloud/
 ├── app/
 │   ├── main.py              # entrypoint FastAPI + Uvicorn (1 worker)
 │   ├── config.py            # variáveis de ambiente / settings
-│   ├── api/routes/          # endpoints HTTP (diagnostico, auth, historico, alertas)
+│   ├── api/routes/          # endpoints HTTP (diagnostico, auth, historico, alertas,
+│   │                        # usuarios, dispositivos)
 │   ├── core/                # segurança (API Key + JWT/bcrypt), inferência TFLite,
 │   │                        # regras de alerta (ambiental e dispositivo inativo)
 │   ├── db/                  # SQLAlchemy async, modelos, schemas Pydantic
 │   └── storage/             # integração com Supabase Storage (upload + signed URL)
 ├── alembic/                 # migrations do schema Postgres (inicializado)
-├── scripts/                 # seed_usuario_teste.py (primeira conta de produtor)
+├── scripts/                 # seed_usuario_teste.py (primeira conta de produtor) e
+│                            # seed_dispositivo_teste.py (cadastro do Pi real)
 ├── tests/                   # testes automatizados (ver cloud/tests/README.md)
 └── requirements.txt
 ```
@@ -145,6 +160,7 @@ pip install -r requirements.txt
 cp ../infra/env/cloud.env.example .env   # preencher com credenciais reais ou de teste
 alembic upgrade head                      # cria o schema no Postgres/DATABASE_URL configurado
 python -m scripts.seed_usuario_teste      # cria a conta de teste do produtor (login do dashboard)
+python -m scripts.seed_dispositivo_teste  # cadastra o Pi real (troque DEVICE_ID_REAL no script antes)
 uvicorn app.main:app --reload
 ```
 
@@ -153,8 +169,8 @@ Sem um `.tflite` real em `TFLITE_MODEL_PATH`, a API sobe normalmente e
 
 ## Pendências de grupo
 
-- `GET/POST /dispositivos` (CRUD administrativo) + RBAC por dono de
-  dispositivo, quando existir mais de 1 dispositivo físico real.
+- `POST /dispositivos` (cadastro) + RBAC por dono de dispositivo,
+  quando existir mais de 1 dispositivo físico real.
 - Endpoint de cadastro de produtor (hoje só existe a conta semeada
   manualmente via `scripts/seed_usuario_teste.py`).
 - **Chave de API única e global** (`app/core/security.py`): `device_id`

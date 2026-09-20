@@ -1,0 +1,58 @@
+"""
+cloud/tests/test_usuarios.py
+
+O que este arquivo verifica, em português simples:
+
+GET /usuarios/me, a tela de Perfil do dashboard:
+1. Sem login, recusa com 401.
+2. Com login, devolve nome e email do produtor dono do token (nunca de
+   outro usuário).
+3. Se o campo `nome` nunca foi preenchido (usuário antigo, antes da
+   coluna existir), devolve `null` em vez de quebrar.
+"""
+
+from fastapi.testclient import TestClient
+
+from app.core.security import criar_access_token, gerar_hash_senha
+from app.db.models import Usuario
+from app.db.session import _SessionLocal
+from app.main import app
+
+
+async def test_perfil_sem_token_retorna_401():
+    with TestClient(app) as client:
+        resposta = client.get("/usuarios/me")
+    assert resposta.status_code == 401
+
+
+async def test_perfil_retorna_nome_e_email_do_dono_do_token():
+    async with _SessionLocal() as sessao:
+        usuario = Usuario(
+            nome="Maria Teste",
+            email="maria@teste.com",
+            senha_hash=gerar_hash_senha("senha"),
+            papel="produtor",
+        )
+        sessao.add(usuario)
+        await sessao.commit()
+        await sessao.refresh(usuario)
+
+    token = criar_access_token(usuario.id, usuario.papel)
+
+    with TestClient(app) as client:
+        resposta = client.get("/usuarios/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["nome"] == "Maria Teste"
+    assert corpo["email"] == "maria@teste.com"
+
+
+async def test_perfil_sem_nome_preenchido_devolve_null(usuario_produtor: Usuario):
+    token = criar_access_token(usuario_produtor.id, usuario_produtor.papel)
+
+    with TestClient(app) as client:
+        resposta = client.get("/usuarios/me", headers={"Authorization": f"Bearer {token}"})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["nome"] is None

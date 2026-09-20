@@ -134,6 +134,7 @@ class Usuario(Base):
     __tablename__ = "usuarios"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    nome: Mapped[str | None] = mapped_column(String, nullable=True)
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     senha_hash: Mapped[str] = mapped_column(String, nullable=False)
     papel: Mapped[str] = mapped_column(String, nullable=False)  # 'produtor' | 'administrador'
@@ -141,9 +142,9 @@ class Usuario(Base):
 
 
 class Dispositivo(Base):
-    """Vínculo device_id <-> produtor dono. Schema pronto nesta rodada;
-    a autenticação do Pi continua sendo a API Key global (ADR 0003),
-    não depende desta tabela ainda."""
+    """Vínculo device_id <-> produtor dono, listado por GET /dispositivos
+    (app/api/routes/dispositivos.py). A autenticação do Pi continua
+    sendo a API Key global (ADR 0003), não depende desta tabela."""
 
     __tablename__ = "dispositivos"
 

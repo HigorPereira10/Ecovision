@@ -5,10 +5,9 @@ Ponto de entrada da API FastAPI, servida via Uvicorn com 1 worker
 (Tech Stack Blueprint v3.0, Fase 4 / Sumário Executivo).
 
 Routers registrados: diagnostico.py (caminho do dispositivo), auth.py,
-historico.py e alertas.py (caminho do dashboard). O router de
-dispositivos.py (CRUD administrativo) ainda fica para quando existir
-RBAC por dono de dispositivo (mais de 1 dispositivo físico), ver
-cloud/README.md.
+historico.py, alertas.py, usuarios.py e dispositivos.py (caminho do
+dashboard). RBAC por dono de dispositivo (mais de 1 dispositivo físico
+de verdade) ainda fica para depois, ver cloud/README.md.
 
 Responsabilidades:
 - Instanciar a aplicação FastAPI.
@@ -42,7 +41,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes import alertas, auth, diagnostico, historico
+from app.api.routes import alertas, auth, diagnostico, dispositivos, historico, usuarios
 from app.config import settings
 from app.core.inference import carregar_modelo_tflite
 from app.db.session import get_session
@@ -103,5 +102,5 @@ app.include_router(diagnostico.router)
 app.include_router(auth.router)
 app.include_router(historico.router)
 app.include_router(alertas.router)
-# TODO: app.include_router(dispositivos.router), quando RBAC por
-# dispositivo/dono for necessario (mais de 1 dispositivo fisico).
+app.include_router(usuarios.router)
+app.include_router(dispositivos.router)

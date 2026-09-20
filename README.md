@@ -22,7 +22,9 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 
 O sistema é dividido em cinco camadas, cada uma com um papel isolado,
 a mesma separação de responsabilidades que orienta a estrutura de
-pastas deste monorepo.
+pastas deste monorepo. Padrão de arquitetura declarado: **Arquitetura
+em Camadas (Layered)**, ver o diagrama completo e a justificativa em
+[`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md#diagrama-de-arquitetura).
 
 ```
 ┌──────────────┐      HTTPS POST /diagnostico       ┌──────────────────┐

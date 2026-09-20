@@ -16,6 +16,27 @@ pasta compartilhada do grupo, ver README raiz). O conteúdo completo NÃO
 | Fase 5: Frontend | Framework decidido: Expo (React Native) | `docs/decisions/0002-frontend-framework-pendente.md`, `app/` |
 | Plano de Execução | Ordem de fases e sprints | (não replicado, ver documento original) |
 
+## Diagrama de arquitetura
+
+![Diagrama da arquitetura em camadas do EcoVision, com as três camadas físicas de IoT (percepção/borda, rede/nuvem, aplicação) e o detalhamento interno da camada de nuvem em api/routes, core, db e storage](diagramas/arquitetura-em-camadas.png)
+
+Padrão declarado: **Arquitetura em Camadas (Layered)**. A topologia
+física segue o modelo de referência de IoT em 3 camadas (percepção/
+borda, rede/nuvem, aplicação), e a camada de nuvem (`cloud/`) por si só
+já segue o padrão de camadas internamente: `api/routes` nunca acessa o
+banco direto, sempre chama `core`; `core` nunca fala com o Supabase
+direto, sempre passa por `db`/`storage`. Cada camada só conhece a
+camada logo abaixo dela.
+
+Padrões como Event-Driven, Space-Based ou CQRS + Event Sourcing (às
+vezes recomendados de forma genérica para cenários de IoT) não se
+encaixam aqui: o dispositivo não opera em tempo real, captura a cada
+intervalo fixo (2h) e manda uma requisição HTTP isolada por vez, sem
+volume de eventos concorrentes nem necessidade de replay/auditoria de
+eventos que justificasse a complexidade extra desses padrões.
+
+Fonte editável: `diagramas/arquitetura-em-camadas.svg`.
+
 ## Status deste documento
 
 Se o Blueprint for revisado (ex.: v3.1 após decisões de grupo), este

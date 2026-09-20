@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 760" font-family="'IBM Plex Sans','Segoe UI',sans-serif">
+  <defs>
+    <marker id="arrEdge" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <polygon points="0,0 10,5 0,10" fill="#A8631E"/>
+    </marker>
+    <marker id="arrApp" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <polygon points="0,0 10,5 0,10" fill="#4C51BF"/>
+    </marker>
+    <marker id="arrNeutral" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <polygon points="0,0 10,5 0,10" fill="#5B6B82"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="760" fill="#EEF1F5"/>
+
+  <text x="800" y="34" text-anchor="middle" font-size="22" font-weight="700" fill="#14213D">EcoVision &#8212; Arquitetura em Camadas (topologia IoT)</text>
+  <text x="800" y="56" text-anchor="middle" font-size="14" fill="#5B6B82">Percep&#231;&#227;o/Borda &#8594; Rede/Nuvem &#8594; Aplica&#231;&#227;o, com a Nuvem internamente organizada em camadas (api &#8594; core &#8594; db/storage)</text>
+
+  <!-- Column headers -->
+  <rect x="40" y="76" width="400" height="64" rx="10" fill="#A8631E"/>
+  <text x="240" y="100" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">PERCEP&#199;&#195;O / BORDA</text>
+  <text x="240" y="120" text-anchor="middle" font-size="12" fill="#FFFFFF" opacity="0.9" font-family="'IBM Plex Mono',monospace">edge/ &#8212; Raspberry Pi 3B+</text>
+
+  <rect x="560" y="76" width="480" height="64" rx="10" fill="#0E7C86"/>
+  <text x="800" y="100" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">REDE / NUVEM</text>
+  <text x="800" y="120" text-anchor="middle" font-size="12" fill="#FFFFFF" opacity="0.9" font-family="'IBM Plex Mono',monospace">cloud/ &#8212; FastAPI em Railway</text>
+
+  <rect x="1160" y="76" width="400" height="64" rx="10" fill="#4C51BF"/>
+  <text x="1360" y="100" text-anchor="middle" font-size="17" font-weight="700" fill="#FFFFFF">APLICA&#199;&#195;O</text>
+  <text x="1360" y="120" text-anchor="middle" font-size="12" fill="#FFFFFF" opacity="0.9" font-family="'IBM Plex Mono',monospace">app/ &#8212; Expo (React Native)</text>
+
+  <!-- Column A: hardware box -->
+  <rect x="40" y="176" width="400" height="190" rx="12" fill="#FFFFFF" stroke="#A8631E" stroke-width="2"/>
+  <text x="60" y="204" font-size="15" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">Raspberry Pi 3B+</text>
+  <text x="60" y="232" font-size="13" fill="#14213D">&#8226; C&#226;mera (Camera Module 3)</text>
+  <text x="60" y="258" font-size="13" fill="#14213D">&#8226; Sensor DHT22 (temp. / umid. ar)</text>
+  <text x="60" y="284" font-size="13" fill="#14213D">&#8226; Sensor umidade do solo (ADS1115)</text>
+  <text x="60" y="310" font-size="13" fill="#14213D">&#8226; LED de flash (MOSFET)</text>
+  <text x="60" y="340" font-size="11" fill="#5B6B82" font-style="italic">captura a cada intervalo configurado</text>
+
+  <!-- Column A: software pipeline box -->
+  <rect x="40" y="396" width="400" height="130" rx="12" fill="#FFFFFF" stroke="#A8631E" stroke-width="2"/>
+  <text x="60" y="424" font-size="15" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">edge/src &#8212; pipeline</text>
+  <text x="60" y="452" font-size="13" fill="#14213D" font-family="'IBM Plex Mono',monospace">captura &#8594; fila offline &#8594; uploader</text>
+  <text x="60" y="480" font-size="12" fill="#5B6B82">fila local (SQLite) reenvia sozinha</text>
+  <text x="60" y="500" font-size="12" fill="#5B6B82">se a rede cair no meio do envio</text>
+
+  <!-- Arrow Edge -> Cloud -->
+  <polyline points="440,461 500,461 500,208 560,208" fill="none" stroke="#A8631E" stroke-width="2.5" marker-end="url(#arrEdge)"/>
+  <text x="500" y="188" text-anchor="middle" font-size="13" font-weight="700" fill="#A8631E" font-family="'IBM Plex Mono',monospace">POST /diagnostico</text>
+  <text x="500" y="176" text-anchor="middle" font-size="11" fill="#5B6B82">API Key &#183; HTTPS</text>
+
+  <!-- Column B: layered stack -->
+  <rect x="560" y="176" width="480" height="72" rx="10" fill="#FFFFFF" stroke="#0E7C86" stroke-width="2"/>
+  <text x="580" y="200" font-size="14" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">api/routes</text>
+  <text x="580" y="222" font-size="12" fill="#5B6B82">diagnostico &#183; auth &#183; historico &#183; alertas &#183; usuarios &#183; dispositivos</text>
+
+  <line x1="800" y1="248" x2="800" y2="270" stroke="#5B6B82" stroke-width="2" marker-end="url(#arrNeutral)"/>
+
+  <rect x="560" y="270" width="480" height="72" rx="10" fill="#FFFFFF" stroke="#0E7C86" stroke-width="2"/>
+  <text x="580" y="294" font-size="14" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">core</text>
+  <text x="580" y="316" font-size="12" fill="#5B6B82">infer&#234;ncia TFLite &#183; seguran&#231;a (API Key / JWT) &#183; regras de alerta</text>
+
+  <line x1="800" y1="342" x2="800" y2="364" stroke="#5B6B82" stroke-width="2" marker-end="url(#arrNeutral)"/>
+
+  <rect x="560" y="364" width="228" height="72" rx="10" fill="#FFFFFF" stroke="#0E7C86" stroke-width="2"/>
+  <text x="580" y="388" font-size="14" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">db</text>
+  <text x="580" y="408" font-size="12" fill="#5B6B82">SQLAlchemy async</text>
+  <text x="580" y="424" font-size="12" fill="#5B6B82">(models / schemas)</text>
+
+  <rect x="812" y="364" width="228" height="72" rx="10" fill="#FFFFFF" stroke="#0E7C86" stroke-width="2"/>
+  <text x="832" y="388" font-size="14" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">storage</text>
+  <text x="832" y="408" font-size="12" fill="#5B6B82">cliente Supabase</text>
+  <text x="832" y="424" font-size="12" fill="#5B6B82">Storage (signed URL)</text>
+
+  <line x1="674" y1="436" x2="674" y2="458" stroke="#5B6B82" stroke-width="2" marker-end="url(#arrNeutral)"/>
+  <line x1="926" y1="436" x2="926" y2="458" stroke="#5B6B82" stroke-width="2" marker-end="url(#arrNeutral)"/>
+
+  <rect x="560" y="458" width="228" height="68" rx="10" fill="#FFFFFF" stroke="#8A94A6" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="674" y="486" text-anchor="middle" font-size="13" font-weight="700" fill="#14213D">Supabase Postgres</text>
+  <text x="674" y="506" text-anchor="middle" font-size="11" fill="#5B6B82">6 tabelas (schema)</text>
+
+  <rect x="812" y="458" width="228" height="68" rx="10" fill="#FFFFFF" stroke="#8A94A6" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="926" y="486" text-anchor="middle" font-size="13" font-weight="700" fill="#14213D">Supabase Storage</text>
+  <text x="926" y="506" text-anchor="middle" font-size="11" fill="#5B6B82">bucket privado (imagens)</text>
+
+  <!-- Column C: telas box -->
+  <rect x="1160" y="176" width="400" height="190" rx="12" fill="#FFFFFF" stroke="#4C51BF" stroke-width="2"/>
+  <text x="1180" y="204" font-size="15" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">Telas (dashboard)</text>
+  <text x="1180" y="232" font-size="13" fill="#14213D">&#8226; Login</text>
+  <text x="1180" y="258" font-size="13" fill="#14213D">&#8226; Dashboard</text>
+  <text x="1180" y="284" font-size="13" fill="#14213D">&#8226; Alertas</text>
+  <text x="1180" y="310" font-size="13" fill="#14213D">&#8226; Diagn&#243;stico</text>
+  <text x="1380" y="232" font-size="13" fill="#14213D">&#8226; Hist&#243;rico</text>
+  <text x="1380" y="258" font-size="13" fill="#14213D">&#8226; Financeiro</text>
+  <text x="1380" y="284" font-size="13" fill="#14213D">&#8226; Perfil</text>
+  <text x="1180" y="340" font-size="11" fill="#5B6B82" font-style="italic">produtor autenticado (JWT)</text>
+
+  <!-- Column C: services box -->
+  <rect x="1160" y="396" width="400" height="130" rx="12" fill="#FFFFFF" stroke="#4C51BF" stroke-width="2"/>
+  <text x="1180" y="424" font-size="15" font-weight="700" fill="#14213D" font-family="'IBM Plex Mono',monospace">services/ &#8212; cliente HTTP</text>
+  <text x="1180" y="452" font-size="12" fill="#14213D" font-family="'IBM Plex Mono',monospace">auth &#183; leituras &#183; diagnosticos</text>
+  <text x="1180" y="470" font-size="12" fill="#14213D" font-family="'IBM Plex Mono',monospace">alertas &#183; usuarios &#183; dispositivos</text>
+  <text x="1180" y="498" font-size="12" fill="#5B6B82">envia Bearer &lt;JWT&gt; em cada chamada</text>
+
+  <!-- Arrow App -> Cloud -->
+  <polyline points="1160,461 1100,461 1100,208 1040,208" fill="none" stroke="#4C51BF" stroke-width="2.5" marker-end="url(#arrApp)"/>
+  <text x="1100" y="188" text-anchor="middle" font-size="13" font-weight="700" fill="#4C51BF" font-family="'IBM Plex Mono',monospace">GET / PATCH</text>
+  <text x="1100" y="176" text-anchor="middle" font-size="11" fill="#5B6B82">JWT Bearer &#183; HTTPS</text>
+
+  <!-- Legend -->
+  <rect x="40" y="560" width="1520" height="176" rx="12" fill="#FFFFFF" stroke="#A7B4C6" stroke-width="1.5"/>
+  <text x="64" y="592" font-size="14" font-weight="700" fill="#14213D">Padr&#227;o de arquitetura: Arquitetura em Camadas (Layered)</text>
+  <text x="64" y="616" font-size="12.5" fill="#14213D">A Rede/Nuvem (FastAPI) segue o padr&#227;o cl&#225;ssico de camadas: <tspan font-family="'IBM Plex Mono',monospace">api/routes</tspan> nunca acessa o banco direto, sempre chama <tspan font-family="'IBM Plex Mono',monospace">core</tspan>;</text>
+  <text x="64" y="636" font-size="12.5" fill="#14213D"><tspan font-family="'IBM Plex Mono',monospace">core</tspan> nunca fala com o Supabase direto, sempre passa por <tspan font-family="'IBM Plex Mono',monospace">db</tspan>/<tspan font-family="'IBM Plex Mono',monospace">storage</tspan>. Cada camada s&#243; conhece a camada logo abaixo dela.</text>
+  <text x="64" y="660" font-size="12.5" fill="#14213D">A topologia f&#237;sica (as 3 colunas) segue o modelo de refer&#234;ncia de IoT: Percep&#231;&#227;o/Borda captura dados, Rede/Nuvem processa e persiste,</text>
+  <text x="64" y="680" font-size="12.5" fill="#14213D">Aplica&#231;&#227;o exibe pro produtor. Raspberry Pi e app s&#227;o dois clientes HTTP independentes da mesma API &#8212; nenhum dos dois fala com o outro direto.</text>
+
+  <circle cx="70" cy="708" r="7" fill="#A8631E"/>
+  <text x="86" y="713" font-size="12" fill="#14213D">Percep&#231;&#227;o / Borda</text>
+  <circle cx="260" cy="708" r="7" fill="#0E7C86"/>
+  <text x="276" y="713" font-size="12" fill="#14213D">Rede / Nuvem</text>
+  <circle cx="430" cy="708" r="7" fill="#4C51BF"/>
+  <text x="446" y="713" font-size="12" fill="#14213D">Aplica&#231;&#227;o</text>
+  <rect x="600" y="700" width="22" height="16" rx="3" fill="#FFFFFF" stroke="#8A94A6" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="632" y="713" font-size="12" fill="#14213D">Servi&#231;o gerenciado externo (Supabase)</text>
+</svg>

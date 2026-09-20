@@ -28,6 +28,7 @@ from app.db.session import _SessionLocal
 
 logger = logging.getLogger("ecovision.cloud.seed")
 
+NOME_TESTE = "João Pereira"
 EMAIL_TESTE = "joao.pereira@exemplo.com"
 SENHA_TESTE = "tomate123"
 PAPEL_TESTE = "produtor"
@@ -41,13 +42,16 @@ async def semear_usuario_teste() -> None:
         hash_senha = gerar_hash_senha(SENHA_TESTE)
 
         if usuario is None:
-            sessao.add(Usuario(email=EMAIL_TESTE, senha_hash=hash_senha, papel=PAPEL_TESTE))
+            sessao.add(
+                Usuario(nome=NOME_TESTE, email=EMAIL_TESTE, senha_hash=hash_senha, papel=PAPEL_TESTE)
+            )
             await sessao.commit()
             logger.info("Usuário de teste criado: %s", EMAIL_TESTE)
         else:
             usuario.senha_hash = hash_senha
+            usuario.nome = NOME_TESTE
             await sessao.commit()
-            logger.info("Usuário de teste já existia, senha atualizada: %s", EMAIL_TESTE)
+            logger.info("Usuário de teste já existia, senha e nome atualizados: %s", EMAIL_TESTE)
 
 
 if __name__ == "__main__":
