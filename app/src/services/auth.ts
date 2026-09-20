@@ -23,6 +23,8 @@ const ACCESS_TOKEN_KEY = "ecovision_access_token";
 const REFRESH_TOKEN_KEY = "ecovision_refresh_token";
 
 // Credencial mockada, usar para testar o login enquanto a API não existe.
+// Mesmo email da conta real semeada em cloud/scripts/seed_usuario_teste.py,
+// pra bater com o backend assim que a integração de verdade for feita.
 const USUARIO_MOCK = {
   email: "joao.pereira@exemplo.com",
   senha: "tomate123",

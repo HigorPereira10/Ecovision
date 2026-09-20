@@ -2,51 +2,67 @@
  * app/src/navigation/AppNavigator.tsx
  *
  * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Navegação do app (React Navigation): Login -> (Alertas | Diagnóstico |
- * Histórico | Financeiro), com guarda de rota baseada na presença de
- * um JWT válido (app/src/services/auth.ts).
+ * Navegação do app (React Navigation): Welcome -> Login -> (Dashboard |
+ * Alertas | Diagnóstico | Histórico | Financeiro | Perfil), com guarda
+ * de rota baseada na presença de um JWT válido (app/src/services/auth.ts).
  *
  * VERSÃO MOCK: isAuthenticated() checa o SecureStore local (sem API real).
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
  * automaticamente a login()/logout(), trocando de tela sem reload.
+ *
+ * Todas as abas usam headerShown: false porque cada tela desenha seu
+ * próprio header customizado (logo + título). Sem isso, aparecem dois
+ * headers sobrepostos (o nativo do Tab.Navigator + o da tela).
  */
 
 import React, { useEffect, useState } from "react";
-import { Pressable, Text } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
 
+import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
+import DashboardScreen from "../screens/DashboardScreen";
 import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
 import HistoricoScreen from "../screens/HistoricoScreen";
 import FinanceiroScreen from "../screens/FinanceiroScreen";
-import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges, logout } from "../services/auth";
+import PerfilScreen from "../screens/PerfilScreen";
+import { isAuthenticated as checkIsAuthenticated, subscribeAuthChanges } from "../services/auth";
+import { colors } from "../theme/colors";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-function BotaoLogout() {
-  return (
-    <Pressable onPress={() => logout()} style={{ marginRight: 16 }}>
-      <Text style={{ color: "#E53935", fontWeight: "bold" }}>Sair</Text>
-    </Pressable>
-  );
-}
+// Mapa nome-da-rota -> ícone Ionicons, usado pelo tabBarIcon abaixo.
+const ICONES_TAB: Record<string, keyof typeof Ionicons.glyphMap> = {
+  Dashboard: "home-outline",
+  Alertas: "notifications-outline",
+  Diagnostico: "camera-outline",
+  Historico: "time-outline",
+  Financeiro: "cash-outline",
+  Perfil: "person-outline",
+};
 
 function AppTabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
-        headerShown: true,
-        headerRight: () => <BotaoLogout />,
-      }}
+      screenOptions={({ route }) => ({
+        headerShown: false,
+        tabBarActiveTintColor: colors.oliveGreen,
+        tabBarInactiveTintColor: colors.informativo,
+        tabBarIcon: ({ color, size }) => (
+          <Ionicons name={ICONES_TAB[route.name]} size={size} color={color} />
+        ),
+      })}
     >
+      <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: "Início" }} />
       <Tab.Screen name="Alertas" component={AlertasScreen} />
-      <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} />
-      <Tab.Screen name="Historico" component={HistoricoScreen} />
+      <Tab.Screen name="Diagnostico" component={DiagnosticoScreen} options={{ title: "Diagnóstico" }} />
+      <Tab.Screen name="Historico" component={HistoricoScreen} options={{ title: "Histórico" }} />
       <Tab.Screen name="Financeiro" component={FinanceiroScreen} />
+      <Tab.Screen name="Perfil" component={PerfilScreen} />
     </Tab.Navigator>
   );
 }
@@ -55,10 +71,8 @@ export default function AppNavigator() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
-    // checagem inicial (ex: usuário já tinha logado antes e fechou o app)
     checkIsAuthenticated().then(setIsAuthenticated);
 
-    // escuta mudanças disparadas por login()/logout() em qualquer tela
     const unsubscribe = subscribeAuthChanges((autenticado) => {
       setIsAuthenticated(autenticado);
     });
@@ -66,7 +80,6 @@ export default function AppNavigator() {
     return unsubscribe;
   }, []);
 
-  // ainda não sabemos se está logado -> não renderiza nada por enquanto
   if (isAuthenticated === null) {
     return null;
   }
@@ -77,7 +90,10 @@ export default function AppNavigator() {
         {isAuthenticated ? (
           <Stack.Screen name="AppTabs" component={AppTabs} />
         ) : (
-          <Stack.Screen name="Login" component={LoginScreen} />
+          <>
+            <Stack.Screen name="Welcome" component={WelcomeScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

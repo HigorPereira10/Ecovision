@@ -2,8 +2,40 @@
   {
     "id": 1,
     "identificador": "ESP32-ESTUFA-01",
-    "nome": "Sensor Estufa 1",
+    "nome": "Estufa A — Sensor 01",
+    "campo": "Campo A",
+    "setor": "Setor Norte",
     "status": "ativo",
-    "data_instalacao": "2026-05-10T00:00:00Z"
+    "data_instalacao": "2026-05-10T00:00:00Z",
+    "intervalo_captura_min": 30,
+    "limiar_temperatura": 32,
+    "limiar_umidade_ar": 85,
+    "limiar_umidade_solo": 30
+  },
+  {
+    "id": 2,
+    "identificador": "ESP32-ESTUFA-02",
+    "nome": "Estufa B — Sensor 02",
+    "campo": "Campo B",
+    "setor": "Setor Leste",
+    "status": "inativo",
+    "data_instalacao": "2026-06-02T00:00:00Z",
+    "intervalo_captura_min": 30,
+    "limiar_temperatura": 32,
+    "limiar_umidade_ar": 85,
+    "limiar_umidade_solo": 30
+  },
+  {
+    "id": 3,
+    "identificador": "ESP32-ESTUFA-03",
+    "nome": "Estufa C — Sensor 03",
+    "campo": "Campo C",
+    "setor": "Setor Sul",
+    "status": "inativo",
+    "data_instalacao": "2026-07-15T00:00:00Z",
+    "intervalo_captura_min": 60,
+    "limiar_temperatura": 32,
+    "limiar_umidade_ar": 85,
+    "limiar_umidade_solo": 30
   }
 ]

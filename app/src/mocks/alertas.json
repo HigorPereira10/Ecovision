@@ -1,23 +1,47 @@
 [
   {
     "id": 1,
-    "tipo": "míldio",
-    "severidade": "media",
+    "tipo": "requeima",
+    "severidade": "critico",
+    "titulo": "Requeima crítica detectada",
+    "descricao": "Confiança de 94% em folha capturada na Estufa A. Ação recomendada em 24h.",
     "lido": false,
-    "timestamp": "2026-08-18T09:12:00Z"
+    "timestamp": "2026-08-31T08:00:00Z"
   },
   {
     "id": 2,
-    "tipo": "praga",
-    "severidade": "alta",
+    "tipo": "fusariose",
+    "severidade": "cuidado",
+    "titulo": "Suspeita de Fusariose",
+    "descricao": "Confiança de 87% na Estufa B. Recomendado isolamento das plantas afetadas.",
     "lido": false,
-    "timestamp": "2026-08-17T15:40:00Z"
+    "timestamp": "2026-08-31T02:00:00Z"
   },
   {
     "id": 3,
-    "tipo": "temperatura",
-    "severidade": "baixa",
+    "tipo": "umidade_ar",
+    "severidade": "cuidado",
+    "titulo": "Umidade do ar acima do limiar",
+    "descricao": "Umidade do ar em 90% (limiar 85%) — condição favorável a doenças foliares.",
+    "lido": false,
+    "timestamp": "2026-08-30T19:00:00Z"
+  },
+  {
+    "id": 4,
+    "tipo": "captura",
+    "severidade": "informativo",
+    "titulo": "Captura concluída",
+    "descricao": "12 imagens processadas com sucesso no último ciclo de captura.",
     "lido": true,
-    "timestamp": "2026-08-16T08:00:00Z"
+    "timestamp": "2026-08-30T11:00:00Z"
+  },
+  {
+    "id": 5,
+    "tipo": "dispositivo",
+    "severidade": "informativo",
+    "titulo": "Dispositivo inativo",
+    "descricao": "O sensor da Estufa A está sem reportar leituras há mais de 6 horas.",
+    "lido": false,
+    "timestamp": "2026-08-30T06:30:00Z"
   }
 ]
