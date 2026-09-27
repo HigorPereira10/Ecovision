@@ -41,7 +41,7 @@ pytest.importorskip(
     ),
 )
 
-from edge.src.queue import offline_queue  # noqa: E402 (import após o importorskip acima)
+from edge.src.fila import offline_queue  # noqa: E402 (import após o importorskip acima)
 
 
 def test_ciclo_completo_enfileirar_ler_remover(tmp_path: Path):

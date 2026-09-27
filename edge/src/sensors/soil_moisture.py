@@ -24,15 +24,20 @@ Relação com o resto do sistema:
 import board
 import busio
 import adafruit_ads1x15.ads1115 as ADS
+from adafruit_ads1x15.ads1x15 import Pin
 from adafruit_ads1x15.analog_in import AnalogIn
 
 from edge.src import config
 
+# As constantes de canal ficavam em ads1115 como P0..P3 em versões antigas
+# da adafruit-circuitpython-ads1x15. Na versão atual elas mudaram de lugar
+# e de nome: agora são Pin.A0..Pin.A3, em ads1x15. Descoberto ao rodar o
+# ciclo completo no Raspberry Pi, que quebrava com AttributeError aqui.
 _CANAIS_ADS = {
-    0: ADS.P0,
-    1: ADS.P1,
-    2: ADS.P2,
-    3: ADS.P3,
+    0: Pin.A0,
+    1: Pin.A1,
+    2: Pin.A2,
+    3: Pin.A3,
 }
 
 

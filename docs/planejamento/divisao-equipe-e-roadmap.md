@@ -166,7 +166,7 @@ separação.
     RPi.GPIO e libs Adafruit; montar em protoboard e validar cada
     sensor isoladamente (DHT22, solo+ADS1115, câmera+LED via MOSFET).
 11. 🔧 Implementar `edge/src/capture.py`, `edge/src/compress.py`,
-    `edge/src/actuators/led_flash.py`, `edge/src/queue/offline_queue.py`
+    `edge/src/actuators/led_flash.py`, `edge/src/fila/offline_queue.py`
     e `edge/src/upload/uploader.py`, integrando tudo em
     `edge/src/main.py`.
 12. 🔧 Testar a fila offline simulando quedas de rede; validar contra o
@@ -268,7 +268,7 @@ vale independentemente de quem estiver executando cada uma.
   navegação, autenticação, todas as telas, consumindo o backend local
   com dados mock/simulados. Só o teste **end-to-end com o Pi físico**
   depende de hardware.
-- **Escrita da lógica** de `edge/src/queue/offline_queue.py` e
+- **Escrita da lógica** de `edge/src/fila/offline_queue.py` e
   `edge/src/upload/uploader.py`: podem ser escritos e testados contra
   o backend local com payloads simulados, sem o Pi físico.
 - **Documentação e decisões**: correção das contradições do TC1, ADRs,
@@ -555,7 +555,7 @@ está descrita uma única vez na Seção 3.1 e referenciada nas demais.
     RPi.GPIO e libs Adafruit; montar em protoboard e validar cada
     sensor isoladamente (DHT22, solo+ADS1115, câmera+LED via MOSFET).
 11. 🔧 Implementar `edge/src/capture.py`, `edge/src/compress.py`,
-    `edge/src/actuators/led_flash.py`, `edge/src/queue/offline_queue.py`
+    `edge/src/actuators/led_flash.py`, `edge/src/fila/offline_queue.py`
     e `edge/src/upload/uploader.py`, integrando tudo em
     `edge/src/main.py`.
 12. 🔧 Testar a fila offline simulando quedas de rede; validar contra o

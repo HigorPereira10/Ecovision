@@ -40,7 +40,7 @@ edge/
 │   │   └── soil_moisture.py # Adafruit ADS1x15
 │   ├── actuators/
 │   │   └── led_flash.py     # RPi.GPIO, acionamento do Ring LED via MOSFET
-│   ├── queue/
+│   ├── fila/
 │   │   └── offline_queue.py # fila JSON Lines + fcntl (lock de arquivo)
 │   └── upload/
 │       └── uploader.py      # requests, retry/backoff, header Authorization (API Key)

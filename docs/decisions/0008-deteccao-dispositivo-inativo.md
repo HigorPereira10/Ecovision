@@ -29,7 +29,7 @@ Dois níveis, mesma escala de severidade do resto do sistema
 
 | Tempo sem captura | Severidade | Motivo |
 |---|---|---|
-| `< 4h` (2x o intervalo) | (sem alerta) | Normal: o edge já reenvia via fila offline (`edge/src/queue/offline_queue.py`) assim que a conexão volta; um atraso de 1 ciclo não é anômalo. |
+| `< 4h` (2x o intervalo) | (sem alerta) | Normal: o edge já reenvia via fila offline (`edge/src/fila/offline_queue.py`) assim que a conexão volta; um atraso de 1 ciclo não é anômalo. |
 | `4h` a `8h` (2x a 4x) | **media** | Atraso persistente, mas ainda dentro do que a fila offline local resolveria sozinha ao reconectar; não é necessariamente uma falha grave. |
 | `> 8h` (mais de 4x) | **alta** | Muito além do que uma reconexão de rede razoável explicaria: provável falha real (queda de energia, hardware, cartão SD, Wi-Fi fora do ar por muito tempo). |
 | Nunca recebeu nenhuma captura | **alta** | Dispositivo cadastrado mas nunca funcionou, ou captura inicial falhando. |

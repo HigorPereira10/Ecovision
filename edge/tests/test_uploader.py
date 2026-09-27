@@ -40,14 +40,14 @@ import pytest
 pytest.importorskip(
     "fcntl",
     reason=(
-        "uploader.py usa edge/src/queue/offline_queue.py, que depende de "
+        "uploader.py usa edge/src/fila/offline_queue.py, que depende de "
         "fcntl (só existe em Linux/Unix). Rode estes testes no WSL/Ubuntu."
     ),
 )
 
 import requests  # noqa: E402
 
-from edge.src.queue import offline_queue  # noqa: E402
+from edge.src.fila import offline_queue  # noqa: E402
 from edge.src.upload import uploader  # noqa: E402
 
 _ler_pendentes_real = offline_queue.ler_pendentes

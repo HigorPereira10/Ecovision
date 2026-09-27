@@ -28,7 +28,7 @@ Fluxo completo, conforme Blueprint v3.0 Seção 4.2:
 7. Descartar o buffer da imagem da memória.
 
 Idempotência: edge/src/upload/uploader.py manda um `idempotency_key`
-(o UUID que edge/src/queue/offline_queue.py já gera na captura). Sem
+(o UUID que edge/src/fila/offline_queue.py já gera na captura). Sem
 isso, um reenvio após uma falha parcial (API confirma 200, mas o
 processo do Pi cai antes de tirar o registro da fila local) criaria uma
 linha duplicada no banco.

@@ -1,8 +1,16 @@
 """
-edge/src/queue/offline_queue.py
+edge/src/fila/offline_queue.py
 
 Fila offline em disco (formato JSON Lines) para tolerar quedas de rede
 no ambiente de estufa (Blueprint v3.0, Fase 2).
+
+NÃO renomear esta pasta de volta para `queue`: esse é o nome de um
+módulo da biblioteca padrão do Python. Como o cron chama
+`python edge/src/main.py`, o Python coloca `edge/src/` no início do
+caminho de busca, e aí qualquer `import queue` feito por uma biblioteca
+de terceiros encontra esta pasta em vez da original. Na prática isso
+quebrava o picamera2 e derrubava o ciclo inteiro de captura, falha
+descoberta rodando o ciclo completo no Raspberry Pi.
 
 Decisão de implementação: cada linha da fila guarda só METADADOS (id,
 device_id, timestamp, leituras dos sensores e o caminho do arquivo de

@@ -50,7 +50,7 @@ class RegistroImagem(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     device_id: Mapped[str] = mapped_column(String, nullable=False, index=True)
-    # UUID gerado pelo edge/src/queue/offline_queue.py no momento da
+    # UUID gerado pelo edge/src/fila/offline_queue.py no momento da
     # captura. Usado por app/api/routes/diagnostico.py para detectar
     # reenvios (ex.: a API confirmou 200, mas o edge caiu antes de tirar
     # o item da fila local) e não duplicar o registro.

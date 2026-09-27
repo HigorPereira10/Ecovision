@@ -9,7 +9,7 @@ vêm do arquivo edge/.env. Para os testes rodarem sem precisar desse
 arquivo nem de um Raspberry Pi de verdade, este conftest define valores
 de teste ANTES de qualquer teste ser coletado.
 
-Como rodar (dentro do WSL/Ubuntu, já que edge/src/queue/offline_queue.py
+Como rodar (dentro do WSL/Ubuntu, já que edge/src/fila/offline_queue.py
 usa fcntl, um recurso que só existe em Linux/Unix, não no Python do
 Windows):
 
@@ -70,9 +70,21 @@ def _instalar_fakes_de_hardware() -> None:
     sys.modules["adafruit_ads1x15"] = types.ModuleType("adafruit_ads1x15")
 
     fake_ads1115 = types.ModuleType("adafruit_ads1x15.ads1115")
-    fake_ads1115.P0, fake_ads1115.P1, fake_ads1115.P2, fake_ads1115.P3 = "P0", "P1", "P2", "P3"
     fake_ads1115.ADS1115 = MagicMock(name="ADS1115")
     sys.modules["adafruit_ads1x15.ads1115"] = fake_ads1115
+
+    # Pin.A0..A3 são inteiros 0..3 na lib real, e ficam em ads1x15, não em
+    # ads1115. Este dublê já imitou a API antiga (P0..P3 em ads1115), o que
+    # fez os testes passarem enquanto o código quebrava no Raspberry Pi de
+    # verdade. Manter fiel à lib instalada: um dublê errado é pior que
+    # nenhum, porque esconde a falha em vez de revelá-la.
+    fake_ads1x15 = types.ModuleType("adafruit_ads1x15.ads1x15")
+
+    class _PinFalso:
+        A0, A1, A2, A3 = 0, 1, 2, 3
+
+    fake_ads1x15.Pin = _PinFalso
+    sys.modules["adafruit_ads1x15.ads1x15"] = fake_ads1x15
 
     fake_analog_in_mod = types.ModuleType("adafruit_ads1x15.analog_in")
     fake_analog_in_mod.AnalogIn = MagicMock(name="AnalogIn")

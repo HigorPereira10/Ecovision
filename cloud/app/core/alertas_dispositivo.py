@@ -32,7 +32,7 @@ INTERVALO_CAPTURA_MINUTOS = 120
 
 # Múltiplos do intervalo de captura, não uma fonte agronômica (isso é
 # engenharia de sistema). Dão margem para a fila offline do edge
-# (edge/src/queue/offline_queue.py) se recuperar sozinha antes de
+# (edge/src/fila/offline_queue.py) se recuperar sozinha antes de
 # alarmar o produtor à toa.
 LIMIAR_ATRASO_MEDIA_MINUTOS = INTERVALO_CAPTURA_MINUTOS * 2  # 4h
 LIMIAR_ATRASO_ALTA_MINUTOS = INTERVALO_CAPTURA_MINUTOS * 4  # 8h

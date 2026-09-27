@@ -12,7 +12,7 @@ Pontos de Atenção).
 Relação com o resto do sistema:
 - Recebe a imagem crua de edge/src/capture.py.
 - A imagem comprimida resultante é o que entra na fila offline
-  (edge/src/queue/offline_queue.py) e, depois, é enviada para a API.
+  (edge/src/fila/offline_queue.py) e, depois, é enviada para a API.
 """
 
 import io

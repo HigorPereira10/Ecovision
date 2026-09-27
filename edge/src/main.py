@@ -43,7 +43,7 @@ if __name__ == "__main__":
 
 from edge.src import capture, compress, config
 from edge.src.actuators import led_flash
-from edge.src.queue import offline_queue
+from edge.src.fila import offline_queue
 from edge.src.sensors import dht22, soil_moisture
 from edge.src.upload import uploader
 

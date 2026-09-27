@@ -12,10 +12,10 @@ existe: reconferir os dois lados sempre que um dos dois mudar):
     - imagem: arquivo JPEG comprimido
     - device_id, timestamp: strings
     - temperatura_c, umidade_ar_pct, umidade_solo_pct: números (as demais
-      chaves de "leituras" gravadas por edge/src/queue/offline_queue.py)
+      chaves de "leituras" gravadas por edge/src/fila/offline_queue.py)
 
 Responsabilidades:
-- Ler os pendentes da fila (edge/src/queue/offline_queue.py).
+- Ler os pendentes da fila (edge/src/fila/offline_queue.py).
 - Enviar cada um para a API, autenticado via header Authorization com a
   API Key estática (config.DEVICE_API_KEY).
 - Retry com backoff exponencial (requests.Session + urllib3 Retry) para
@@ -46,7 +46,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
 from edge.src import config
-from edge.src.queue import offline_queue
+from edge.src.fila import offline_queue
 
 # ATENÇÃO, BUG JÁ CORRIGIDO AQUI: este módulo não tinha nenhum log.
 # Como roda sozinho via cron a cada 15min (crontab.example), sem isso
