@@ -55,8 +55,18 @@ from app.config import settings
 
 def validar_api_key_dispositivo(authorization: str | None = Header(default=None)) -> None:
     """Dependency FastAPI: valida o header Authorization contra a API
-    Key estática do dispositivo. Levanta 401 se ausente ou incorreta."""
-    if authorization is None or not secrets.compare_digest(authorization, settings.DEVICE_API_KEY):
+    Key estática do dispositivo. Levanta 401 se ausente ou incorreta.
+
+    A comparação é feita em BYTES, não em texto: secrets.compare_digest
+    recusa comparar strings com caracteres não-ASCII e levanta TypeError,
+    que escaparia daqui como erro 500 em vez de 401. Como o cabeçalho vem
+    de fora, qualquer um poderia derrubar a rota com erro 500 mandando um
+    byte acentuado. Comparar bytes aceita qualquer valor e mantém o tempo
+    constante.
+    """
+    if authorization is None or not secrets.compare_digest(
+        authorization.encode("utf-8"), settings.DEVICE_API_KEY.encode("utf-8")
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="API Key do dispositivo ausente ou inválida.",
@@ -75,8 +85,33 @@ def gerar_hash_senha(senha_texto_puro: str) -> str:
 
 
 def verificar_senha(senha_texto_puro: str, hash_bcrypt: str) -> bool:
-    """Verifica a senha do produtor contra o hash bcrypt armazenado."""
-    return bcrypt.checkpw(senha_texto_puro.encode("utf-8"), hash_bcrypt.encode("utf-8"))
+    """Verifica a senha do produtor contra o hash bcrypt armazenado.
+
+    Devolve False (em vez de propagar a exceção) quando o bcrypt recusa
+    processar a entrada. O caso real é o limite de 72 bytes do bcrypt:
+    sem isso, uma tentativa de login com senha longa virava erro 500 em
+    vez de 401, e qualquer um podia disparar isso sem autenticação.
+    Nenhum usuário legítimo é afetado, porque gerar_hash_senha() recusa
+    criar conta com senha acima desse limite; ou seja, uma senha que o
+    bcrypt não processa nunca corresponde a um hash armazenado.
+    """
+    try:
+        return bcrypt.checkpw(senha_texto_puro.encode("utf-8"), hash_bcrypt.encode("utf-8"))
+    except ValueError:
+        return False
+
+
+# Hash bcrypt de uma senha descartável, usado por app/api/routes/auth.py
+# para gastar o mesmo tempo de verificação quando o email não existe.
+# Sem isso, o login responde bem mais rápido para email inexistente (a
+# verificação bcrypt nem chega a rodar), e dá para descobrir quais emails
+# têm conta cronometrando as respostas, o que anula a proteção da
+# mensagem de erro genérica.
+#
+# Fixo em vez de calculado na importação de propósito: gerar um hash
+# bcrypt custa algumas centenas de milissegundos, e isso entraria no
+# tempo de partida da API (relevante no Railway, que tem cold start).
+HASH_DESCARTAVEL = "$2b$12$t2gZxb0YcikcP.rCnwzujOB/1yZwthUuekkJh4ncz0ccdBfRKv2sG"
 
 
 # --- Dashboard: tokens JWT ---

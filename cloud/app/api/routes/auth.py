@@ -25,7 +25,13 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.security import criar_access_token, criar_refresh_token, decodificar_token, verificar_senha
+from app.core.security import (
+    HASH_DESCARTAVEL,
+    criar_access_token,
+    criar_refresh_token,
+    decodificar_token,
+    verificar_senha,
+)
 from app.db.models import Usuario
 from app.db.schemas import LoginRequest, RefreshRequest, TokenResponse
 from app.db.session import get_session
@@ -40,11 +46,22 @@ async def login(dados: LoginRequest, sessao: AsyncSession = Depends(get_session)
     Mensagem de erro deliberadamente genérica ("email ou senha
     inválidos") tanto para email inexistente quanto para senha errada:
     diferenciar os dois casos permitiria a um atacante descobrir quais
-    emails têm conta cadastrada (enumeração de usuários)."""
+    emails têm conta cadastrada (enumeração de usuários).
+
+    A verificação contra HASH_DESCARTAVEL quando o email não existe é o
+    que faz essa proteção valer na prática. Antes ela era só aparente: o
+    `or` em curto-circuito pulava o bcrypt para email inexistente, e a
+    resposta voltava em ~0.39s contra ~0.65s para email cadastrado.
+    Cronometrando as respostas dava para descobrir quais emails têm
+    conta, mesmo com a mensagem idêntica.
+    """
     resultado = await sessao.execute(select(Usuario).where(Usuario.email == dados.email))
     usuario = resultado.scalar_one_or_none()
 
-    if usuario is None or not verificar_senha(dados.senha, usuario.senha_hash):
+    hash_para_verificar = usuario.senha_hash if usuario is not None else HASH_DESCARTAVEL
+    senha_confere = verificar_senha(dados.senha, hash_para_verificar)
+
+    if usuario is None or not senha_confere:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha inválidos.",
