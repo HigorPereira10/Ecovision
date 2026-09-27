@@ -33,3 +33,7 @@ Thumbs.db
 # Machine Learning / Datasets locais (Ignorar imagens e arquivos pesados)
 ml/data/
 *.zip
+
+# Saidas locais de analise do modelo (mapas de calor Grad-CAM)
+ml/validacao_externa/gradcam/
+ml/validacao_externa/gradcam_depois/
