@@ -97,3 +97,18 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function getAccessToken(): Promise<string | null> {
   return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
 }
+
+export async function registrar(dados: {
+  nome: string;
+  email: string;
+  senha: string;
+  dataNascimento: string; // AAAA-MM-DD
+}): Promise<void> {
+  await new Promise((r) => setTimeout(r, 800)); // simula latência
+  // futuro: POST /auth/register
+}
+
+export async function solicitarRecuperacaoSenha(email: string): Promise<void> {
+  await new Promise((r) => setTimeout(r, 800)); // simula latência
+  // futuro: POST /auth/forgot-password { email }
+}
