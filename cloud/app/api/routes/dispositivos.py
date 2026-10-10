@@ -37,6 +37,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.escopo import PAPEL_IRRESTRITO
+from app.core.alertas_ambientais import (
+    TEMPERATURA_MAX_C,
+    UMIDADE_AR_MAX_PCT,
+    UMIDADE_SOLO_MIN_PCT,
+)
 from app.core.alertas_dispositivo import avaliar_inatividade_dispositivo
 from app.core.security import obter_produtor_atual
 from app.db.models import Dispositivo, RegistroImagem
@@ -87,6 +92,15 @@ async def _montar_saida(sessao: AsyncSession, dispositivo: Dispositivo) -> Dispo
         nome=dispositivo.nome,
         status="inativo" if inativo else "ativo",
         criado_em=dispositivo.criado_em,
+        campo=dispositivo.campo,
+        setor=dispositivo.setor,
+        intervalo_captura_min=dispositivo.intervalo_captura_min,
+        # Valores reais da lógica de alerta, não configuráveis por
+        # dispositivo. Ver a nota em DispositivoOut sobre o limiar do
+        # solo ser o limite inferior.
+        limiar_temperatura=TEMPERATURA_MAX_C,
+        limiar_umidade_ar=UMIDADE_AR_MAX_PCT,
+        limiar_umidade_solo=UMIDADE_SOLO_MIN_PCT,
     )
 
 

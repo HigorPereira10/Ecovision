@@ -173,6 +173,17 @@ class Dispositivo(Base):
         String, nullable=True, unique=True, index=True
     )
     pareado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Metadados que a tela de Perfil exibe. Existem no banco, e não como
+    # texto fixo no app, porque são do aparelho: quem move a estufa de
+    # setor precisa que isso mude para todo mundo, não só no celular que
+    # editou. `intervalo_captura_min` espelha CAPTURE_INTERVAL_MINUTES do
+    # .env do Pi; o backend não tem como descobrir sozinho, então é
+    # preenchido no provisionamento.
+    campo: Mapped[str | None] = mapped_column(String, nullable=True)
+    setor: Mapped[str | None] = mapped_column(String, nullable=True)
+    intervalo_captura_min: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_agora_utc)
 
 

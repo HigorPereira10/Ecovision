@@ -1,25 +1,19 @@
 /**
  * app/src/services/dispositivos.ts
  *
- * Camada de serviço para os dispositivos IoT cadastrados na propriedade
+ * Camada de serviço para os dispositivos IoT da propriedade
  * (Blueprint v3.0, entidade `dispositivos`).
  *
- * ESTADO MISTO, de propósito:
+ * Consome a API real: GET /dispositivos e POST /dispositivos/vincular.
  *
- * - vincularDispositivo() já fala com a API real (POST /dispositivos/vincular).
- * - getDispositivos() CONTINUA MOCKADA.
- *
- * O motivo de getDispositivos() ainda não ter sido ligada: o
- * DispositivoCard desenha `campo`, `setor`, `intervalo_captura_min` e os
- * três `limiar_*`, que o GET /dispositivos da API não devolve (ver
- * DispositivoOut em cloud/app/db/schemas.py). Ligar agora quebraria o
- * card. Resolver isso é uma escolha de produto, não um detalhe técnico:
- * ou esses campos viram colunas de verdade no backend, ou saem do card.
- * Fica para o time do app decidir.
+ * A tradução entre o formato da API e a interface que as telas
+ * consomem acontece AQUI, e não nas telas, pelo mesmo motivo de
+ * leituras.ts: assim o DispositivoCard e a PerfilScreen continuam
+ * exatamente como estão. Os dois nomes que divergem são
+ * `device_id` -> `identificador` e `criado_em` -> `data_instalacao`.
  */
 
-import { post } from './api';
-import dispositivosMock from '../mocks/dispositivos.json';
+import { get, post } from './api';
 
 export interface Dispositivo {
   id: number;
@@ -35,33 +29,52 @@ export interface Dispositivo {
   limiar_umidade_solo: number;
 }
 
-// Flag de teste: mude pra `true` pra simular falha de rede sem deixar
-// um throw solto que possa disparar sozinho na apresentação da banca.
-const SIMULAR_ERRO = false;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-export async function getDispositivos(): Promise<Dispositivo[]> {
-  await delay(500);
-
-  if (SIMULAR_ERRO) {
-    throw new Error('Não foi possível carregar os dispositivos.');
-  }
-
-  return dispositivosMock as Dispositivo[];
-}
-
-/** Dispositivo como a API devolve hoje (DispositivoOut em
- * cloud/app/db/schemas.py). Note que é um conjunto de campos MENOR que
- * a interface Dispositivo acima, que a tela de Perfil consome. */
-export interface DispositivoDaApi {
+/** Formato exato devolvido pela API (DispositivoOut em
+ * cloud/app/db/schemas.py). Os campos opcionais são nulos enquanto o
+ * dispositivo não for provisionado com esses metadados. */
+interface DispositivoDaApi {
   id: number;
   device_id: string;
   nome: string | null;
   status: 'ativo' | 'inativo';
   criado_em: string;
+  campo: string | null;
+  setor: string | null;
+  intervalo_captura_min: number | null;
+  limiar_temperatura: number;
+  limiar_umidade_ar: number;
+  limiar_umidade_solo: number;
+}
+
+/** Texto exibido quando o metadado ainda não foi preenchido. Melhor do
+ * que um valor inventado, que o produtor leria como verdade. */
+const NAO_INFORMADO = 'Não informado';
+
+function converter(bruto: DispositivoDaApi): Dispositivo {
+  return {
+    id: bruto.id,
+    identificador: bruto.device_id,
+    // Sem nome cadastrado, mostra o próprio identificador: é o que o
+    // produtor tem para reconhecer o aparelho.
+    nome: bruto.nome?.trim() || bruto.device_id,
+    campo: bruto.campo?.trim() || NAO_INFORMADO,
+    setor: bruto.setor?.trim() || NAO_INFORMADO,
+    status: bruto.status,
+    data_instalacao: bruto.criado_em,
+    // 0 em vez de um número plausível: o card mostraria "120 min" como
+    // se fosse real, e ninguém saberia que é chute.
+    intervalo_captura_min: bruto.intervalo_captura_min ?? 0,
+    limiar_temperatura: bruto.limiar_temperatura,
+    limiar_umidade_ar: bruto.limiar_umidade_ar,
+    limiar_umidade_solo: bruto.limiar_umidade_solo,
+  };
+}
+
+/** Dispositivos vinculados à conta logada. Lista vazia é o caso normal
+ * de quem acabou de se cadastrar e ainda não pareou nenhum aparelho. */
+export async function getDispositivos(): Promise<Dispositivo[]> {
+  const brutos = await get<DispositivoDaApi[]>('/dispositivos');
+  return brutos.map(converter);
 }
 
 /**
@@ -77,8 +90,9 @@ export interface DispositivoDaApi {
  * - 404: código não existe (provavelmente digitação errada)
  * - 409: aparelho já pertence a outra conta
  */
-export async function vincularDispositivo(codigo: string): Promise<DispositivoDaApi> {
-  return post<DispositivoDaApi>('/dispositivos/vincular', {
+export async function vincularDispositivo(codigo: string): Promise<Dispositivo> {
+  const bruto = await post<DispositivoDaApi>('/dispositivos/vincular', {
     codigo: codigo.trim().toUpperCase(),
   });
+  return converter(bruto);
 }

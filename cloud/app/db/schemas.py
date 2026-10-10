@@ -184,11 +184,23 @@ class DispositivoOut(BaseModel):
     device_id, reaproveitando app/core/alertas_dispositivo.py (ADR
     0008), não é uma coluna gravada no banco.
 
-    Campos que a tela de Perfil do app já desenha mas ainda não existem
-    de verdade aqui (localização por campo/setor, limiares configuráveis
-    por dispositivo): decisão do grupo em 2026-09-14 de deixar isso só
-    como funcionalidade visual do app por enquanto, sem schema novo,
-    até existir mais de 1 dispositivo físico de verdade."""
+    `campo`, `setor` e `intervalo_captura_min` eram, até 2026-10-10,
+    apenas enfeite no mock do app. Viraram colunas de verdade
+    (migration 0006) para a tela de Perfil poder consumir a API real em
+    vez de exibir um dispositivo inventado.
+
+    Os `limiar_*` NÃO são configuráveis por dispositivo: são os valores
+    que app/core/alertas_ambientais.py realmente usa para decidir se
+    gera alerta. Vêm na resposta porque a tela os exibe, e mostrar o
+    número verdadeiro é melhor do que mostrar um valor de enfeite que
+    não controla nada.
+
+    `limiar_umidade_solo` é o limite INFERIOR (solo seco), enquanto os
+    outros dois são limites superiores. A assimetria é proposital: o
+    card tem espaço para um valor por medição, e o número sobre o qual o
+    produtor age, em estufa irrigada, é quase sempre o da seca. O limite
+    superior (solo encharcado) continua existindo na lógica e gerando
+    alerta, só não cabe nesta tela."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -197,3 +209,11 @@ class DispositivoOut(BaseModel):
     nome: str | None
     status: str
     criado_em: datetime
+
+    campo: str | None
+    setor: str | None
+    intervalo_captura_min: int | None
+
+    limiar_temperatura: float
+    limiar_umidade_ar: float
+    limiar_umidade_solo: float
