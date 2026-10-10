@@ -23,6 +23,7 @@ Relação com o resto do sistema:
 
 import logging
 import re
+import secrets
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -39,13 +40,19 @@ from app.core.security import (
     validar_forca_senha,
     verificar_senha,
 )
-from app.db.models import TentativaLogin, Usuario
+from app.config import settings
+from app.core import emails
+from app.db.models import CodigoEmail, TentativaLogin, Usuario
 from app.db.schemas import (
+    EsqueciSenhaRequest,
     LoginRequest,
+    MensagemOut,
+    RedefinirSenhaRequest,
     RefreshRequest,
     RegistroRequest,
     TokenResponse,
     UsuarioCriadoOut,
+    VerificarEmailRequest,
 )
 from app.db.session import get_session
 
@@ -112,6 +119,94 @@ async def _registrar_falha(sessao: AsyncSession, email: str) -> None:
     await sessao.commit()
 
 
+# --- Códigos enviados por email ---
+
+_VALIDADE_CODIGO = timedelta(minutes=15)
+_MAX_TENTATIVAS_CODIGO = 5
+
+TIPO_VERIFICACAO = "verificacao"
+TIPO_RECUPERACAO = "recuperacao"
+
+
+def _gerar_codigo() -> str:
+    """Código numérico de 6 dígitos, fácil de ler do email e digitar.
+
+    São apenas um milhão de combinações, o que isoladamente seria
+    fraco. O que torna isso seguro é a soma de três limites:
+    validade de 15 minutos, uso único, e no máximo
+    _MAX_TENTATIVAS_CODIGO tentativas. A chance de acerto por força
+    bruta fica em 5 por milhão."""
+    return f"{secrets.randbelow(1_000_000):06d}"
+
+
+async def _criar_codigo(sessao: AsyncSession, email: str, tipo: str) -> str:
+    """Gera um código, guarda o HASH e devolve o código em claro para
+    quem vai enviá-lo por email.
+
+    Invalida os códigos anteriores do mesmo tipo: pedir um código novo
+    tem que derrubar o antigo, senão um código vazado continuaria
+    valendo mesmo depois de a pessoa pedir outro."""
+    anteriores = await sessao.execute(
+        select(CodigoEmail).where(
+            CodigoEmail.email == email,
+            CodigoEmail.tipo == tipo,
+            CodigoEmail.usado_em.is_(None),
+        )
+    )
+    for antigo in anteriores.scalars().all():
+        antigo.usado_em = _agora()
+
+    codigo = _gerar_codigo()
+    sessao.add(
+        CodigoEmail(
+            email=email,
+            tipo=tipo,
+            codigo_hash=gerar_hash_senha(codigo),
+            expira_em=_agora() + _VALIDADE_CODIGO,
+        )
+    )
+    await sessao.commit()
+    return codigo
+
+
+async def _consumir_codigo(sessao: AsyncSession, email: str, tipo: str, codigo: str) -> bool:
+    """Confere o código e o marca como usado. Devolve False para
+    código errado, expirado, já usado ou com tentativas esgotadas.
+
+    Quem chama NÃO deve diferenciar esses casos na resposta: dizer
+    "código expirado" em vez de "código inválido" confirma que existe
+    um pedido em andamento para aquele email."""
+    registro = await sessao.scalar(
+        select(CodigoEmail)
+        .where(
+            CodigoEmail.email == email,
+            CodigoEmail.tipo == tipo,
+            CodigoEmail.usado_em.is_(None),
+        )
+        .order_by(CodigoEmail.id.desc())
+        .limit(1)
+    )
+
+    if registro is None:
+        return False
+
+    expira_em = registro.expira_em
+    if expira_em.tzinfo is None:  # SQLite devolve datetime sem fuso
+        expira_em = expira_em.replace(tzinfo=timezone.utc)
+
+    if expira_em < _agora() or registro.tentativas >= _MAX_TENTATIVAS_CODIGO:
+        return False
+
+    if not verificar_senha(codigo, registro.codigo_hash):
+        registro.tentativas += 1
+        await sessao.commit()
+        return False
+
+    registro.usado_em = _agora()
+    await sessao.commit()
+    return True
+
+
 async def _limpar_falhas(sessao: AsyncSession, email: str) -> None:
     """Zera o contador depois de um login bem-sucedido."""
     registro = await sessao.get(TentativaLogin, email)
@@ -157,6 +252,16 @@ async def login(dados: LoginRequest, sessao: AsyncSession = Depends(get_session)
         )
 
     await _limpar_falhas(sessao, email)
+
+    # Só aqui, depois de a senha conferir. Avisar antes revelaria que o
+    # email existe para quem nem sabe a senha. Quem chegou até este
+    # ponto já provou conhecer a credencial, então a mensagem pode ser
+    # específica e dizer o que fazer.
+    if not usuario.email_verificado:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Confirme seu e-mail para entrar. Verifique a caixa de entrada e o spam.",
+        )
 
     return TokenResponse(
         access_token=criar_access_token(usuario.id, usuario.papel),
@@ -213,11 +318,23 @@ async def registrar(
             detail="Já existe uma conta com este e-mail.",
         )
 
+    # Sem SMTP configurado a conta nasce ATIVA. Criá-la bloqueada seria
+    # pior do que não verificar: o produtor ficaria preso numa conta que
+    # ninguém consegue confirmar, porque o email de código nunca sairia.
+    # Mesma filosofia de app/core/inference.py: dependência externa
+    # ausente degrada o comportamento, não derruba o sistema.
+    pode_enviar_email = settings.email_configurado
+    if not pode_enviar_email:
+        logger.warning(
+            "SMTP nao configurado: conta %s criada JA VERIFICADA, sem confirmacao.", email
+        )
+
     usuario = Usuario(
         nome=nome,
         email=email,
         senha_hash=gerar_hash_senha(dados.senha),
         papel="produtor",
+        email_verificado=not pode_enviar_email,
     )
     sessao.add(usuario)
 
@@ -232,7 +349,130 @@ async def registrar(
 
     await sessao.refresh(usuario)
     logger.info("Conta de produtor criada: %s (id=%s)", email, usuario.id)
+
+    if pode_enviar_email:
+        codigo = await _criar_codigo(sessao, email, TIPO_VERIFICACAO)
+        assunto, corpo = emails.montar_email_verificacao(nome, codigo)
+        if not emails.enviar(email, assunto, corpo):
+            # A conta existe e o email falhou. Deixar o produtor
+            # trancado seria o pior resultado, então libera e registra:
+            # o log é o que permite descobrir que o SMTP está quebrado.
+            logger.error(
+                "Conta %s criada mas o email de verificacao falhou. "
+                "Liberando a conta para nao prender o produtor.",
+                email,
+            )
+            usuario.email_verificado = True
+            await sessao.commit()
+            await sessao.refresh(usuario)
+
     return usuario
+
+
+@router.post("/auth/verify-email", response_model=MensagemOut)
+async def verificar_email(
+    dados: VerificarEmailRequest, sessao: AsyncSession = Depends(get_session)
+) -> MensagemOut:
+    """Confirma o cadastro com o código de 6 dígitos enviado por email.
+
+    A mensagem de erro é a mesma para código errado, expirado, já usado
+    ou com tentativas esgotadas. Diferenciar confirmaria que existe um
+    pedido em andamento para aquele endereço.
+    """
+    email = dados.email.strip().lower()
+
+    if not await _consumir_codigo(sessao, email, TIPO_VERIFICACAO, dados.codigo.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código inválido ou expirado. Peça um novo código.",
+        )
+
+    usuario = await sessao.scalar(select(Usuario).where(Usuario.email == email))
+    if usuario is not None:
+        usuario.email_verificado = True
+        await sessao.commit()
+        logger.info("Email confirmado: %s", email)
+
+    return MensagemOut(mensagem="E-mail confirmado. Agora é só entrar.")
+
+
+@router.post("/auth/forgot-password", response_model=MensagemOut)
+async def esqueci_a_senha(
+    dados: EsqueciSenhaRequest, sessao: AsyncSession = Depends(get_session)
+) -> MensagemOut:
+    """Envia um código de redefinição de senha.
+
+    Responde SEMPRE a mesma coisa, exista ou não a conta. Diferenciar
+    permitiria descobrir quais emails estão cadastrados simplesmente
+    testando endereços, o que anularia a proteção anti-enumeração que o
+    login já tem.
+
+    O código nunca volta na resposta: sai apenas pelo email.
+    """
+    email = dados.email.strip().lower()
+    resposta = MensagemOut(
+        mensagem="Se existir uma conta com este e-mail, o código foi enviado."
+    )
+
+    usuario = await sessao.scalar(select(Usuario).where(Usuario.email == email))
+    if usuario is None:
+        logger.info("Pedido de recuperacao para email inexistente: %s", email)
+        return resposta
+
+    if not settings.email_configurado:
+        logger.error("SMTP nao configurado: recuperacao de senha indisponivel para %s", email)
+        return resposta
+
+    codigo = await _criar_codigo(sessao, email, TIPO_RECUPERACAO)
+    assunto, corpo = emails.montar_email_recuperacao(codigo)
+    emails.enviar(email, assunto, corpo)
+    return resposta
+
+
+@router.post("/auth/reset-password", response_model=MensagemOut)
+async def redefinir_senha(
+    dados: RedefinirSenhaRequest, sessao: AsyncSession = Depends(get_session)
+) -> MensagemOut:
+    """Troca a senha usando o código recebido por email.
+
+    Valida a força da nova senha com as mesmas regras do cadastro: sem
+    isto, a recuperação viraria um caminho para contornar a exigência de
+    senha forte.
+    """
+    email = dados.email.strip().lower()
+
+    problemas = validar_forca_senha(dados.nova_senha)
+    if problemas:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=problemas
+        )
+
+    if not await _consumir_codigo(sessao, email, TIPO_RECUPERACAO, dados.codigo.strip()):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código inválido ou expirado. Peça um novo código.",
+        )
+
+    usuario = await sessao.scalar(select(Usuario).where(Usuario.email == email))
+    if usuario is None:
+        # Código válido para email sem conta não deveria acontecer, mas
+        # se acontecer a resposta não entrega essa informação.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código inválido ou expirado. Peça um novo código.",
+        )
+
+    usuario.senha_hash = gerar_hash_senha(dados.nova_senha)
+    # Quem provou ter acesso ao email também confirma o endereço.
+    usuario.email_verificado = True
+    await sessao.commit()
+
+    # Zera o bloqueio por tentativas: quem acabou de redefinir a senha
+    # não pode ficar preso pelo contador das tentativas antigas.
+    await _limpar_falhas(sessao, email)
+
+    logger.info("Senha redefinida: %s", email)
+    return MensagemOut(mensagem="Senha alterada. Agora é só entrar com a nova senha.")
 
 
 @router.post("/auth/refresh", response_model=TokenResponse)

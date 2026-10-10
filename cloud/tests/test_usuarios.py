@@ -32,6 +32,7 @@ async def test_perfil_retorna_nome_e_email_do_dono_do_token():
             email="maria@teste.com",
             senha_hash=gerar_hash_senha("senha"),
             papel="produtor",
+            email_verificado=True,
         )
         sessao.add(usuario)
         await sessao.commit()

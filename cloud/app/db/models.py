@@ -138,6 +138,16 @@ class Usuario(Base):
     email: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     senha_hash: Mapped[str] = mapped_column(String, nullable=False)
     papel: Mapped[str] = mapped_column(String, nullable=False)  # 'produtor' | 'administrador'
+
+    # Enquanto False, o login é recusado. É isto que impede alguém de
+    # encher o banco com contas de emails inventados: criar a conta não
+    # basta, é preciso provar que recebe no endereço informado.
+    #
+    # As contas que já existiam quando esta coluna nasceu entram como
+    # True pela própria migration: não faria sentido trancar fora do
+    # sistema quem já estava usando.
+    email_verificado: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_agora_utc)
 
 
@@ -213,3 +223,36 @@ class TentativaLogin(Base):
     atualizado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_agora_utc, onupdate=_agora_utc
     )
+
+
+class CodigoEmail(Base):
+    """Códigos de uso único enviados por email, para confirmar o
+    cadastro e para redefinir a senha.
+
+    Guarda o HASH do código, nunca o código em claro: se o banco vazar,
+    ninguém consegue assumir uma conta com o que estiver aqui. É a mesma
+    razão de `usuarios.senha_hash` existir em vez da senha.
+
+    O código também NUNCA volta na resposta da API. Ele sai apenas pelo
+    email, e as rotas respondem sempre a mesma coisa, exista ou não a
+    conta. Sem isso, bastaria olhar a resposta no navegador para
+    redefinir a senha de qualquer pessoa, e a resposta ainda
+    denunciaria quais emails estão cadastrados.
+
+    `tentativas` existe porque o código tem 6 dígitos, ou seja, um
+    milhão de combinações. Sem limitar, dava para tentar todas. Com no
+    máximo 5 tentativas e 15 minutos de validade, a chance de acerto
+    por força bruta é de 5 em 1 milhão.
+    """
+
+    __tablename__ = "codigos_email"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # 'verificacao' (confirmar cadastro) | 'recuperacao' (nova senha)
+    tipo: Mapped[str] = mapped_column(String, nullable=False)
+    codigo_hash: Mapped[str] = mapped_column(String, nullable=False)
+    expira_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    tentativas: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    usado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_agora_utc)

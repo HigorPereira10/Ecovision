@@ -49,6 +49,28 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
+    # --- Envio de email (confirmacao de cadastro e recuperacao de senha) ---
+    #
+    # Todos opcionais de proposito. Sem SMTP configurado a API sobe do
+    # mesmo jeito e o cadastro passa a criar contas JA VERIFICADAS, com
+    # aviso no log. E o mesmo principio do modelo de IA: uma dependencia
+    # externa ausente nao pode derrubar o sistema, e muito menos deixar
+    # o produtor preso numa conta que ele nunca consegue confirmar.
+    #
+    # Para Gmail: host smtp.gmail.com, porta 587, usuario o proprio
+    # email e senha uma "senha de app" (exige verificacao em duas etapas
+    # ativada na conta Google). A senha normal do Gmail NAO funciona.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USUARIO: str = ""
+    SMTP_SENHA: str = ""
+    SMTP_REMETENTE: str = ""
+
+    @property
+    def email_configurado(self) -> bool:
+        """True quando da para enviar email de verdade."""
+        return bool(self.SMTP_HOST and self.SMTP_USUARIO and self.SMTP_SENHA)
+
     # --- Modelo ---
     # Caminho do .tflite. Quando relativo, e resolvido a partir da RAIZ
     # DO REPOSITORIO (ver caminho_do_modelo), nao do diretorio de onde o

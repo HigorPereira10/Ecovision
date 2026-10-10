@@ -44,7 +44,12 @@ AGORA = datetime.now(timezone.utc)
 async def _montar_estufa(sessao: AsyncSession, *, email: str, device_id: str) -> dict:
     """Cria um produtor dono de um dispositivo, com uma captura que
     gera uma leitura, um diagnóstico e um alerta de cada tipo."""
-    usuario = Usuario(email=email, senha_hash=gerar_hash_senha("x"), papel="produtor")
+    usuario = Usuario(
+        email=email,
+        senha_hash=gerar_hash_senha("x"),
+        papel="produtor",
+        email_verificado=True,
+    )
     sessao.add(usuario)
     await sessao.flush()
 
@@ -191,6 +196,7 @@ async def test_administrador_enxerga_os_dados_de_todos_os_produtores():
             email="admin@teste.com",
             senha_hash=gerar_hash_senha("x"),
             papel="administrador",
+            email_verificado=True,
         )
         sessao.add(admin)
         await sessao.commit()

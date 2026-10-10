@@ -32,6 +32,7 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import CadastroScreen from "../screens/CadastroScreen";
 import RecuperarSenhaScreen from "../screens/RecuperarSenhaScreen";
+import VerificarEmailScreen from "../screens/VerificarEmailScreen";
 import VincularDispositivoScreen from "../screens/VincularDispositivoScreen";
 import DashboardScreen from "../screens/DashboardScreen";
 import AlertasScreen from "../screens/AlertasScreen";
@@ -114,6 +115,10 @@ export default function AppNavigator() {
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Cadastro" component={CadastroScreen} />
             <Stack.Screen name="RecuperarSenha" component={RecuperarSenhaScreen} />
+            {/* Confirmacao do cadastro por codigo de e-mail. Fica no
+                ramo nao autenticado porque o login e recusado ate o
+                e-mail ser confirmado. */}
+            <Stack.Screen name="VerificarEmail" component={VerificarEmailScreen} />
           </>
         )}
       </Stack.Navigator>

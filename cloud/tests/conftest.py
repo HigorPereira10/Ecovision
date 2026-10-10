@@ -62,6 +62,10 @@ async def usuario_produtor() -> Usuario:
             email="produtor@teste.com",
             senha_hash=gerar_hash_senha("senha-correta"),
             papel="produtor",
+            # Criado direto no banco, sem passar pelo cadastro, então
+            # precisa nascer verificado: o login recusa conta pendente
+            # de confirmação por email.
+            email_verificado=True,
         )
         sessao.add(usuario)
         await sessao.commit()

@@ -70,6 +70,43 @@ class UsuarioCriadoOut(BaseModel):
     id: int
     nome: str | None
     email: str
+    # False quando o SMTP não está configurado e a conta já nasceu
+    # ativa. O app usa isto para decidir se leva o produtor para a tela
+    # de código ou direto para o login.
+    email_verificado: bool
+
+
+class VerificarEmailRequest(BaseModel):
+    """Corpo de POST /auth/verify-email."""
+
+    email: str
+    codigo: str
+
+
+class EsqueciSenhaRequest(BaseModel):
+    """Corpo de POST /auth/forgot-password."""
+
+    email: str
+
+
+class RedefinirSenhaRequest(BaseModel):
+    """Corpo de POST /auth/reset-password."""
+
+    email: str
+    codigo: str
+    nova_senha: str
+
+
+class MensagemOut(BaseModel):
+    """Resposta genérica das rotas de email.
+
+    Deliberadamente sem nenhum dado: nunca devolve o código, nem diz se
+    a conta existe. O código sai apenas pelo email. Se ele voltasse
+    aqui, bastaria olhar a resposta no navegador para redefinir a senha
+    de qualquer pessoa, e a resposta ainda denunciaria quais emails
+    estão cadastrados."""
+
+    mensagem: str
 
 
 class VincularDispositivoRequest(BaseModel):

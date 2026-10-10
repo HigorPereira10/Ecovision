@@ -103,15 +103,23 @@ export default function CadastroScreen() {
 
     setCarregando(true);
     try {
-      await registrar({
+      const conta = await registrar({
         nome: nome.trim(),
         email: email.trim().toLowerCase(),
         senha,
       });
 
-      Alert.alert("Conta criada!", "Agora é só entrar com seu e-mail e senha.", [
-        { text: "OK", onPress: () => navigation.goBack() },
-      ]);
+      // `email_verificado` vem false quando o servidor enviou um código
+      // de confirmação, e true quando ele está sem e-mail configurado e
+      // já ativou a conta. Sem olhar isso, o produtor seria mandado ao
+      // login e tomaria "confirme seu e-mail" sem saber onde fazer isso.
+      if (conta.email_verificado) {
+        Alert.alert("Conta criada!", "Agora é só entrar com seu e-mail e senha.", [
+          { text: "OK", onPress: () => navigation.goBack() },
+        ]);
+      } else {
+        navigation.navigate("VerificarEmail", { email: conta.email });
+      }
     } catch (e) {
       setErroGeral(e instanceof Error ? e.message : "Erro ao criar conta.");
     } finally {

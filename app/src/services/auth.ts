@@ -60,6 +60,17 @@ export async function logout(): Promise<void> {
   await limparTokens();
   notificarMudancaDeAuth(false);
 }
+/** Resposta de POST /auth/register. `email_verificado` vem false
+ * quando um código de confirmação foi enviado, e true quando o servidor
+ * está sem e-mail configurado e já ativou a conta. A tela usa isso para
+ * decidir se leva o produtor para a tela de código ou direto ao login. */
+export interface ContaCriada {
+  id: number;
+  nome: string | null;
+  email: string;
+  email_verificado: boolean;
+}
+
 /** Cria a conta do produtor (POST /auth/register).
  *
  * O cadastro é aberto: qualquer pessoa pode criar conta. Isso só é
@@ -67,24 +78,51 @@ export async function logout(): Promise<void> {
  * enxerga nada até vincular um dispositivo pelo código de pareamento
  * que vem com o aparelho (ver vincularDispositivo em dispositivos.ts).
  *
- * Não faz login automático de propósito: a tela volta para o login,
- * como CadastroScreen já espera. */
+ * Não faz login automático: o e-mail ainda precisa ser confirmado. */
 export async function registrar(dados: {
   nome: string;
   email: string;
   senha: string;
-}): Promise<void> {
-  await postSemAutenticacao("/auth/register", {
+}): Promise<ContaCriada> {
+  return postSemAutenticacao<ContaCriada>("/auth/register", {
     nome: dados.nome.trim(),
     email: dados.email.trim().toLowerCase(),
     senha: dados.senha,
   });
 }
 
-/** Dispara o envio do codigo de recuperacao de senha.
+/** Confirma o cadastro com o código de 6 dígitos recebido por e-mail
+ * (POST /auth/verify-email). */
+export async function verificarEmail(email: string, codigo: string): Promise<void> {
+  await postSemAutenticacao("/auth/verify-email", {
+    email: email.trim().toLowerCase(),
+    codigo: codigo.trim(),
+  });
+}
+
+/** Pede o código de redefinição de senha (POST /auth/forgot-password).
  *
- * AINDA MOCKADA: nao existe POST /auth/forgot-password nem provedor de
- * e-mail configurado em cloud/app/config.py. */
+ * A API responde sempre a mesma coisa, exista ou não a conta, para não
+ * entregar quais e-mails estão cadastrados. Por isso esta função não
+ * tem como dizer à tela se o endereço existe, e a tela não deve
+ * prometer que o e-mail foi enviado, só que ele SERÁ se houver conta. */
 export async function solicitarRecuperacaoSenha(email: string): Promise<void> {
-  await new Promise((r) => setTimeout(r, 800)); // simula latência
+  await postSemAutenticacao("/auth/forgot-password", {
+    email: email.trim().toLowerCase(),
+  });
+}
+
+/** Troca a senha usando o código recebido por e-mail
+ * (POST /auth/reset-password). A nova senha passa pelas mesmas regras
+ * de força do cadastro, validadas no servidor. */
+export async function redefinirSenha(
+  email: string,
+  codigo: string,
+  novaSenha: string,
+): Promise<void> {
+  await postSemAutenticacao("/auth/reset-password", {
+    email: email.trim().toLowerCase(),
+    codigo: codigo.trim(),
+    nova_senha: novaSenha,
+  });
 }
