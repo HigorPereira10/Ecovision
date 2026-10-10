@@ -334,3 +334,18 @@ async def test_segredo_de_outro_aparelho_nao_serve(monkeypatch):
         resposta = _enviar(client, "pi-bbb", segredo_a, "cap-cruzada")
 
     assert resposta.status_code == 401
+
+
+async def test_produtor_sem_dispositivo_nao_recebe_alerta_de_inatividade():
+    """Regressão: o alerta sintético de 'dispositivo nunca reportou
+    dados' era gerado mesmo para quem não tem aparelho nenhum. Quem
+    acabava de se cadastrar via uma instrução para verificar a
+    alimentação e o Wi-Fi de um Raspberry Pi que não existe."""
+    with TestClient(app) as client:
+        _registrar(client, "semaparelho@exemplo.com")
+        token = _logar(client, "semaparelho@exemplo.com", SENHA_BOA).json()["access_token"]
+        alertas = client.get(
+            "/alertas", headers={"Authorization": f"Bearer {token}"}
+        ).json()
+
+    assert alertas == [], f"produtor sem dispositivo recebeu {alertas}"

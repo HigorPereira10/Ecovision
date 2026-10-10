@@ -95,8 +95,21 @@ async def listar_alertas(
     resultado = await sessao.execute(consulta)
     alertas = [AlertaOut.model_validate(alerta) for alerta in resultado.scalars().all()]
 
-    ultima_captura = await _obter_ultima_captura(sessao, device_ids)
-    alerta_dispositivo = avaliar_inatividade_dispositivo(ultima_captura)
+    # Produtor SEM nenhum dispositivo vinculado não recebe o alerta
+    # sintético. Sem esta guarda, quem acabou de se cadastrar e ainda
+    # nem tem equipamento via "Dispositivo nunca reportou dados.
+    # Verifique a alimentação, a conexão Wi-Fi e os logs do Raspberry
+    # Pi", falando de um aparelho que não existe.
+    #
+    # `device_ids is None` é o administrador, que enxerga tudo e por
+    # isso continua recebendo o alerta normalmente.
+    tem_dispositivo = device_ids is None or len(device_ids) > 0
+
+    ultima_captura = None
+    alerta_dispositivo = None
+    if tem_dispositivo:
+        ultima_captura = await _obter_ultima_captura(sessao, device_ids)
+        alerta_dispositivo = avaliar_inatividade_dispositivo(ultima_captura)
 
     if alerta_dispositivo is not None:
         titulo, descricao, severidade = alerta_dispositivo

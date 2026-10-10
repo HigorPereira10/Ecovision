@@ -1,6 +1,11 @@
 """
 cloud/scripts/seed_dispositivo_teste.py
 
+LEGADO: para um dispositivo NOVO, use scripts/provisionar_dispositivo.py,
+que gera a credencial propria e o codigo de pareamento, e deixe o
+produtor reivindicar o aparelho pelo app. Este script continua aqui
+porque vincula direto, sem pareamento, o que ajuda em teste local.
+
 Cadastra o Raspberry Pi real na tabela `dispositivos`, vinculado à
 conta de produtor semeada por seed_usuario_teste.py. Sem essa linha,
 GET /dispositivos sempre devolve uma lista vazia (a tabela existe, mas
@@ -39,7 +44,7 @@ logger = logging.getLogger("ecovision.cloud.seed")
 # app/api/escopo.py, invisiveis em todas as telas.
 DEVICE_ID_REAL = "pi-estufa-01"
 NOME_TESTE = "Estufa 1"
-EMAIL_DONO = "joao.pereira@exemplo.com"  # mesma conta de seed_usuario_teste.py
+EMAIL_DONO = "produtor@ecovision.app"  # mesma conta de seed_usuario_teste.py
 
 
 async def semear_dispositivo_teste() -> None:

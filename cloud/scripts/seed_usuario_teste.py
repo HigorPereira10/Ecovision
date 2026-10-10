@@ -3,7 +3,7 @@ cloud/scripts/seed_usuario_teste.py
 
 Cria (ou atualiza a senha de) a conta de produtor usada para testar o
 login de verdade contra a API, com as MESMAS credenciais que o mock do
-app/ já usa (app/src/services/auth.ts): joao.pereira@exemplo.com /
+app/ já usa (app/src/services/auth.ts): produtor@ecovision.app /
 tomate123. Decisão do grupo em 2026-09-11: por enquanto não existe
 endpoint de cadastro (POST /auth/registrar); a primeira conta é
 semeada manualmente assim, direto no banco configurado em DATABASE_URL.
@@ -28,8 +28,21 @@ from app.db.session import _SessionLocal
 
 logger = logging.getLogger("ecovision.cloud.seed")
 
-NOME_TESTE = "João Pereira"
-EMAIL_TESTE = "joao.pereira@exemplo.com"
+# ATENCAO: rodar este script SOBRESCREVE A SENHA da conta abaixo pela
+# SENHA_TESTE, que e fraca e publica (esta aqui no codigo). Desde
+# 2026-10-10 esse email e a conta real do grupo em producao, dona do
+# pi-estufa-01. Rodar isto contra o banco de producao rebaixaria a
+# seguranca dela sem avisar ninguem.
+#
+# Use apenas contra banco LOCAL de desenvolvimento. Para criar conta em
+# producao, use o cadastro do proprio app (POST /auth/register), que
+# exige senha forte.
+
+NOME_TESTE = "Produtor EcoVision"
+# Conta de produtor do grupo, dona do Pi real. E-mail neutro do
+# projeto em vez do nome de alguem: ele aparece na tela de Perfil, e
+# essa tela vai para a apresentacao.
+EMAIL_TESTE = "produtor@ecovision.app"
 SENHA_TESTE = "tomate123"
 PAPEL_TESTE = "produtor"
 
