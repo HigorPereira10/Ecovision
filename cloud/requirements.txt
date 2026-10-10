@@ -20,9 +20,13 @@ python-multipart         # necessario para os campos Form()/UploadFile de /diagn
 #      Windows, Linux e aarch64. E o que permite rodar a API localmente
 #      no Windows; sem ele, a inferencia caia no placeholder em silencio.
 # Nenhum dos dois e o pacote `tensorflow` completo, que continua proibido.
-# Deixados comentados porque a escolha depende da plataforma do ambiente.
-# tflite-runtime
-# ai-edge-litert
+# O ai-edge-litert fica ATIVO porque e ele que sobe no Railway: tem wheel
+# para Linux x86_64 em toda versao recente de Python, enquanto o
+# tflite-runtime parou no 3.11 e deixaria o deploy refem da versao que o
+# builder escolher. Sem nenhum dos dois instalado, a API sobe, responde
+# 200 e devolve "indisponivel" em toda captura, sem erro visivel.
+ai-edge-litert
+# tflite-runtime  # alternativa; o carregador aceita os dois
 numpy
 
 # --- Banco de dados (Supabase Postgres) ---

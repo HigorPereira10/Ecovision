@@ -13,28 +13,53 @@ segredos nem valores reais.
 
 ## Configuração (a fazer no painel do Railway)
 
-- Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`
-  (raiz do serviço apontando para `cloud/`; `$PORT` é injetado pelo
-  próprio Railway, não fixar um valor).
-- Root directory do serviço: `cloud/` (é onde ficam `app/`,
-  `requirements.txt` e `alembic/`).
+- **Root directory do serviço: NÃO definir** (deixar na raiz do
+  repositório). Isto é o oposto do que este documento recomendava antes,
+  e a correção é importante: quando o Railway recebe um root directory,
+  ele baixa **somente** os arquivos daquela pasta, e diretórios irmãos
+  ficam de fora. Como o modelo de IA vive em `ml/models/modelo.tflite`,
+  irmão de `cloud/`, apontar a raiz para `cloud/` faria o modelo
+  desaparecer do container. A API subiria normalmente e devolveria
+  `"indisponivel"` em toda captura, sem erro visível, porque o
+  carregador é tolerante a modelo ausente de propósito
+  (`cloud/app/core/inference.py`). O Railway chama este caso de
+  *shared monorepo* e recomenda exatamente isto.
+- Start command e builder ficam versionados em `railway.json`, na raiz,
+  em vez de configurados só no painel:
+  `cd cloud && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --workers 1`
+  (`$PORT` é injetado pelo Railway, nunca fixar um valor). As migrations
+  rodam no start, então subir uma versão nova já aplica o schema.
+- `requirements.txt` na raiz existe só para o Nixpacks reconhecer o
+  projeto como Python (ele decide a linguagem olhando a raiz). Ele
+  apenas reexporta `cloud/requirements.txt` com `-r`.
+- `.python-version` fixa o Python em 3.11, a mesma versão usada no
+  desenvolvimento, para o build não mudar de interpretador sozinho.
 - Variáveis de ambiente: usar o template `infra/env/cloud.env.example`
   (preencher com os valores reais do Supabase e a `DEVICE_API_KEY`
   gerada, nunca commitar esses valores).
-- Migração do banco: rodar `alembic upgrade head` (de dentro de
-  `cloud/`) antes de subir uma versão nova, ou como um passo de deploy
-  automatizado. As migrations em `cloud/alembic/versions/` já cobrem
-  o schema atual (`registros_imagem`, `leituras_ambientais`,
-  `diagnosticos`, `alertas`, `usuarios`, `dispositivos`).
+- Migração do banco: já embutida no start command acima. As migrations
+  em `cloud/alembic/versions/` cobrem o schema atual
+  (`registros_imagem`, `leituras_ambientais`, `diagnosticos`,
+  `alertas`, `usuarios`, `dispositivos`).
+- Runtime de IA: `cloud/requirements.txt` instala `ai-edge-litert`.
+  Não trocar por `tflite-runtime` sem conferir a versão do Python: os
+  wheels dele param no 3.11. Sem nenhum dos dois, o sintoma é o mesmo
+  do root directory errado, diagnóstico `"indisponivel"` em silêncio.
+- Depois do primeiro deploy, **conferir no log de startup** que não
+  aparece `Modelo .tflite não encontrado`. É a forma mais rápida de
+  saber se o modelo chegou ao container.
 - Deploy automático via GitHub Actions a cada push na `main`, ver
   `.github/workflows/deploy-railway.yml` (ainda `workflow_dispatch`
   manual de propósito, ativação adiada para perto da Sprint 9).
 
 ## Risco de timing (Blueprint Seção 4.5)
 
-O free trial dura **30 dias corridos a partir da ativação**, não 30 dias
-de uso. Ver `infra/calendar/sincronizacao.md` para o calendário que
-sincroniza a ativação do trial com a data real da banca, **não ativar
-o trial cedo demais**. Reservar ~R$30-50 do orçamento do grupo para o
-plano Hobby (~US$5/mês) como contingência caso o trial expire antes da
-apresentação.
+O free trial já foi consumido num projeto anterior. Em 2026-10-10 o
+grupo assinou o **plano Hobby** (US$ 5/mês, cobrado como R$ 26,40),
+o que elimina o risco de timing que esta seção descrevia: não há mais
+relógio de 30 dias para sincronizar com a data da banca.
+
+Mantido como histórico porque a decisão original de adiar a ativação
+está registrada em `infra/calendar/sincronizacao.md` e no roadmap.
+O que continua valendo: definir um teto de uso no painel (botão
+*Set limits*), para erro de configuração não virar conta alta.
