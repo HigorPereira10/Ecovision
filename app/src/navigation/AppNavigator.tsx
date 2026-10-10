@@ -7,6 +7,11 @@
  * com guarda de rota baseada na presença de um JWT válido
  * (app/src/services/auth.ts).
  *
+ * VincularDispositivo fica empilhada sobre as abas, acessada pelo
+ * Perfil. Vincular NÃO é obrigatório depois do login: o módulo
+ * Financeiro funciona sem dispositivo, e quem ainda espera o
+ * equipamento chegar não pode ficar preso numa tela sem saída.
+ *
  * isAuthenticated() checa se existe um token guardado no SecureStore
  * (app/src/services/tokens.ts); quem o emite e a API real.
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
@@ -27,6 +32,7 @@ import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
 import CadastroScreen from "../screens/CadastroScreen";
 import RecuperarSenhaScreen from "../screens/RecuperarSenhaScreen";
+import VincularDispositivoScreen from "../screens/VincularDispositivoScreen";
 import DashboardScreen from "../screens/DashboardScreen";
 import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
@@ -92,7 +98,16 @@ export default function AppNavigator() {
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {isAuthenticated ? (
-          <Stack.Screen name="AppTabs" component={AppTabs} />
+          <>
+            <Stack.Screen name="AppTabs" component={AppTabs} />
+            {/* Empilhada sobre as abas, e nao como aba propria: vincular
+                aparelho e uma acao pontual, nao um lugar onde o produtor
+                volta sempre. A entrada e pelo Perfil. */}
+            <Stack.Screen
+              name="VincularDispositivo"
+              component={VincularDispositivoScreen}
+            />
+          </>
         ) : (
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />

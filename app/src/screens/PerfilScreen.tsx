@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, Image, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { getDispositivos, Dispositivo } from '../services/dispositivos';
 import { getPerfilUsuario, PerfilUsuario } from '../services/perfil';
 import { logout } from '../services/auth';
@@ -22,7 +23,21 @@ async function buscarDadosPerfil(): Promise<DadosPerfil> {
 }
 
 export default function PerfilScreen() {
+  const navigation = useNavigation<any>();
   const { dados, carregando, erro, recarregar, atualizar } = useCarregamentoAssincrono(buscarDadosPerfil, []);
+
+  // Atualiza ao voltar da tela de vínculo: sem isto, o aparelho
+  // recém-vinculado só apareceria no próximo reinício do app.
+  //
+  // `atualizar` e não `recarregar`: o primeiro busca em segundo plano,
+  // mantendo o conteúdo na tela, enquanto o segundo levanta o estado de
+  // carregamento e apagaria o perfil por um instante a cada vez que a
+  // aba ganha foco.
+  useFocusEffect(
+    useCallback(() => {
+      atualizar();
+    }, [atualizar])
+  );
 
   if (carregando && !dados) {
     return <EstadoCarregamento />;
@@ -64,9 +79,27 @@ export default function PerfilScreen() {
 
             <Text style={styles.tituloSecao}>Dispositivos IoT</Text>
 
-            {dados.dispositivos.map((d) => (
-              <DispositivoCard key={d.id} dispositivo={d} />
-            ))}
+            {dados.dispositivos.length === 0 ? (
+              <View style={styles.semDispositivo}>
+                <Ionicons name="hardware-chip-outline" size={32} color={colors.textMuted} />
+                <Text style={styles.semDispositivoTexto}>
+                  Nenhum aparelho vinculado ainda. Vincule o seu para ver as leituras
+                  e os diagnósticos da sua estufa.
+                </Text>
+              </View>
+            ) : (
+              dados.dispositivos.map((d) => (
+                <DispositivoCard key={d.id} dispositivo={d} />
+              ))
+            )}
+
+            <Pressable
+              style={styles.botaoVincular}
+              onPress={() => navigation.navigate('VincularDispositivo')}
+            >
+              <Ionicons name="add-circle-outline" size={18} color={colors.white} />
+              <Text style={styles.botaoVincularTexto}>Vincular aparelho</Text>
+            </Pressable>
 
             <Pressable style={styles.botaoSair} onPress={confirmarLogout}>
               <Ionicons name="log-out-outline" size={18} color={colors.danger} />
@@ -152,6 +185,31 @@ const styles = StyleSheet.create({
     color: colors.darkGreen,
     marginBottom: 10,
   },
+  semDispositivo: {
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    paddingVertical: 24,
+    paddingHorizontal: 20,
+    gap: 10,
+  },
+  semDispositivoTexto: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  botaoVincular: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: colors.oliveGreen,
+    borderRadius: 30,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  botaoVincularTexto: { color: colors.white, fontSize: 15, fontWeight: '700' },
   botaoSair: {
     borderWidth: 1,
     borderColor: colors.danger,
