@@ -11,6 +11,8 @@
  * Duas formas de disparo, propositalmente:
  * 1) dispararNotificacaoTeste() — botão manual na tela de Alertas,
  *    útil pra demonstração na banca (não depende de estado dos dados).
+ *    Só aparece sob __DEV__: no app publicado, um usuário tocando nele
+ *    receberia um alerta inventado sobre a estufa dele.
  * 2) verificarNovosAlertasNaoLidos() — "automático": compara os
  *    alertas não lidos vindos de services/alertas.ts com os IDs já
  *    notificados (persistidos em AsyncStorage) e dispara notificação

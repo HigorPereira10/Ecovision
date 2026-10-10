@@ -22,18 +22,28 @@
  * headerShown: false, senão aparecem dois headers sobrepostos (mesmo
  * problema já resolvido no DiagnosticoScreen).
  *
- * Notificações locais (Dia 22-23, Blueprint Fase 5): o botão de sino
- * no header dispara uma notificação de demonstração
- * (dispararNotificacaoTeste), e useFocusEffect roda uma verificação
- * automática (verificarNovosAlertasNaoLidos) toda vez que a tela ganha
- * foco, simulando o que futuramente será um push real vindo do
- * backend. Ver services/notificacoes.ts para detalhes.
+ * Notificações locais (Dia 22-23, Blueprint Fase 5): useFocusEffect
+ * roda uma verificação automática (verificarNovosAlertasNaoLidos)
+ * toda vez que a tela ganha foco, simulando o que futuramente será um
+ * push real vindo do backend. Ver services/notificacoes.ts.
+ *
+ * O botão de sino que dispara uma notificação de demonstração é
+ * ferramenta de apresentação, não funcionalidade: para o produtor ele
+ * parecia um ícone comum de notificações, e quem tocasse nele receberia
+ * um alerta inventado sobre a estufa dele. Por isso ele só aparece em
+ * duas situações: durante o desenvolvimento (__DEV__, ou seja, Expo Go
+ * e `expo start`) ou para quem estiver logado numa conta de papel
+ * 'administrador', que o grupo usa na apresentação. As duas condições
+ * existem porque o __DEV__ some em build de produção, inclusive para
+ * nós. Fora delas, o ícone dá lugar a um espaçador que mantém o título
+ * centralizado.
  */
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { getAlertas, marcarAlertaLido, Alerta, SeveridadeAlerta } from '../services/alertas';
+import { getPerfilUsuario, PAPEL_ADMINISTRADOR } from '../services/perfil';
 import {
   inicializarNotificacoes,
   dispararNotificacaoTeste,
@@ -75,9 +85,26 @@ export default function AlertasScreen() {
     useCarregamentoAssincrono(getAlertas, []);
 
   const [filtro, setFiltro] = useState<Filtro>('todos');
+  const [ehAdministrador, setEhAdministrador] = useState(false);
   const [marcandoId, setMarcandoId] = useState<number | null>(null);
   const [erroMarcarLido, setErroMarcarLido] = useState<string | null>(null);
   const { mensagem: mensagemToast, mostrarToast } = useToastSucesso();
+
+  // Descobre o papel só uma vez, na montagem. Falha de rede aqui é
+  // engolida de propósito: não saber o papel apenas esconde o botão de
+  // demonstração, e um erro visível por causa disso atrapalharia mais
+  // do que ajuda numa tela cujo conteúdo principal são os alertas.
+  useEffect(() => {
+    let ativo = true;
+    getPerfilUsuario()
+      .then((perfil) => {
+        if (ativo) setEhAdministrador(perfil.papel === PAPEL_ADMINISTRADOR);
+      })
+      .catch(() => {});
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   // Verificação automática de novos alertas não lidos toda vez que a
   // tela ganha foco — simula, do lado do app, o que futuramente será
@@ -115,9 +142,13 @@ export default function AlertasScreen() {
       <View style={styles.header}>
         <Image source={require('../../assets/images/logo-ecovision.png')} style={styles.logo} />
         <Text style={styles.headerTitulo}>Seus Alertas</Text>
-        <Pressable onPress={dispararNotificacaoTeste} hitSlop={8}>
-          <Ionicons name="notifications-outline" size={24} color={colors.white} />
-        </Pressable>
+        {__DEV__ || ehAdministrador ? (
+          <Pressable onPress={dispararNotificacaoTeste} hitSlop={8}>
+            <Ionicons name="notifications-outline" size={24} color={colors.white} />
+          </Pressable>
+        ) : (
+          <View style={styles.espacadorHeader} />
+        )}
       </View>
 
       <View style={styles.filtrosContainer}>
@@ -243,6 +274,10 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   logo: { width: 32, height: 32, resizeMode: 'contain' },
+  // Ocupa o lugar do sino de demonstracao fora do __DEV__, para o
+  // justifyContent 'space-between' do header nao jogar o titulo
+  // para a direita quando o terceiro filho some.
+  espacadorHeader: { width: 24 },
   headerTitulo: { color: colors.white, fontSize: 18, fontWeight: '700' },
   filtrosContainer: {
     flexDirection: 'row',
