@@ -120,12 +120,24 @@ class AlertaOut(BaseModel):
 
 
 class UsuarioOut(BaseModel):
-    """Resposta de GET /usuarios/me (tela de Perfil do app)."""
+    """Resposta de GET /usuarios/me (tela de Perfil do app).
+
+    `papel` é devolvido porque o app muda o que exibe conforme ele:
+    hoje, o botão de notificação de demonstração na tela de Alertas só
+    aparece para 'administrador'. Não é informação sensível (o próprio
+    JWT do usuário já carrega esse campo assinado, ver
+    app/core/security.py), e devolver aqui evita o app ter que decodificar
+    o token por conta própria para descobrir algo que já é dele.
+
+    `nome` é opcional porque a coluna nasceu nula na migration 0004,
+    quando as contas existentes foram semeadas à mão sem esse dado.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     nome: str | None
     email: str
+    papel: str
 
 
 class DispositivoOut(BaseModel):

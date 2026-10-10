@@ -56,3 +56,13 @@ async def test_perfil_sem_nome_preenchido_devolve_null(usuario_produtor: Usuario
 
     assert resposta.status_code == 200
     assert resposta.json()["nome"] is None
+
+
+async def test_perfil_devolve_o_papel_do_usuario(token_produtor: str, usuario_produtor):
+    """O app usa o papel para decidir o que mostrar (hoje, o botão de
+    notificação de demonstração na tela de Alertas)."""
+    with TestClient(app) as client:
+        resposta = client.get("/usuarios/me", headers={"Authorization": f"Bearer {token_produtor}"})
+
+    assert resposta.status_code == 200
+    assert resposta.json()["papel"] == "produtor"
