@@ -13,15 +13,14 @@ Regras não negociáveis (Blueprint Seção 4.4 e Pontos de Atenção):
   e chegar ao servidor via deploy do GitHub Actions, nunca por upload
   manual em volume stateful.
 
-Estado real do projeto nesta rodada: o modelo ainda não existe (ml/ é
-esqueleto). Em vez de a API recusar subir, ela sobe normalmente e
-qualquer chamada de inferência devolve um resultado placeholder, com
-um aviso (warning) no log. Isso acontece em 3 situações, todas
-tratadas do mesmo jeito: (a) tflite_runtime não está instalado no
-ambiente, (b) o arquivo do modelo não existe no caminho configurado,
-(c) o arquivo existe mas falha ao carregar (corrompido ou em formato
-inválido). Isso deixa o resto do pipeline (storage + banco) testável e
-implantável antes do time de ML entregar o modelo de verdade.
+Estado em 2026-10-10: o modelo real está em ml/models/modelo.tflite,
+com 3 classes (ver _CLASSES_DO_MODELO). Mesmo assim, a API nunca
+recusa subir por causa dele: em 3 situações ela sobe normalmente e a
+inferência devolve um resultado placeholder, com aviso no log. São
+elas: (a) nenhum runtime TFLite instalado, (b) o arquivo do modelo não
+existe no caminho configurado, (c) o arquivo existe mas falha ao
+carregar. Isso mantém o resto do pipeline (storage + banco) de pé
+mesmo com problema no modelo.
 
 ATENÇÃO: nenhum desses 3 casos derruba a API. Se algo aqui for alterado
 no futuro, manter esse comportamento é importante: uma falha no modelo
@@ -68,14 +67,14 @@ _SUFIXO_RECOMENDACAO = " Consulte um engenheiro agrônomo para definir produto e
 # lavoura segundo a fonte citada. "media" é para as demais, que têm
 # tratamento ou controle disponível e progressão mais lenta.
 #
-# CUIDADO, MUITO IMPORTANTE: a ORDEM desta lista precisa ser IGUAL ao
-# índice de saída do modelo .tflite real quando ml/ entregar o treino.
-# Se a ordem das classes usada no treino for diferente desta lista, o
-# sistema vai mostrar a recomendação errada para o agricultor (ex.:
-# recomendar tratamento de mofo de folha quando na verdade é
-# septoriose). Conferir e ajustar essa lista assim que o modelo real
-# chegar, antes de colocar em produção.
-_CLASSES_PLACEHOLDER: list[tuple[str, str | None, str | None]] = [
+# Esta lista é o CATÁLOGO agronômico, indexado por NOME, não pela
+# saída do modelo. A ordem aqui não tem mais significado: quem define
+# qual índice do modelo é qual classe é _CLASSES_DO_MODELO, logo abaixo.
+# Separar os dois foi necessário porque o modelo entregue tem 3 classes
+# e este catálogo tem 10: enquanto o índice do modelo era lido direto
+# aqui, a saída 2 (que no modelo é "saudavel") virava "pinta_preta", e
+# o produtor recebia instrução de pulverizar fungicida numa folha sã.
+_CATALOGO_AGRONOMICO: list[tuple[str, str | None, str | None]] = [
     ("saudavel", None, None),
     (
         "requeima",
@@ -153,6 +152,29 @@ _CLASSES_PLACEHOLDER: list[tuple[str, str | None, str | None]] = [
 ]
 
 
+_INFO_POR_CLASSE: dict[str, tuple[str | None, str | None]] = {
+    nome: (recomendacao, severidade) for nome, recomendacao, severidade in _CATALOGO_AGRONOMICO
+}
+
+# Ordem EXATA das saídas do modelo em ml/models/modelo.tflite. Vem do
+# treino, onde tf.keras.utils.image_dataset_from_directory ordena os
+# diretórios de classe alfabeticamente. Tem que bater com a lista
+# CLASSES de ml/src/export/convert_tflite.py.
+#
+# O índice 0 é "distrator_septoria" no treino do ml/: a pasta nasceu
+# com esse nome por ter sido incluída como distrator (evitar que tudo
+# vire pinta_preta). Aqui ele é publicado como "septoriose", que é o
+# nome da doença no catálogo acima, decisão do grupo em 2026-10-10
+# depois de o Carlos validar a classe. Assim o diagnóstico chega ao
+# produtor com a recomendação agronômica de septoriose (ADR 0006).
+#
+# SE O MODELO FOR RETREINADO: trocar o .tflite não basta se a
+# quantidade ou a ordem das classes mudar. Esta lista tem que
+# acompanhar, senão cada predição sai com o rótulo de outra doença e
+# nada falha de forma visível.
+_CLASSES_DO_MODELO: list[str] = ["septoriose", "pinta_preta", "saudavel"]
+
+
 def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
     """Carrega o interpretador TFLite uma única vez, no startup da API.
 
@@ -160,12 +182,28 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
     instalado ou o modelo não puder ser carregado, retorna None e a API
     continua funcionando normalmente, só que com resultado placeholder.
     """
-    try:
-        from tflite_runtime.interpreter import Interpreter
-    except ImportError:
+    # Dois runtimes, na ordem de preferência. O `tflite-runtime` é o que
+    # o Blueprint cita e o que roda no Linux do Railway. O
+    # `ai-edge-litert` é o sucessor oficial do mesmo projeto e existe
+    # para Windows e ARM64, plataformas onde o `tflite-runtime` não tem
+    # wheel. Sem esse segundo caminho, rodar a API localmente no Windows
+    # caía no resultado placeholder EM SILÊNCIO, dando a impressão de
+    # que a inferência tinha sido testada quando não tinha.
+    #
+    # Nenhum dos dois é o pacote `tensorflow` completo, que continua
+    # proibido aqui (estoura a RAM de 1GB do Railway).
+    Interpreter = None
+    for modulo in ("tflite_runtime.interpreter", "ai_edge_litert.interpreter"):
+        try:
+            Interpreter = __import__(modulo, fromlist=["Interpreter"]).Interpreter
+            break
+        except ImportError:
+            continue
+
+    if Interpreter is None:
         logger.warning(
-            "tflite_runtime não instalado: a inferência vai devolver resultado "
-            "placeholder até o ambiente ter o pacote e um modelo de verdade."
+            "Nenhum runtime TFLite instalado (tflite-runtime ou ai-edge-litert): "
+            "a inferência vai devolver resultado placeholder."
         )
         return None
 
@@ -192,14 +230,30 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
 
 
 def preprocessar_imagem(bytes_imagem: bytes) -> np.ndarray:
-    """Redimensiona a imagem para 224x224 e normaliza os valores de cor
-    para o intervalo [0, 1]. Tudo em memória, sem gravar nada em disco
-    (o Pillow já resolve isso internamente ao ler do BytesIO)."""
+    """Prepara a imagem recebida do Pi para entrar no modelo: 224x224,
+    RGB, pixels float32 CRUS de 0 a 255. Tudo em memória, sem gravar
+    nada em disco (o Pillow resolve isso lendo do BytesIO).
+
+    NÃO dividir por 255 e NÃO aplicar preprocess_input aqui. O modelo
+    exportado por ml/src/export/convert_tflite.py já tem a camada de
+    normalização da MobileNetV2 dentro do grafo. Normalizar de novo por
+    fora não levanta erro nenhum: as predições simplesmente colapsam
+    para "saudavel" com cerca de 90% de confiança em qualquer foto,
+    inclusive em folha visivelmente doente.
+
+    O método de redimensionamento também não é detalhe. O treino usou
+    tf.keras.utils.load_img, cujo padrão é vizinho mais próximo
+    (NEAREST). Medido nas 6 imagens de ml/validacao_externa/: com
+    NEAREST a saída bate com o Keras original nas 6, casa decimal por
+    casa decimal; com BILINEAR ou BICUBIC (este último é o padrão do
+    Pillow, o que estava em uso aqui) nenhuma das 6 bate, e DUAS
+    trocam de classe. Ou seja, trocar a interpolação muda diagnóstico.
+    """
     import io
 
     imagem = Image.open(io.BytesIO(bytes_imagem)).convert("RGB")
-    imagem = imagem.resize(TAMANHO_ENTRADA)
-    array = np.asarray(imagem, dtype=np.float32) / 255.0
+    imagem = imagem.resize(TAMANHO_ENTRADA, Image.Resampling.NEAREST)
+    array = np.asarray(imagem, dtype=np.float32)
     return np.expand_dims(array, axis=0)  # adiciona a dimensão de "lote" (batch) de 1 imagem
 
 
@@ -220,9 +274,21 @@ def rodar_inferencia(interpretador: Any | None, imagem_preprocessada: np.ndarray
     indice_previsto = int(np.argmax(saida))
     confianca = float(saida[indice_previsto])
 
-    if indice_previsto < len(_CLASSES_PLACEHOLDER):
-        classe, recomendacao, severidade = _CLASSES_PLACEHOLDER[indice_previsto]
+    if indice_previsto < len(_CLASSES_DO_MODELO):
+        classe = _CLASSES_DO_MODELO[indice_previsto]
+        recomendacao, severidade = _INFO_POR_CLASSE.get(classe, (None, None))
     else:
+        # O modelo devolveu mais saídas do que _CLASSES_DO_MODELO
+        # descreve, ou seja, o .tflite foi trocado sem atualizar a
+        # lista. Não dá para adivinhar o nome, então registra o índice
+        # cru e não emite recomendação: melhor um diagnóstico sem texto
+        # do que o texto da doença errada.
+        logger.error(
+            "Modelo devolveu indice %s, fora de _CLASSES_DO_MODELO (%s classes). "
+            "O .tflite provavelmente foi trocado sem atualizar a lista.",
+            indice_previsto,
+            len(_CLASSES_DO_MODELO),
+        )
         classe, recomendacao, severidade = f"classe_{indice_previsto}", None, None
 
     return {

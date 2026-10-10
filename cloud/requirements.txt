@@ -13,11 +13,16 @@ uvicorn[standard]        # 1 worker apenas, conforme decisão do Blueprint
 python-multipart         # necessario para os campos Form()/UploadFile de /diagnostico
 
 # --- Inferência ---
-# tflite-runtime não tem wheel para todas as plataformas (ex.: Windows):
-# instalar manualmente no ambiente de deploy (Railway roda Linux x86_64,
-# onde o wheel oficial existe). Sem isso instalado, a API sobe do mesmo
-# jeito e devolve diagnostico placeholder (ver app/core/inference.py).
+# O carregador aceita dois runtimes, nesta ordem (app/core/inference.py):
+#   1. tflite-runtime: o do Blueprint, com wheel para Linux x86_64 (Railway)
+#      e aarch64, mas NAO para Windows.
+#   2. ai-edge-litert: sucessor oficial do mesmo projeto, com wheel para
+#      Windows, Linux e aarch64. E o que permite rodar a API localmente
+#      no Windows; sem ele, a inferencia caia no placeholder em silencio.
+# Nenhum dos dois e o pacote `tensorflow` completo, que continua proibido.
+# Deixados comentados porque a escolha depende da plataforma do ambiente.
 # tflite-runtime
+# ai-edge-litert
 numpy
 
 # --- Banco de dados (Supabase Postgres) ---
