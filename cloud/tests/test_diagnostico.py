@@ -19,8 +19,10 @@ por API Key. Sem precisar de Supabase real nem de rede, confere:
    caso, que pode chegar aqui como campo ausente ou como a string
    "None"), a API não trava: grava a leitura como nula no banco, em
    vez de dar erro.
-4. Sem um modelo de IA real disponível (situação atual do projeto), o
-   diagnóstico gravado é o placeholder "indisponivel", não um erro.
+4. O diagnóstico gravado vem do modelo real (ml/models/modelo.tflite,
+   versionado no repositório). Se por algum motivo ele não carregar, a
+   API ainda responde 200 com o placeholder "indisponivel", em vez de
+   derrubar o envio da captura.
 5. Reenvio da MESMA captura (mesmo idempotency_key), uma situação
    real: a API confirma 200 mas o Pi cai antes de tirar o registro da
    fila local, e no próximo ciclo ele reenvia a mesma foto. A API
@@ -29,9 +31,9 @@ por API Key. Sem precisar de Supabase real nem de rede, confere:
 6. Imagem corrompida ou inválida: a API recusa com 400 (erro claro),
    em vez de travar com um 500 cru.
 7. Diagnóstico que não é "saudavel" nem o placeholder "indisponivel"
-   gera um alerta automático; o placeholder ("indisponivel", situação
-   atual sem modelo de IA) não gera, porque avisar o produtor de uma
-   classe que ainda não significa nada seria pior que não avisar.
+   gera um alerta automático; o placeholder não gera, porque avisar o
+   produtor de uma classe que não significa nada seria pior que não
+   avisar.
 8. timestamp ou leitura de sensor em formato inválido: recusado com
    422 ANTES de subir a imagem para o storage (evita imagem órfã no
    bucket).
@@ -120,8 +122,16 @@ async def test_envio_com_sucesso_grava_as_tres_tabelas(monkeypatch):
 
     assert resposta.status_code == 200
     corpo = resposta.json()
-    assert corpo["classe_prevista"] == "indisponivel"  # sem modelo real disponivel no teste
-    assert corpo["confianca"] == 0.0
+    # Antes este teste fixava "indisponivel", porque o modelo nao
+    # carregava. Nao era o comportamento desejado: era um bug de caminho
+    # relativo (ver test_inference.py). Agora o modelo real roda, entao a
+    # assercao e sobre o CONTRATO, nao sobre uma classe especifica: assim
+    # o teste continua valendo quando o modelo for retreinado.
+    assert corpo["classe_prevista"] in inference_module._CLASSES_DO_MODELO, (
+        f"classe {corpo['classe_prevista']!r} fora de _CLASSES_DO_MODELO. "
+        "Se virou 'indisponivel', o modelo nao carregou."
+    )
+    assert 0.0 < corpo["confianca"] <= 1.0
 
     async with AsyncSession(engine) as sessao:
         registros = (await sessao.execute(select(RegistroImagem))).scalars().all()

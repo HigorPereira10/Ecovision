@@ -107,3 +107,21 @@ def test_rodar_inferencia_sem_modelo_devolve_placeholder():
         "recomendacao": None,
         "severidade": None,
     }
+
+
+def test_caminho_do_modelo_resolve_a_partir_da_raiz_do_repo():
+    """Regressão: TFLITE_MODEL_PATH é relativo e era resolvido contra o
+    diretório de trabalho do processo. Como a API sobe de dentro de
+    cloud/, ela procurava em cloud/ml/models/ e subia SEM MODELO, em
+    silêncio, devolvendo placeholder como se nada estivesse errado."""
+    from pathlib import Path
+
+    from app.config import get_settings
+
+    caminho = Path(get_settings().caminho_do_modelo)
+
+    assert caminho.is_absolute(), "o caminho precisa independer de onde o processo rodou"
+    assert caminho.is_file(), (
+        f"modelo nao encontrado em {caminho}. O .tflite e versionado no repositorio "
+        "(Blueprint Secao 4.4): se sumiu ou foi renomeado, a API sobe sem inferencia."
+    )

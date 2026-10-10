@@ -52,7 +52,7 @@ logger = logging.getLogger("ecovision.cloud.main")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Carrega o modelo .tflite em memória uma única vez."""
-    app.state.modelo_tflite = carregar_modelo_tflite(settings.TFLITE_MODEL_PATH)
+    app.state.modelo_tflite = carregar_modelo_tflite(settings.caminho_do_modelo)
     yield
 
 

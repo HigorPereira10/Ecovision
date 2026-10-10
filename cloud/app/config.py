@@ -18,8 +18,13 @@ Relação com o resto do sistema:
 """
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Raiz do repositorio: cloud/app/config.py -> cloud/app -> cloud -> raiz.
+# Serve de ancora para os caminhos relativos de arquivo, abaixo.
+_RAIZ_DO_REPO = Path(__file__).resolve().parents[2]
 
 
 class Settings(BaseSettings):
@@ -45,7 +50,27 @@ class Settings(BaseSettings):
     JWT_REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     # --- Modelo ---
+    # Caminho do .tflite. Quando relativo, e resolvido a partir da RAIZ
+    # DO REPOSITORIO (ver caminho_do_modelo), nao do diretorio de onde o
+    # processo foi iniciado.
+    #
+    # Isso nao e preciosismo: a API sobe de dentro de cloud/, entao um
+    # caminho relativo resolvido contra o diretorio de trabalho virava
+    # cloud/ml/models/modelo.tflite, que nao existe. O carregador nao
+    # derruba a API quando o arquivo falta (de proposito), entao o
+    # resultado era a API subir sem modelo e devolver placeholder EM
+    # SILENCIO, dando a impressao de que a inferencia estava ativa.
     TFLITE_MODEL_PATH: str = "ml/models/modelo.tflite"
+
+    @property
+    def caminho_do_modelo(self) -> str:
+        """Caminho absoluto do .tflite, independente de onde o processo
+        foi iniciado. Um caminho ja absoluto e devolvido como esta, para
+        o deploy poder apontar para fora do repositorio se precisar."""
+        caminho = Path(self.TFLITE_MODEL_PATH)
+        if caminho.is_absolute():
+            return str(caminho)
+        return str(_RAIZ_DO_REPO / caminho)
 
 
 @lru_cache
