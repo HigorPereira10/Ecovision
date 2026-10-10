@@ -4,98 +4,59 @@
  * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
- * Lógica de autenticação do produtor: login, armazenamento seguro do
- * JWT de acesso (24h) e do refresh token (30 dias), e renovação
- * automática (Blueprint Seção 4.3).
+ * Lógica de autenticação do produtor: login, logout e renovação de
+ * sessão, contra a API real (POST /auth/login e POST /auth/refresh,
+ * ver cloud/app/api/routes/auth.py).
  *
- * VERSÃO MOCK: simula POST /auth/login e POST /auth/refresh localmente,
- * sem chamar a API real. Tokens são strings falsas, mas o fluxo
- * (armazenar, renovar, limpar) é o mesmo que será usado depois.
+ * As assinaturas das funções são as mesmas da versão mock anterior,
+ * então nenhuma tela precisou mudar (AppNavigator, LoginScreen e
+ * PerfilScreen seguem importando daqui).
  *
- * TODO: quando cloud/app/api/routes/auth.py estiver pronto, trocar o
- * corpo de login()/refresh() por chamadas reais via app/src/services/api.ts,
- * mantendo as mesmas assinaturas de função (as telas não precisam mudar).
+ * O armazenamento dos tokens fica em tokens.ts e as chamadas HTTP em
+ * api.ts: este módulo só amarra os dois. Essa separação existe para as
+ * dependências ficarem em linha reta (tokens <- api <- auth) em vez de
+ * circular, já que o cliente HTTP também precisa ler o token e renovar
+ * a sessão sozinho ao receber um 401.
  */
 
-import * as SecureStore from "expo-secure-store";
+import { postSemAutenticacao, renovarSessao } from "./api";
+import {
+  limparTokens,
+  notificarMudancaDeAuth,
+  salvarAccessToken,
+  salvarRefreshToken,
+} from "./tokens";
 
-const ACCESS_TOKEN_KEY = "ecovision_access_token";
-const REFRESH_TOKEN_KEY = "ecovision_refresh_token";
+export { isAuthenticated, getAccessToken, subscribeAuthChanges } from "./tokens";
 
-// Credencial mockada, usar para testar o login enquanto a API não existe.
-// Mesmo email da conta real semeada em cloud/scripts/seed_usuario_teste.py,
-// pra bater com o backend assim que a integração de verdade for feita.
-const USUARIO_MOCK = {
-  email: "joao.pereira@exemplo.com",
-  senha: "tomate123",
-};
-
-function gerarTokenFalso(prefixo: string): string {
-  return `${prefixo}.mock.${Date.now()}`;
-}
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-// --- Notificação de mudança de estado de autenticação ---
-// Permite que AppNavigator (ou qualquer outro componente) reaja
-// automaticamente a login()/logout(), sem precisar reiniciar o app.
-type AuthListener = (autenticado: boolean) => void;
-const listeners = new Set<AuthListener>();
-
-function notificarMudancaDeAuth(autenticado: boolean) {
-  listeners.forEach((listener) => listener(autenticado));
-}
-
-export function subscribeAuthChanges(listener: AuthListener): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener); // função de cleanup pro useEffect
+interface RespostaToken {
+  access_token: string;
+  refresh_token?: string | null;
+  token_type?: string;
 }
 
 export async function login(email: string, senha: string): Promise<void> {
-  await delay(600); // simula latência de rede
+  const resposta = await postSemAutenticacao<RespostaToken>("/auth/login", {
+    email: email.trim().toLowerCase(),
+    senha,
+  });
 
-  const credenciaisValidas =
-    email.trim().toLowerCase() === USUARIO_MOCK.email && senha === USUARIO_MOCK.senha;
-
-  if (!credenciaisValidas) {
-    throw new Error("Email ou senha inválidos.");
+  await salvarAccessToken(resposta.access_token);
+  if (resposta.refresh_token) {
+    await salvarRefreshToken(resposta.refresh_token);
   }
-
-  const accessToken = gerarTokenFalso("access");
-  const refreshToken = gerarTokenFalso("refresh");
-
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, accessToken);
-  await SecureStore.setItemAsync(REFRESH_TOKEN_KEY, refreshToken);
 
   notificarMudancaDeAuth(true);
 }
 
+/** Troca o refresh token por um access token novo. O cliente HTTP faz
+ * isso sozinho ao receber 401; esta função existe para quem precisar
+ * renovar de forma explícita. */
 export async function refresh(): Promise<void> {
-  const refreshToken = await SecureStore.getItemAsync(REFRESH_TOKEN_KEY);
-
-  if (!refreshToken) {
-    notificarMudancaDeAuth(false);
-    throw new Error("Sessão expirada. Faça login novamente.");
-  }
-
-  await delay(300);
-  const novoAccessToken = gerarTokenFalso("access");
-  await SecureStore.setItemAsync(ACCESS_TOKEN_KEY, novoAccessToken);
+  await renovarSessao();
 }
 
 export async function logout(): Promise<void> {
-  await SecureStore.deleteItemAsync(ACCESS_TOKEN_KEY);
-  await SecureStore.deleteItemAsync(REFRESH_TOKEN_KEY);
+  await limparTokens();
   notificarMudancaDeAuth(false);
-}
-
-export async function isAuthenticated(): Promise<boolean> {
-  const token = await SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
-  return token !== null;
-}
-
-export async function getAccessToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(ACCESS_TOKEN_KEY);
 }

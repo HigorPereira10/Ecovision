@@ -8,29 +8,162 @@
  * autenticado via JWT do produtor. Regra do Blueprint (Seção 4.2, passo
  * 5): o frontend NUNCA fala diretamente com o Supabase, só com esta API.
  *
- * VERSÃO MOCK: ainda não existe requisição HTTP real. Este arquivo por
- * enquanto só expõe o estado de autenticação (via auth.ts) para telas
- * que precisem checar se o produtor está logado (ex.: AppNavigator).
- * As telas de dados (Alertas, Diagnóstico, Histórico) seguem importando
- * os JSONs de src/mocks/ diretamente por enquanto.
+ * Usa fetch nativo em vez de axios de propósito: o axios não está nas
+ * dependências, e as mensagens de erro do fetch já são as que
+ * src/utils/erros.ts traduz ("Network request failed", "Failed to
+ * fetch", abort por timeout).
  *
- * TODO quando a API estiver pronta:
- * - Criar instância axios com baseURL vindo de variável de ambiente do app.
- * - Interceptor de request: anexar Authorization: Bearer <accessToken>
- *   (usar getAccessToken() de auth.ts).
- * - Interceptor de response: em 401, chamar refresh() de auth.ts e
- *   repetir a requisição original; se refresh falhar, chamar logout()
- *   e redirecionar para LoginScreen.
- * - Migrar as telas para chamar funções deste arquivo (ex.: getAlertas())
- *   em vez de importar os JSONs diretamente.
+ * Renovação automática de sessão: quando a API responde 401 num
+ * endpoint autenticado, este módulo tenta renovar o access token uma
+ * única vez e repete a requisição original. Se a renovação também
+ * falhar, faz logout e propaga o erro, e o AppNavigator reage à
+ * mudança de estado levando o produtor de volta ao login.
  */
 
-// import axios from "axios";
+import { env } from "../config/env";
+import {
+  getAccessToken,
+  getRefreshToken,
+  limparTokens,
+  notificarMudancaDeAuth,
+  salvarAccessToken,
+} from "./tokens";
 
-export { isAuthenticated, getAccessToken } from "./auth";
+export { isAuthenticated, getAccessToken } from "./tokens";
 
-// export const api = axios.create({
-//   // TODO: baseURL a partir de variável de ambiente do app
-// });
+/** Erro com o status HTTP preservado, para quem chama poder reagir ao código. */
+export class ErroHttp extends Error {
+  constructor(
+    public readonly status: number,
+    mensagem: string,
+  ) {
+    super(mensagem);
+    this.name = "ErroHttp";
+  }
+}
 
-// TODO: interceptor de request (anexar JWT) e de response (renovar via refresh token em 401)
+/** Mensagem de erro vinda da API (campo `detail` do FastAPI), se houver. */
+async function extrairMensagemDeErro(resposta: Response): Promise<string> {
+  try {
+    const corpo = await resposta.json();
+    if (corpo && typeof corpo.detail === "string") return corpo.detail;
+  } catch {
+    // corpo vazio ou não-JSON: cai na mensagem genérica abaixo
+  }
+  return `A API respondeu com erro ${resposta.status}.`;
+}
+
+/**
+ * fetch com timeout. O React Native não aplica timeout por padrão, então
+ * sem isso uma rede instável na estufa deixaria a tela carregando para
+ * sempre em vez de mostrar erro.
+ */
+async function fetchComTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controlador = new AbortController();
+  const timer = setTimeout(() => controlador.abort(), env.apiTimeout);
+  try {
+    return await fetch(url, { ...init, signal: controlador.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function enviar(caminho: string, init: RequestInit, comToken: boolean): Promise<Response> {
+  const cabecalhos: Record<string, string> = {
+    Accept: "application/json",
+    ...((init.headers as Record<string, string>) ?? {}),
+  };
+
+  if (comToken) {
+    const token = await getAccessToken();
+    if (token) cabecalhos.Authorization = `Bearer ${token}`;
+  }
+
+  return fetchComTimeout(`${env.apiUrl}${caminho}`, { ...init, headers: cabecalhos });
+}
+
+/**
+ * Troca o refresh token guardado por um access token novo.
+ *
+ * Mora aqui, e não em auth.ts, porque é o cliente HTTP que precisa
+ * dela para se recuperar sozinho de um 401. Deixá-la em auth.ts criaria
+ * um ciclo de importação entre os dois módulos.
+ */
+export async function renovarSessao(): Promise<void> {
+  const refreshToken = await getRefreshToken();
+  if (!refreshToken) {
+    notificarMudancaDeAuth(false);
+    throw new ErroHttp(401, "Sessão expirada. Faça login novamente.");
+  }
+
+  // POST /auth/refresh devolve só um access token novo: a sessão de 30
+  // dias segue contada a partir do login original, então o refresh
+  // token guardado não é substituído.
+  const resposta = await postSemAutenticacao<{ access_token: string }>("/auth/refresh", {
+    refresh_token: refreshToken,
+  });
+
+  await salvarAccessToken(resposta.access_token);
+}
+
+async function encerrarSessao(): Promise<void> {
+  await limparTokens();
+  notificarMudancaDeAuth(false);
+}
+
+/**
+ * Requisição autenticada. Em 401, renova a sessão uma vez e repete.
+ * Não repete mais de uma vez de propósito: se o token recém-renovado
+ * também for recusado, insistir viraria laço infinito contra a API.
+ */
+async function requisicaoAutenticada<T>(caminho: string, init: RequestInit = {}): Promise<T> {
+  let resposta = await enviar(caminho, init, true);
+
+  if (resposta.status === 401) {
+    try {
+      await renovarSessao();
+    } catch {
+      await encerrarSessao();
+      throw new ErroHttp(401, "Sessão expirada. Faça login novamente.");
+    }
+    resposta = await enviar(caminho, init, true);
+
+    if (resposta.status === 401) {
+      await encerrarSessao();
+      throw new ErroHttp(401, "Sessão expirada. Faça login novamente.");
+    }
+  }
+
+  if (!resposta.ok) {
+    throw new ErroHttp(resposta.status, await extrairMensagemDeErro(resposta));
+  }
+
+  return (await resposta.json()) as T;
+}
+
+/** GET autenticado. Usado pelos serviços de dados (leituras, diagnósticos, ...). */
+export async function get<T>(caminho: string): Promise<T> {
+  return requisicaoAutenticada<T>(caminho, { method: "GET" });
+}
+
+/**
+ * POST sem autenticação, para os endpoints de login e refresh (que são
+ * justamente os que ainda não têm token válido para enviar).
+ */
+export async function postSemAutenticacao<T>(caminho: string, corpo: unknown): Promise<T> {
+  const resposta = await enviar(
+    caminho,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(corpo),
+    },
+    false,
+  );
+
+  if (!resposta.ok) {
+    throw new ErroHttp(resposta.status, await extrairMensagemDeErro(resposta));
+  }
+
+  return (await resposta.json()) as T;
+}

@@ -9,15 +9,17 @@ interface SerieTemporalCardProps {
 }
 
 export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
-  const dadosTemperatura = leituras.map((l) => ({
-    x: new Date(l.timestamp),
-    y: l.temperatura,
-  }));
+  // Cada série pula os pontos sem medição própria (a API devolve null
+  // quando aquele sensor falhou no ciclo). O filtro é por série, não por
+  // leitura: se só a umidade falhou, a temperatura do mesmo ciclo
+  // continua sendo plotada.
+  const dadosTemperatura = leituras
+    .filter((l) => l.temperatura !== null)
+    .map((l) => ({ x: new Date(l.timestamp), y: l.temperatura as number }));
 
-  const dadosUmidade = leituras.map((l) => ({
-    x: new Date(l.timestamp),
-    y: l.umidade_ar,
-  }));
+  const dadosUmidade = leituras
+    .filter((l) => l.umidade_ar !== null)
+    .map((l) => ({ x: new Date(l.timestamp), y: l.umidade_ar as number }));
 
   return (
     <View style={styles.card}>

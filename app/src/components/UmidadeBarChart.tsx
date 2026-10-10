@@ -19,18 +19,26 @@ interface Props {
 const larguraTela = Dimensions.get('window').width;
 
 export function UmidadeBarChart({ leituras }: Props) {
+  // Pula leituras sem medição de solo (sensor falhou naquele ciclo, a API
+  // devolve null). Plotar null faria a Victory desenhar um ponto em 0,
+  // que o produtor leria como solo totalmente seco.
   const dados = [...leituras]
+    .filter((l) => l.umidade_solo !== null)
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
     .map((l) => ({
       x: new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      y: l.umidade_solo,
+      y: l.umidade_solo as number,
     }));
 
   if (dados.length === 0) {
     return (
       <View style={styles.card}>
         <Text style={styles.titulo}>Umidade registrada</Text>
-        <Text style={styles.subtitulo}>Nenhuma leitura no período selecionado.</Text>
+        <Text style={styles.subtitulo}>
+          {leituras.length === 0
+            ? 'Nenhuma leitura no período selecionado.'
+            : 'As leituras do período não trazem medição de umidade do solo.'}
+        </Text>
       </View>
     );
   }
