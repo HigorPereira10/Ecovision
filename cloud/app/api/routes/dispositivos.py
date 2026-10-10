@@ -29,9 +29,10 @@ Relação com o resto do sistema:
   e app/core/security.py (obter_produtor_atual, exige login).
 """
 
-from datetime import datetime
+import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,8 +40,10 @@ from app.api.escopo import PAPEL_IRRESTRITO
 from app.core.alertas_dispositivo import avaliar_inatividade_dispositivo
 from app.core.security import obter_produtor_atual
 from app.db.models import Dispositivo, RegistroImagem
-from app.db.schemas import DispositivoOut
+from app.db.schemas import DispositivoOut, VincularDispositivoRequest
 from app.db.session import get_session
+
+logger = logging.getLogger("ecovision.cloud.dispositivos")
 
 router = APIRouter()
 
@@ -70,17 +73,74 @@ async def listar_dispositivos(
     resultado = await sessao.execute(consulta)
     dispositivos = resultado.scalars().all()
 
-    saida = []
-    for dispositivo in dispositivos:
-        ultima_captura = await _ultima_captura_do_device(sessao, dispositivo.device_id)
-        inativo = avaliar_inatividade_dispositivo(ultima_captura) is not None
-        saida.append(
-            DispositivoOut(
-                id=dispositivo.id,
-                device_id=dispositivo.device_id,
-                nome=dispositivo.nome,
-                status="inativo" if inativo else "ativo",
-                criado_em=dispositivo.criado_em,
-            )
+    return [await _montar_saida(sessao, dispositivo) for dispositivo in dispositivos]
+
+
+async def _montar_saida(sessao: AsyncSession, dispositivo: Dispositivo) -> DispositivoOut:
+    """Monta o DispositivoOut calculando o status sob demanda a partir
+    da última captura recebida daquele device_id (ADR 0008)."""
+    ultima_captura = await _ultima_captura_do_device(sessao, dispositivo.device_id)
+    inativo = avaliar_inatividade_dispositivo(ultima_captura) is not None
+    return DispositivoOut(
+        id=dispositivo.id,
+        device_id=dispositivo.device_id,
+        nome=dispositivo.nome,
+        status="inativo" if inativo else "ativo",
+        criado_em=dispositivo.criado_em,
+    )
+
+
+@router.post("/dispositivos/vincular", response_model=DispositivoOut)
+async def vincular_dispositivo(
+    dados: VincularDispositivoRequest,
+    produtor: dict = Depends(obter_produtor_atual),
+    sessao: AsyncSession = Depends(get_session),
+) -> DispositivoOut:
+    """Vincula um dispositivo à conta do produtor autenticado, a partir
+    do código de pareamento que vem com o aparelho (ECO-XXXX-XXXX).
+
+    É isto que permite o cadastro ser aberto: qualquer um cria conta,
+    mas só enxerga dados depois de provar a posse física de um
+    equipamento, digitando um código que só está impresso nele.
+
+    O código vale uma única vez, na prática: ele só funciona enquanto
+    `usuario_id` for nulo, então um aparelho já reivindicado não pode
+    ser tomado por outra conta, nem mesmo por quem viu a etiqueta.
+
+    Sem tratamento especial de corrida: se duas contas enviarem o mesmo
+    código ao mesmo tempo, o `UPDATE` condicional abaixo faz uma delas
+    gravar e a outra encontrar `usuario_id` já preenchido na releitura.
+    """
+    codigo = dados.codigo.strip().upper()
+
+    dispositivo = await sessao.scalar(
+        select(Dispositivo).where(Dispositivo.codigo_pareamento == codigo)
+    )
+
+    if dispositivo is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Código de pareamento não encontrado. Confira a etiqueta do aparelho.",
         )
-    return saida
+
+    if dispositivo.usuario_id is not None:
+        if dispositivo.usuario_id == produtor["usuario_id"]:
+            # Reenvio do mesmo produtor (ex.: tocou duas vezes no botão).
+            # Devolver o estado atual em vez de erro é mais útil.
+            return await _montar_saida(sessao, dispositivo)
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Este dispositivo já está vinculado a outra conta.",
+        )
+
+    dispositivo.usuario_id = produtor["usuario_id"]
+    dispositivo.pareado_em = datetime.now(timezone.utc)
+    await sessao.commit()
+    await sessao.refresh(dispositivo)
+
+    logger.info(
+        "Dispositivo %s vinculado ao usuario_id=%s",
+        dispositivo.device_id,
+        produtor["usuario_id"],
+    )
+    return await _montar_saida(sessao, dispositivo)

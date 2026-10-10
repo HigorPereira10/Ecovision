@@ -41,6 +41,44 @@ class LoginRequest(BaseModel):
     senha: str
 
 
+class RegistroRequest(BaseModel):
+    """Corpo de POST /auth/register.
+
+    Sem data de nascimento de propósito: o campo existia na primeira
+    versão da tela de cadastro, mas nenhuma funcionalidade do sistema
+    usa a idade do produtor, e a LGPD manda coletar só o indispensável
+    para a finalidade declarada (princípio da necessidade). Guardar essa
+    data criaria obrigação extra sem entregar nada.
+
+    A validação de formato acontece em app/api/routes/auth.py, não aqui,
+    para a resposta poder listar TODAS as regras de senha que falharam
+    de uma vez, e não só a primeira."""
+
+    nome: str
+    email: str
+    senha: str
+
+
+class UsuarioCriadoOut(BaseModel):
+    """Resposta de POST /auth/register. Não devolve token: o fluxo da
+    tela é criar a conta e voltar para o login (ver CadastroScreen.tsx).
+    Fazer login automático aqui obrigaria a emitir sessão para um email
+    que ninguém confirmou."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str | None
+    email: str
+
+
+class VincularDispositivoRequest(BaseModel):
+    """Corpo de POST /dispositivos/vincular. `codigo` é o que vem na
+    etiqueta do aparelho, no formato ECO-XXXX-XXXX."""
+
+    codigo: str
+
+
 class RefreshRequest(BaseModel):
     """Corpo de POST /auth/refresh."""
 

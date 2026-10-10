@@ -60,7 +60,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import inference
 from app.core.alertas_ambientais import avaliar_risco_ambiental
-from app.core.security import validar_api_key_dispositivo
+from app.api.dispositivo_auth import autenticar_dispositivo
+from app.core.security import obter_credencial_dispositivo
 from app.db.models import Alerta, Diagnostico, LeituraAmbiental, RegistroImagem
 from app.db.schemas import DiagnosticoOut
 from app.db.session import get_session
@@ -111,7 +112,7 @@ async def _buscar_diagnostico_por_idempotency_key(
     return resultado.scalar_one_or_none()
 
 
-@router.post("/diagnostico", response_model=DiagnosticoOut, dependencies=[Depends(validar_api_key_dispositivo)])
+@router.post("/diagnostico", response_model=DiagnosticoOut)
 async def receber_diagnostico(
     request: Request,
     imagem: UploadFile,
@@ -121,9 +122,16 @@ async def receber_diagnostico(
     temperatura_c: str | None = Form(default=None),
     umidade_ar_pct: str | None = Form(default=None),
     umidade_solo_pct: str | None = Form(default=None),
+    credencial: str = Depends(obter_credencial_dispositivo),
     sessao: AsyncSession = Depends(get_session),
 ) -> DiagnosticoOut:
     """Recebe imagem + leituras do dispositivo IoT e retorna o diagnóstico."""
+    # A autenticação não pode ser uma dependency simples como nas outras
+    # rotas: ela precisa do `device_id`, que chega no corpo do formulário
+    # e não no header, para conferir se aquela credencial autoriza enviar
+    # COMO aquele dispositivo. Ver app/api/dispositivo_auth.py.
+    await autenticar_dispositivo(sessao, device_id, credencial)
+
     logger.info(
         "Recebido /diagnostico de device_id=%s (idempotency_key=%s)",
         device_id, idempotency_key,

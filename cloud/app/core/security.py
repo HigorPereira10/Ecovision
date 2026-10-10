@@ -44,6 +44,7 @@ Relação com o resto do sistema:
 
 import secrets
 from datetime import datetime, timedelta, timezone
+from collections.abc import Callable
 from typing import Literal
 
 import bcrypt
@@ -73,6 +74,27 @@ def validar_api_key_dispositivo(authorization: str | None = Header(default=None)
         )
 
 
+
+def obter_credencial_dispositivo(authorization: str | None = Header(default=None)) -> str:
+    """Dependency FastAPI: extrai a credencial do dispositivo do header
+    Authorization, SEM validar contra o banco.
+
+    A validação de verdade acontece em app/api/dispositivo_auth.py,
+    porque ela precisa do `device_id`, que chega no corpo do formulário e
+    não no header, e precisa consultar o banco. Aqui só garante que
+    existe alguma credencial antes de processar o upload da imagem.
+
+    O prefixo "Bearer" é opcional de propósito: o edge/ envia a chave
+    crua (ver edge/src/upload/uploader.py), diferente do app/, que usa
+    "Bearer <jwt>"."""
+    if not authorization or not authorization.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Credencial do dispositivo ausente.",
+        )
+    return authorization.removeprefix("Bearer ").strip()
+
+
 # --- Dashboard: senha (bcrypt) ---
 
 
@@ -99,6 +121,64 @@ def verificar_senha(senha_texto_puro: str, hash_bcrypt: str) -> bool:
         return bcrypt.checkpw(senha_texto_puro.encode("utf-8"), hash_bcrypt.encode("utf-8"))
     except ValueError:
         return False
+
+
+# --- Força da senha (cadastro) ---
+
+# Mesmas 5 regras que app/src/screens/CadastroScreen.tsx mostra como
+# checklist enquanto o produtor digita. Elas precisam existir AQUI
+# também: a validação do app é conveniência de interface, e qualquer um
+# pode chamar POST /auth/register direto, sem passar por ela.
+_REGRAS_SENHA: list[tuple[str, "Callable[[str], bool]"]] = [
+    ("Mínimo de 8 caracteres", lambda s: len(s) >= 8),
+    ("Uma letra maiúscula", lambda s: any(c.isupper() for c in s)),
+    ("Uma letra minúscula", lambda s: any(c.islower() for c in s)),
+    ("Um número", lambda s: any(c.isdigit() for c in s)),
+    ("Um símbolo (!@#$%...)", lambda s: any(not c.isalnum() for c in s)),
+]
+
+# O bcrypt recusa entradas acima de 72 BYTES (não caracteres: um emoji
+# ou letra acentuada gasta mais de um). Sem checar aqui, gerar_hash_senha
+# levanta ValueError e o cadastro vira erro 500, que qualquer um pode
+# disparar sem autenticação. Ver a nota em verificar_senha.
+LIMITE_BYTES_SENHA = 72
+
+
+def validar_forca_senha(senha: str) -> list[str]:
+    """Devolve a lista de regras que a senha NÃO cumpre. Lista vazia
+    significa senha aceitável. Devolver todas de uma vez (em vez de
+    parar na primeira) deixa o app mostrar o checklist completo."""
+    problemas = [texto for texto, teste in _REGRAS_SENHA if not teste(senha)]
+
+    if len(senha.encode("utf-8")) > LIMITE_BYTES_SENHA:
+        problemas.append(
+            f"No máximo {LIMITE_BYTES_SENHA} bytes "
+            "(acentos e emojis contam mais de um caractere)"
+        )
+
+    return problemas
+
+
+# --- Credenciais de dispositivo ---
+
+def gerar_segredo_dispositivo() -> str:
+    """Segredo que vai no .env do Pi e autentica aquele aparelho
+    específico. Só o hash é guardado no banco."""
+    return secrets.token_urlsafe(32)
+
+
+def gerar_codigo_pareamento() -> str:
+    """Código que o agricultor digita no app para reivindicar o
+    dispositivo. Formato ECO-XXXX-XXXX, curto para digitar sem errar.
+
+    Usa um alfabeto sem 0/O e 1/I/L, que são os pares mais confundidos
+    ao ler de uma etiqueta colada no equipamento. São 32^8 combinações,
+    o que torna adivinhar um código inviável, e ele deixa de valer assim
+    que o dispositivo é vinculado (ver app/db/models.py, Dispositivo)."""
+    alfabeto = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
+    bloco1 = "".join(secrets.choice(alfabeto) for _ in range(4))
+    bloco2 = "".join(secrets.choice(alfabeto) for _ in range(4))
+    return f"ECO-{bloco1}-{bloco2}"
 
 
 # Hash bcrypt de uma senha descartável, usado por app/api/routes/auth.py

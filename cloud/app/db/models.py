@@ -143,8 +143,24 @@ class Usuario(Base):
 
 class Dispositivo(Base):
     """Vínculo device_id <-> produtor dono, listado por GET /dispositivos
-    (app/api/routes/dispositivos.py). A autenticação do Pi continua
-    sendo a API Key global (ADR 0003), não depende desta tabela."""
+    (app/api/routes/dispositivos.py), e também a credencial do próprio
+    dispositivo.
+
+    Esta tabela passou a ser parte da AUTENTICAÇÃO do Pi, e não só um
+    cadastro. O ADR 0003 escolheu uma API Key estática e global com a
+    justificativa explícita de que havia "1 único dispositivo"; essa
+    premissa caiu quando o cadastro de produtores foi aberto. Com chave
+    global, qualquer um que a tivesse poderia enviar captura se passando
+    por QUALQUER device_id, ou seja, injetar diagnóstico falso na estufa
+    de outro produtor.
+
+    `chave_hash` é o hash bcrypt do segredo daquele Pi específico, nunca
+    o segredo em claro: se o banco vazar, as credenciais não servem.
+
+    `codigo_pareamento` é o que o agricultor digita no app para reivindicar
+    o dispositivo. Ele só funciona enquanto `usuario_id` for nulo, então
+    reivindicar um aparelho já vinculado é impossível, e o código perde
+    o valor assim que é usado."""
 
     __tablename__ = "dispositivos"
 
@@ -152,4 +168,37 @@ class Dispositivo(Base):
     device_id: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)
     usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuarios.id"), nullable=True)
     nome: Mapped[str | None] = mapped_column(String, nullable=True)
+    chave_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    codigo_pareamento: Mapped[str | None] = mapped_column(
+        String, nullable=True, unique=True, index=True
+    )
+    pareado_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_agora_utc)
+
+
+class TentativaLogin(Base):
+    """Contador de tentativas de login malsucedidas, para travar ataque
+    de força bruta contra senha.
+
+    A chave é o EMAIL DIGITADO, exista ou não uma conta com ele. Isso é
+    proposital: app/api/routes/auth.py protege contra enumeração de
+    usuários respondendo exatamente igual para email inexistente e senha
+    errada. Se o bloqueio valesse só para contas reais, a própria
+    resposta de "muitas tentativas" entregaria quais emails estão
+    cadastrados, anulando aquela proteção. Contando por email digitado,
+    qualquer endereço martelado recebe o mesmo tratamento.
+
+    Por consequência, esta tabela acumula linhas de emails que nunca
+    existiram. São poucos bytes cada e podem ser limpas periodicamente;
+    não há informação sensível aqui, só o endereço tentado."""
+
+    __tablename__ = "tentativas_login"
+
+    email: Mapped[str] = mapped_column(String, primary_key=True)
+    tentativas: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    bloqueado_ate: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    atualizado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_agora_utc, onupdate=_agora_utc
+    )
