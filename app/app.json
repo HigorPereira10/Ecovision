@@ -52,10 +52,17 @@
     "experiments": {
       "reactCompiler": true
     },
+    "owner": "ecovision-app",
     "extra": {
       "eas": {
-        "projectId": "c33f124f-e60a-42a1-b373-c1e14b2b6cf8"
+        "projectId": "9fff6ff6-30c9-4d90-b7be-f876ab88207c"
       }
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/9fff6ff6-30c9-4d90-b7be-f876ab88207c"
     }
   }
 }

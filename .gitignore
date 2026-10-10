@@ -23,6 +23,9 @@ edge/data/
 /app/node_modules
 /app/package-lock.json
 /app/.expo/
+# Saida do bundle gerada por `eas update` / `expo export`. E artefato de
+# build: o que vale e o update publicado nos servidores do Expo.
+/app/dist/
 
 # IDE / SO
 .vscode/
