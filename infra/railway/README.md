@@ -48,9 +48,26 @@ segredos nem valores reais.
 - Depois do primeiro deploy, **conferir no log de startup** que não
   aparece `Modelo .tflite não encontrado`. É a forma mais rápida de
   saber se o modelo chegou ao container.
-- Deploy automático via GitHub Actions a cada push na `main`, ver
-  `.github/workflows/deploy-railway.yml` (ainda `workflow_dispatch`
-  manual de propósito, ativação adiada para perto da Sprint 9).
+- Deploy automático: feito pela **integração nativa do Railway com o
+  GitHub**, não por GitHub Actions. Em *Settings → Source*, a opção
+  *Auto deploys when pushed to GitHub* publica sozinha a cada push na
+  `main`.
+
+  Isto diverge do Blueprint, que previa deploy via GitHub Actions. O
+  motivo é que a integração nativa faz exatamente o mesmo com menos
+  peça móvel: não exige guardar um token do Railway como secret do
+  GitHub, e não há um segundo lugar para o pipeline quebrar. O
+  `.github/workflows/deploy-railway.yml`, que nunca passou de um
+  esqueleto com `echo`, foi removido em 2026-10-10 para não dar a
+  impressão de que existe um pipeline de deploy que não existe.
+
+- **Proteção contra subir código quebrado:** com auto-deploy ligado,
+  um push com teste falhando iria direto para produção. Para evitar
+  isso, ligue *Settings → Deploy → **Wait for CI***. Com essa opção, o
+  Railway espera os checks do GitHub passarem antes de publicar, e
+  `.github/workflows/tests.yml` (80 testes de `cloud/` e `edge/`) passa
+  a ser o portão. Não exige Pull Request, então o fluxo de push direto
+  na `main` continua valendo.
 
 ## Risco de timing (Blueprint Seção 4.5)
 

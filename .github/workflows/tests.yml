@@ -1,19 +1,21 @@
 name: Testes automatizados (edge + cloud)
 
-# Roda só quando edge/ ou cloud/ mudam, evitando rodar (e mandar e-mail de
-# falha) em commits de documentação/outras camadas que não têm relação
-# com esses testes.
+# Roda em TODO push, sem filtro de caminho.
+#
+# Havia um filtro por pasta aqui, para nao disparar (nem mandar e-mail
+# de falha) em commit de documentacao pura. Ele foi removido porque o
+# Railway publica com a opcao "Wait for CI" ligada: ele espera os checks
+# do GitHub passarem antes de subir. Com filtro, um push que mexesse so
+# em docs/ nao geraria check nenhum, e o deploy ficaria esperando por um
+# resultado que nunca chegaria.
+#
+# O custo e rodar cerca de um minuto de CI em commit de documentacao. O
+# beneficio e que todo commit que chega na main tem um veredito, que e
+# justamente o que torna o Wait for CI confiavel.
 on:
   push:
-    paths:
-      - "edge/**"
-      - "cloud/**"
-      - ".github/workflows/tests.yml"
   pull_request:
     branches: [main]
-    paths:
-      - "edge/**"
-      - "cloud/**"
 
 jobs:
   edge-tests:
@@ -22,7 +24,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # Mesma versao fixada em .python-version, que e a que o Railway
+          # usa em producao. Testar numa versao diferente da que roda de
+          # verdade esconde incompatibilidade de dependencia.
+          python-version: "3.11"
       # so as dependencias de teste: edge/requirements.txt tem pacotes
       # especificos de Raspberry Pi (picamera2, RPi.GPIO) que nao
       # instalam (nem sao necessarios) num runner comum do GitHub.
@@ -35,7 +40,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # Mesma versao fixada em .python-version, que e a que o Railway
+          # usa em producao. Testar numa versao diferente da que roda de
+          # verdade esconde incompatibilidade de dependencia.
+          python-version: "3.11"
       - run: pip install -r cloud/requirements.txt -r cloud/tests/requirements-test.txt
       - working-directory: cloud
         run: pytest tests -v
