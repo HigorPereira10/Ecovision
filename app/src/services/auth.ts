@@ -60,20 +60,25 @@ export async function logout(): Promise<void> {
   await limparTokens();
   notificarMudancaDeAuth(false);
 }
-/** Cria a conta do produtor.
+/** Cria a conta do produtor (POST /auth/register).
  *
- * AINDA MOCKADA: espera e retorna sem criar nada. A rota
- * POST /auth/register nao existe no backend (ver
- * cloud/app/api/routes/auth.py). Enquanto isso, CadastroScreen exibe
- * "Conta criada!" sem que exista conta. Proximo commit implementa a
- * rota e troca este corpo pela chamada real. */
+ * O cadastro é aberto: qualquer pessoa pode criar conta. Isso só é
+ * seguro porque a API filtra tudo por dono, então uma conta nova não
+ * enxerga nada até vincular um dispositivo pelo código de pareamento
+ * que vem com o aparelho (ver vincularDispositivo em dispositivos.ts).
+ *
+ * Não faz login automático de propósito: a tela volta para o login,
+ * como CadastroScreen já espera. */
 export async function registrar(dados: {
   nome: string;
   email: string;
   senha: string;
-  dataNascimento: string; // AAAA-MM-DD
 }): Promise<void> {
-  await new Promise((r) => setTimeout(r, 800)); // simula latência
+  await postSemAutenticacao("/auth/register", {
+    nome: dados.nome.trim(),
+    email: dados.email.trim().toLowerCase(),
+    senha: dados.senha,
+  });
 }
 
 /** Dispara o envio do codigo de recuperacao de senha.

@@ -4,9 +4,14 @@
  * Tela de cadastro do produtor. Mesmo visual da LoginScreen
  * (topo verde com gradiente + card creme).
  *
- * Campos: nome completo, e-mail, data de nascimento, senha, confirmar senha.
- * Consome registrar() de app/src/services/auth.ts (hoje mockado,
- * futuramente POST /auth/register no FastAPI).
+ * Campos: nome completo, e-mail, senha, confirmar senha.
+ * Consome registrar() de app/src/services/auth.ts, que chama
+ * POST /auth/register no FastAPI.
+ *
+ * A data de nascimento foi removida: nenhuma funcionalidade do sistema
+ * usa a idade do produtor, e a LGPD manda coletar apenas o
+ * indispensavel para a finalidade declarada (principio da
+ * necessidade). Guardar essa data criaria obrigacao sem entregar nada.
  */
 
 import React, { useState } from "react";
@@ -45,35 +50,11 @@ const REGRAS_SENHA = [
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Aplica máscara DD/MM/AAAA enquanto o usuário digita. */
-function mascararData(texto: string): string {
-  const d = texto.replace(/\D/g, "").slice(0, 8);
-  if (d.length <= 2) return d;
-  if (d.length <= 4) return `${d.slice(0, 2)}/${d.slice(2)}`;
-  return `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}`;
-}
-
-/** Converte DD/MM/AAAA em Date, ou null se for uma data inexistente. */
-function parseData(texto: string): Date | null {
-  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(texto);
-  if (!m) return null;
-  const [dia, mes, ano] = [Number(m[1]), Number(m[2]), Number(m[3])];
-  const data = new Date(ano, mes - 1, dia);
-  const valida =
-    data.getFullYear() === ano &&
-    data.getMonth() === mes - 1 &&
-    data.getDate() === dia;
-  return valida ? data : null;
-}
-
-type Erros = Partial<
-  Record<"nome" | "email" | "nascimento" | "senha" | "confirmar", string>
->;
+type Erros = Partial<Record<"nome" | "email" | "senha" | "confirmar", string>>;
 
 function validar(
   nome: string,
   email: string,
-  nascimento: string,
   senha: string,
   confirmar: string
 ): Erros {
@@ -85,13 +66,6 @@ function validar(
 
   if (!EMAIL_REGEX.test(email.trim())) {
     erros.email = "Informe um e-mail válido.";
-  }
-
-  const data = parseData(nascimento);
-  if (!data) {
-    erros.nascimento = "Use uma data válida no formato DD/MM/AAAA.";
-  } else if (data > new Date() || data.getFullYear() < 1900) {
-    erros.nascimento = "Data de nascimento inválida.";
   }
 
   if (!REGRAS_SENHA.every((r) => r.teste(senha))) {
@@ -112,7 +86,6 @@ export default function CadastroScreen() {
 
   const [nome, setNome] = useState("");
   const [email, setEmail] = useState("");
-  const [nascimento, setNascimento] = useState("");
   const [senha, setSenha] = useState("");
   const [confirmar, setConfirmar] = useState("");
   const [senhaVisivel, setSenhaVisivel] = useState(false);
@@ -124,20 +97,16 @@ export default function CadastroScreen() {
 
   async function handleCadastro() {
     setErroGeral(null);
-    const novosErros = validar(nome, email, nascimento, senha, confirmar);
+    const novosErros = validar(nome, email, senha, confirmar);
     setErros(novosErros);
     if (Object.keys(novosErros).length > 0) return;
 
     setCarregando(true);
     try {
-      const data = parseData(nascimento)!;
-      const iso = `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, "0")}-${String(data.getDate()).padStart(2, "0")}`;
-
       await registrar({
         nome: nome.trim(),
         email: email.trim().toLowerCase(),
         senha,
-        dataNascimento: iso,
       });
 
       Alert.alert("Conta criada!", "Agora é só entrar com seu e-mail e senha.", [
@@ -209,21 +178,6 @@ export default function CadastroScreen() {
             onChangeText={setEmail}
           />
           {erros.email && <Text style={styles.erroCampo}>{erros.email}</Text>}
-
-          {/* Data de nascimento */}
-          <Text style={[styles.label, styles.labelEspaco]}>Data de nascimento</Text>
-          <TextInput
-            style={[styles.input, erros.nascimento && styles.inputErro]}
-            placeholder="DD/MM/AAAA"
-            placeholderTextColor={colors.textMuted}
-            keyboardType="number-pad"
-            maxLength={10}
-            value={nascimento}
-            onChangeText={(t) => setNascimento(mascararData(t))}
-          />
-          {erros.nascimento && (
-            <Text style={styles.erroCampo}>{erros.nascimento}</Text>
-          )}
 
           {/* Senha */}
           <Text style={[styles.label, styles.labelEspaco]}>Senha</Text>

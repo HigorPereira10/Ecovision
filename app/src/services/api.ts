@@ -42,11 +42,31 @@ export class ErroHttp extends Error {
   }
 }
 
-/** Mensagem de erro vinda da API (campo `detail` do FastAPI), se houver. */
+/** Mensagem de erro vinda da API (campo `detail` do FastAPI), se houver.
+ *
+ * O `detail` chega em três formatos diferentes, e todos precisam virar
+ * texto legível:
+ * - string: a maioria dos erros da nossa API ("Email ou senha inválidos.")
+ * - lista de strings: POST /auth/register devolve TODAS as regras de
+ *   senha que falharam de uma vez, para a tela marcar o checklist inteiro
+ * - lista de objetos {loc, msg, type}: formato automático do Pydantic
+ *   quando o corpo da requisição nem chega a ser válido
+ *
+ * Sem tratar os dois últimos, o usuário veria "A API respondeu com erro
+ * 422" sem saber o que corrigir. */
 async function extrairMensagemDeErro(resposta: Response): Promise<string> {
   try {
     const corpo = await resposta.json();
-    if (corpo && typeof corpo.detail === "string") return corpo.detail;
+    const detalhe = corpo?.detail;
+
+    if (typeof detalhe === "string") return detalhe;
+
+    if (Array.isArray(detalhe) && detalhe.length > 0) {
+      const linhas = detalhe
+        .map((item) => (typeof item === "string" ? item : item?.msg))
+        .filter((item): item is string => typeof item === "string" && item.length > 0);
+      if (linhas.length > 0) return linhas.join("\n");
+    }
   } catch {
     // corpo vazio ou não-JSON: cai na mensagem genérica abaixo
   }
@@ -144,6 +164,17 @@ async function requisicaoAutenticada<T>(caminho: string, init: RequestInit = {})
 /** GET autenticado. Usado pelos serviços de dados (leituras, diagnósticos, ...). */
 export async function get<T>(caminho: string): Promise<T> {
   return requisicaoAutenticada<T>(caminho, { method: "GET" });
+}
+
+/** POST autenticado, para ações do produtor logado (vincular um
+ * dispositivo, marcar alerta como lido, ...). Passa pelo mesmo caminho
+ * do GET, então herda a renovação automática de sessão no 401. */
+export async function post<T>(caminho: string, corpo: unknown): Promise<T> {
+  return requisicaoAutenticada<T>(caminho, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corpo),
+  });
 }
 
 /**
