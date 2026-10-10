@@ -17,6 +17,7 @@
 
 # O modelo treinado e um binario, nao codigo-fonte.
 *.keras linguist-generated
+*.tflite linguist-generated
 
 # Imagens de dataset e de validacao tambem nao sao codigo.
 ml/validacao_externa/** linguist-documentation
