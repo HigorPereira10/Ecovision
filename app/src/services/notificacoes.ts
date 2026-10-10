@@ -21,15 +21,27 @@
  *   evento real (push remoto do FastAPI, ou notificação recebida via
  *   addNotificationReceivedListener). A função verificarNovosAlertasNaoLidos()
  *   pode ser removida ou mantida como fallback offline.
- * - Local notifications continuam funcionando no Expo Go; push remoto
- *   exige development build (não usado aqui).
+ *
+ * CARREGAMENTO TARDIO: a expo-notifications é importada só quando uma
+ * função daqui é chamada, nunca na inicialização do app. Motivo: a
+ * partir do SDK 53 essa biblioteca registra um listener de push ao ser
+ * carregada, e isso lança exceção dentro do Expo Go (push remoto foi
+ * removido de lá). Como a AlertasScreen entra na árvore de navegação
+ * no start, o import estático derrubava o app inteiro antes de
+ * desenhar qualquer tela, com "[runtime not ready]".
+ *
+ * A falha de carregamento é tratada em vez de detectar o ambiente: se
+ * a biblioteca carregar, as notificações funcionam; se não, as funções
+ * viram no-op e o app segue normalmente. Isso preserva a notificação
+ * local onde ela funciona, em vez de desligar por suposição.
  */
 
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getAlertas, Alerta, SeveridadeAlerta } from './alertas';
 import { colors } from '../theme/colors';
+
+type ModuloNotificacoes = typeof import('expo-notifications');
 
 const CHAVE_IDS_NOTIFICADOS = '@ecovision:notificacoes_ids_notificados';
 
@@ -40,6 +52,40 @@ const SEVERIDADE_TITULO: Record<SeveridadeAlerta, string> = {
 };
 
 let inicializado = false;
+let moduloCarregado: ModuloNotificacoes | null = null;
+let carregamentoFalhou = false;
+
+/** Carrega expo-notifications sob demanda. Devolve null (uma única vez,
+ * sem repetir a tentativa) se a biblioteca não puder ser usada neste
+ * ambiente, para quem chama tratar como "notificação indisponível". */
+async function carregarNotificacoes(): Promise<ModuloNotificacoes | null> {
+  if (moduloCarregado) return moduloCarregado;
+  if (carregamentoFalhou) return null;
+
+  try {
+    const modulo = await import('expo-notifications');
+
+    // Não basta o import ter passado: no Expo Go a biblioteca registra
+    // o próprio erro internamente e devolve um módulo com as funções
+    // faltando, em vez de lançar. Sem esta checagem, o app quebrava
+    // depois, com "TypeError: undefined is not a function".
+    if (typeof modulo.setNotificationHandler !== 'function') {
+      throw new Error('Módulo carregou incompleto (funções ausentes).');
+    }
+
+    moduloCarregado = modulo;
+    return moduloCarregado;
+  } catch (erro) {
+    carregamentoFalhou = true;
+    console.warn(
+      '[notificacoes] expo-notifications indisponível neste ambiente ' +
+        '(esperado no Expo Go desde o SDK 53). As notificações ficam ' +
+        'desativadas, o resto do app funciona normalmente.',
+      erro,
+    );
+    return null;
+  }
+}
 
 /**
  * Configura o comportamento de exibição em primeiro plano e o canal
@@ -48,6 +94,9 @@ let inicializado = false;
  */
 export async function inicializarNotificacoes(): Promise<void> {
   if (inicializado) return;
+
+  const Notifications = await carregarNotificacoes();
+  if (!Notifications) return;
 
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -76,6 +125,9 @@ export async function inicializarNotificacoes(): Promise<void> {
  * quem chamar deve tratar esse caso silenciosamente (não travar o app).
  */
 async function garantirPermissao(): Promise<boolean> {
+  const Notifications = await carregarNotificacoes();
+  if (!Notifications) return false;
+
   const atual = await Notifications.getPermissionsAsync();
   if (atual.status === 'granted') return true;
 
@@ -91,6 +143,9 @@ async function garantirPermissao(): Promise<boolean> {
  */
 export async function dispararNotificacaoAlerta(alerta: Alerta): Promise<void> {
   await inicializarNotificacoes();
+
+  const Notifications = await carregarNotificacoes();
+  if (!Notifications) return;
 
   const permitido = await garantirPermissao();
   if (!permitido) return;
@@ -136,6 +191,11 @@ export async function dispararNotificacaoTeste(): Promise<void> {
  * em vez de checagem sob demanda.
  */
 export async function verificarNovosAlertasNaoLidos(): Promise<number> {
+  // Sai antes de tocar no AsyncStorage: sem isso, os alertas seriam
+  // marcados como "já notificados" sem notificação nenhuma ter saído, e
+  // o produtor nunca mais seria avisado deles num build onde funciona.
+  if (!(await carregarNotificacoes())) return 0;
+
   const alertas = await getAlertas();
   const naoLidos = alertas.filter((a) => !a.lido);
   if (naoLidos.length === 0) return 0;
