@@ -58,13 +58,24 @@ class TokenResponse(BaseModel):
 class LeituraOut(BaseModel):
     """Item de GET /leituras. Nomes de campo mantidos como no schema
     real (temperatura_c, umidade_ar_pct, umidade_solo_pct), diferente
-    do mock antigo do app/ (temperatura, umidade_ar, umidade_solo):
-    ver revisão da branch preparacao-api-real, a Amanda ajusta o
-    consumo desses nomes no lado dela quando integrar de verdade."""
+    dos nomes antigos do mock do app/ (temperatura, umidade_ar,
+    umidade_solo). A tradução entre os dois acontece no app, em
+    app/src/services/leituras.ts, para as telas não precisarem mudar.
+
+    As três medições são opcionais de propósito: quando um sensor falha,
+    edge/src/main.py grava None naquele campo e segue o ciclo, para não
+    perder a foto por causa de um sensor instável. O app precisa exibir
+    isso como ausência de leitura, nunca como zero.
+
+    `device_id` vem de registros_imagem (via join), não da própria
+    leitura: o modelo liga leitura -> registro de imagem -> dispositivo.
+    É usado pelo filtro por dispositivo da tela de Histórico do app.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    device_id: str
     temperatura_c: float | None
     umidade_ar_pct: float | None
     umidade_solo_pct: float | None

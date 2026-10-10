@@ -54,7 +54,7 @@ _LIMITE_MAXIMO_ITENS = 1000
 async def listar_leituras(
     horas: int | None = Query(default=None, gt=0, description="Filtra leituras dos últimos N horas."),
     sessao: AsyncSession = Depends(get_session),
-) -> list[LeituraAmbiental]:
+) -> list[dict]:
     """Lista leituras ambientais, mais antiga primeiro (série temporal
     para gráfico). Sem `horas`, devolve as últimas _LIMITE_MAXIMO_ITENS
     leituras disponíveis.
@@ -66,28 +66,35 @@ async def listar_leituras(
     ignorado (a primeira cláusula já decide o empate). Isso já causou
     um bug real aqui: o `.reverse()` do ramo sem filtro invertia uma
     lista que já estava em ordem crescente, devolvendo a ordem errada."""
+    base = select(LeituraAmbiental, RegistroImagem.device_id).join(
+        RegistroImagem, LeituraAmbiental.registro_imagem_id == RegistroImagem.id
+    )
+
     if horas is not None:
         desde = datetime.now(timezone.utc) - timedelta(hours=horas)
-        consulta = (
-            select(LeituraAmbiental)
-            .where(LeituraAmbiental.criado_em >= desde)
-            .order_by(LeituraAmbiental.criado_em.asc())
+        consulta = base.where(LeituraAmbiental.criado_em >= desde).order_by(
+            LeituraAmbiental.criado_em.asc()
         )
-        resultado = await sessao.execute(consulta)
-        return list(resultado.scalars().all())
+        linhas = (await sessao.execute(consulta)).all()
+    else:
+        # sem filtro: pega as N mais recentes (DESC + limit) e so depois
+        # inverte para ordem cronologica, senao limitar uma consulta ASC
+        # pegaria as N MAIS ANTIGAS em vez das N mais recentes.
+        consulta = base.order_by(LeituraAmbiental.criado_em.desc()).limit(_LIMITE_MAXIMO_ITENS)
+        linhas = list((await sessao.execute(consulta)).all())
+        linhas.reverse()
 
-    # sem filtro: pega as N mais recentes (DESC + limit) e so depois
-    # inverte para ordem cronologica, senao limitar uma consulta ASC
-    # pegaria as N MAIS ANTIGAS em vez das N mais recentes.
-    consulta = (
-        select(LeituraAmbiental)
-        .order_by(LeituraAmbiental.criado_em.desc())
-        .limit(_LIMITE_MAXIMO_ITENS)
-    )
-    resultado = await sessao.execute(consulta)
-    leituras = list(resultado.scalars().all())
-    leituras.reverse()
-    return leituras
+    return [
+        {
+            "id": leitura.id,
+            "device_id": device_id,
+            "temperatura_c": leitura.temperatura_c,
+            "umidade_ar_pct": leitura.umidade_ar_pct,
+            "umidade_solo_pct": leitura.umidade_solo_pct,
+            "criado_em": leitura.criado_em,
+        }
+        for leitura, device_id in linhas
+    ]
 
 
 @router.get(
