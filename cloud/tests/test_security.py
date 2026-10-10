@@ -17,6 +17,7 @@ acesso e refresh, e recusar um token errado (expirado, tipo trocado,
 sem o prefixo "Bearer", assinado com outra chave).
 """
 
+import time
 from datetime import datetime, timedelta, timezone
 
 import jwt
@@ -101,3 +102,37 @@ def test_obter_produtor_atual_com_bearer_valido_funciona():
     token = criar_access_token(usuario_id=42, papel="administrador")
     resultado = obter_produtor_atual(authorization=f"Bearer {token}")
     assert resultado == {"usuario_id": 42, "papel": "administrador"}
+
+
+def test_token_com_relogio_levemente_adiantado_e_aceito():
+    """Regressão: sem tolerância de relógio, um token emitido por uma
+    máquina alguns segundos adiantada era recusado com 401 "Token
+    inválido", sem pista da causa. Aconteceu de verdade ao testar a API
+    publicada no Railway a partir de uma máquina 11 segundos à frente."""
+    agora = int(time.time())
+    adiantado = agora + 10
+    token = jwt.encode(
+        {"sub": "1", "papel": "produtor", "tipo": "access",
+         "iat": adiantado, "exp": adiantado + 3600},
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    payload = decodificar_token(token, tipo_esperado="access")
+    assert payload["sub"] == "1"
+
+
+def test_token_muito_adiantado_continua_recusado():
+    """A tolerância é de 30s, não um passe livre: um token nascido bem
+    no futuro continua sendo recusado."""
+    futuro = int(time.time()) + 600
+    token = jwt.encode(
+        {"sub": "1", "papel": "produtor", "tipo": "access",
+         "iat": futuro, "exp": futuro + 3600},
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    with pytest.raises(HTTPException) as erro:
+        decodificar_token(token, tipo_esperado="access")
+    assert erro.value.status_code == 401

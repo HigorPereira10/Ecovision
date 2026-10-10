@@ -149,14 +149,44 @@ def criar_refresh_token(usuario_id: int, papel: str) -> str:
     )
 
 
+# Tolerância de relógio na validação do JWT, em segundos.
+#
+# O PyJWT recusa token cujo `iat` esteja no futuro ou cujo `exp` já tenha
+# passado, comparando com o relógio de QUEM VALIDA. Sem folga, basta um
+# segundo de diferença entre o relógio de quem assinou e o de quem
+# confere para o token virar 401 "Token inválido", sem pista nenhuma da
+# causa real.
+#
+# Isso não é hipotético: ao testar a API publicada, tokens gerados numa
+# máquina 11 segundos adiantada foram recusados, enquanto os emitidos
+# pelo próprio servidor funcionavam. O mesmo acontece em produção quando
+# o Railway substitui o container num deploy: um token emitido segundos
+# antes pode ser conferido por uma instância nova cujo relógio esteja
+# levemente atrasado.
+#
+# 30 segundos é folga suficiente para desvio de relógio entre máquinas
+# sincronizadas por NTP, e curta demais para ter valor para um atacante:
+# ela não estende a validade de um token expirado de forma relevante
+# (o access token dura 24h) nem permite usar token que ainda não existe.
+_TOLERANCIA_RELOGIO_SEGUNDOS = 30
+
+
 def decodificar_token(token: str, tipo_esperado: _TipoToken) -> dict:
     """Decodifica e valida um JWT (assinatura, expiração e o campo
     `tipo`). Levanta HTTPException 401 em qualquer problema: token
     ausente, expirado, assinatura inválida, ou do tipo errado (ex.:
     tentar usar um refresh token direto num endpoint que exige access
-    token)."""
+    token).
+
+    Tolera até _TOLERANCIA_RELOGIO_SEGUNDOS de diferença de relógio
+    entre quem assinou e quem valida."""
     try:
-        payload = jwt.decode(token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            leeway=_TOLERANCIA_RELOGIO_SEGUNDOS,
+        )
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expirado."
