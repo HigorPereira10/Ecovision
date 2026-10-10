@@ -15,8 +15,9 @@ o app não precisa saber se é 1 ou N, só itera a lista normalmente.
 app/core/alertas_dispositivo.py (ADR 0008) em vez de duplicar os
 limiares de atraso numa segunda lógica.
 
-Escopo aceito nesta rodada: mesma simplificação de historico.py e
-alertas.py (só 1 dispositivo físico de verdade, sem filtrar por dono).
+Escopo por dono: devolve apenas os dispositivos cujo `usuario_id` é o
+do produtor autenticado (ver app/api/escopo.py). Produtor recém
+cadastrado, sem nenhum dispositivo vinculado, recebe lista vazia.
 Campos de localização (campo/setor) e limiares configuráveis por
 dispositivo, que a tela de Perfil já desenha, ficam só como
 funcionalidade visual do app por enquanto (ver DispositivoOut em
@@ -34,6 +35,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.escopo import PAPEL_IRRESTRITO
 from app.core.alertas_dispositivo import avaliar_inatividade_dispositivo
 from app.core.security import obter_produtor_atual
 from app.db.models import Dispositivo, RegistroImagem
@@ -53,9 +55,19 @@ async def _ultima_captura_do_device(sessao: AsyncSession, device_id: str) -> dat
     return resultado.scalar_one_or_none()
 
 
-@router.get("/dispositivos", response_model=list[DispositivoOut], dependencies=[Depends(obter_produtor_atual)])
-async def listar_dispositivos(sessao: AsyncSession = Depends(get_session)) -> list[DispositivoOut]:
-    resultado = await sessao.execute(select(Dispositivo).order_by(Dispositivo.criado_em))
+@router.get("/dispositivos", response_model=list[DispositivoOut])
+async def listar_dispositivos(
+    produtor: dict = Depends(obter_produtor_atual),
+    sessao: AsyncSession = Depends(get_session),
+) -> list[DispositivoOut]:
+    # Filtra pelo dono direto em vez de usar device_ids_visiveis():
+    # aqui a entidade consultada JÁ é `dispositivos`, então dá para
+    # comparar o usuario_id sem passar pelos device_ids.
+    consulta = select(Dispositivo).order_by(Dispositivo.criado_em)
+    if produtor.get("papel") != PAPEL_IRRESTRITO:
+        consulta = consulta.where(Dispositivo.usuario_id == produtor["usuario_id"])
+
+    resultado = await sessao.execute(consulta)
     dispositivos = resultado.scalars().all()
 
     saida = []

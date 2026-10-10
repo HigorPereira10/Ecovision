@@ -37,7 +37,7 @@ os.environ.setdefault("DEVICE_API_KEY", "chave-de-teste-dispositivo")
 import pytest_asyncio  # noqa: E402
 
 from app.core.security import criar_access_token, gerar_hash_senha  # noqa: E402
-from app.db.models import Base, Usuario  # noqa: E402
+from app.db.models import Base, Dispositivo, Usuario  # noqa: E402
 from app.db.session import _SessionLocal, engine  # noqa: E402
 
 
@@ -70,7 +70,32 @@ async def usuario_produtor() -> Usuario:
 
 
 @pytest_asyncio.fixture
-async def token_produtor(usuario_produtor: Usuario) -> str:
+async def dispositivo_do_produtor(usuario_produtor: Usuario) -> Dispositivo:
+    """Vincula o device_id "pi-teste" (o usado por todos os testes que
+    gravam capturas) ao produtor de teste.
+
+    Necessário desde que as rotas passaram a filtrar por dono
+    (app/api/escopo.py): sem uma linha em `dispositivos` ligando o
+    device_id a um usuário, a captura não tem dono e não aparece para
+    ninguém. É a mesma exigência que vale em produção, onde o vínculo é
+    criado por scripts/seed_dispositivo_teste.py."""
+    async with _SessionLocal() as sessao:
+        dispositivo = Dispositivo(
+            device_id="pi-teste", usuario_id=usuario_produtor.id, nome="Estufa 1"
+        )
+        sessao.add(dispositivo)
+        await sessao.commit()
+        await sessao.refresh(dispositivo)
+        return dispositivo
+
+
+@pytest_asyncio.fixture
+async def token_produtor(usuario_produtor: Usuario, dispositivo_do_produtor: Dispositivo) -> str:
     """Access token JWT válido para um produtor de teste, pronto para
-    usar no header Authorization dos endpoints do dashboard."""
+    usar no header Authorization dos endpoints do dashboard.
+
+    Depende de dispositivo_do_produtor de propósito: o caso comum nos
+    testes é "o produtor consultando os dados DELE", então o vínculo
+    precisa existir. Os testes de isolamento entre produtores
+    (test_escopo.py) montam o cenário na mão, sem esta fixture."""
     return criar_access_token(usuario_produtor.id, usuario_produtor.papel)

@@ -13,12 +13,16 @@ Rotas definidas como /leituras e /diagnosticos (nível raiz, sem prefixo
 /alertas): mantém a API com um único namespace de recursos, em vez de
 misturar rotas com e sem prefixo.
 
-Escopo aceito nesta rodada: como só existe 1 dispositivo físico no
-projeto (mesma limitação já aceita em app/core/security.py para a API
-Key), estes endpoints retornam os dados de TODOS os dispositivos, sem
-filtrar por "dispositivos do produtor autenticado" (RBAC completo por
-dono do dispositivo fica para quando existir mais de 1 dispositivo de
-verdade e a tabela `dispositivos` for populada).
+Escopo por dono: estes endpoints devolvem apenas os dados dos
+dispositivos vinculados ao produtor autenticado, via
+app/api/escopo.py. A simplificação anterior (devolver os dados de
+TODOS os dispositivos, por só existir 1 Pi físico) deixou de valer
+quando POST /auth/register abriu o cadastro: sem o filtro, qualquer
+pessoa criaria uma conta e veria a estufa alheia.
+
+Consequência: captura cujo device_id não esteja vinculado a um usuário
+em `dispositivos` não aparece para ninguém. Ver a nota em
+app/api/escopo.py e cloud/scripts/seed_dispositivo_teste.py.
 
 Relação com o resto do sistema:
 - Consumido pelo frontend (app/) nas telas de Histórico e Diagnóstico.
@@ -35,6 +39,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.escopo import device_ids_visiveis
 from app.core.security import obter_produtor_atual
 from app.db.models import Diagnostico, LeituraAmbiental, RegistroImagem
 from app.db.schemas import DiagnosticoHistoricoOut, LeituraOut
@@ -50,9 +55,10 @@ router = APIRouter()
 _LIMITE_MAXIMO_ITENS = 1000
 
 
-@router.get("/leituras", response_model=list[LeituraOut], dependencies=[Depends(obter_produtor_atual)])
+@router.get("/leituras", response_model=list[LeituraOut])
 async def listar_leituras(
     horas: int | None = Query(default=None, gt=0, description="Filtra leituras dos últimos N horas."),
+    produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     """Lista leituras ambientais, mais antiga primeiro (série temporal
@@ -69,6 +75,10 @@ async def listar_leituras(
     base = select(LeituraAmbiental, RegistroImagem.device_id).join(
         RegistroImagem, LeituraAmbiental.registro_imagem_id == RegistroImagem.id
     )
+
+    device_ids = await device_ids_visiveis(sessao, produtor)
+    if device_ids is not None:
+        base = base.where(RegistroImagem.device_id.in_(device_ids))
 
     if horas is not None:
         desde = datetime.now(timezone.utc) - timedelta(hours=horas)
@@ -100,10 +110,10 @@ async def listar_leituras(
 @router.get(
     "/diagnosticos",
     response_model=list[DiagnosticoHistoricoOut],
-    dependencies=[Depends(obter_produtor_atual)],
 )
 async def listar_diagnosticos(
     horas: int | None = Query(default=None, gt=0, description="Filtra diagnósticos dos últimos N horas."),
+    produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> list[dict]:
     """Lista diagnósticos, mais recente primeiro (feed de histórico)."""
@@ -113,6 +123,10 @@ async def listar_diagnosticos(
         .order_by(Diagnostico.criado_em.desc())
         .limit(_LIMITE_MAXIMO_ITENS)
     )
+
+    device_ids = await device_ids_visiveis(sessao, produtor)
+    if device_ids is not None:
+        consulta = consulta.where(RegistroImagem.device_id.in_(device_ids))
 
     if horas is not None:
         desde = datetime.now(timezone.utc) - timedelta(hours=horas)
