@@ -2,11 +2,13 @@
  * app/src/navigation/AppNavigator.tsx
  *
  * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Navegação do app (React Navigation): Welcome -> Login -> (Dashboard |
- * Alertas | Diagnóstico | Histórico | Financeiro | Perfil), com guarda
- * de rota baseada na presença de um JWT válido (app/src/services/auth.ts).
+ * Navegação do app (React Navigation): Welcome -> Login -> Cadastro ->
+ * (Dashboard | Alertas | Diagnóstico | Histórico | Financeiro | Perfil),
+ * com guarda de rota baseada na presença de um JWT válido
+ * (app/src/services/auth.ts).
  *
- * VERSÃO MOCK: isAuthenticated() checa o SecureStore local (sem API real).
+ * isAuthenticated() checa se existe um token guardado no SecureStore
+ * (app/src/services/tokens.ts); quem o emite e a API real.
  * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
  * automaticamente a login()/logout(), trocando de tela sem reload.
  *
@@ -23,6 +25,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import WelcomeScreen from "../screens/WelcomeScreen";
 import LoginScreen from "../screens/LoginScreen";
+import CadastroScreen from "../screens/CadastroScreen";
+import RecuperarSenhaScreen from "../screens/RecuperarSenhaScreen";
 import DashboardScreen from "../screens/DashboardScreen";
 import AlertasScreen from "../screens/AlertasScreen";
 import DiagnosticoScreen from "../screens/DiagnosticoScreen";
@@ -93,6 +97,8 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
             <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Cadastro" component={CadastroScreen} />
+            <Stack.Screen name="RecuperarSenha" component={RecuperarSenhaScreen} />
           </>
         )}
       </Stack.Navigator>

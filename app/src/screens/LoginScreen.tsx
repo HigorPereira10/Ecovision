@@ -7,11 +7,13 @@
  * Tela de login do produtor, consumindo POST /auth/login
  * (cloud/app/api/routes/auth.py). Ao autenticar com sucesso, armazena
  * o JWT de acesso e o refresh token (ver app/src/services/auth.ts).
+ * O cadastro do produtor é feito apenas com e-mail e senha.
  *
  * Relação com o resto do sistema:
  * - Depende de app/src/services/auth.ts para a chamada HTTP (hoje mockada).
  * - É acessada a partir de WelcomeScreen.tsx no stack de não-autenticado
  *   (app/src/navigation/AppNavigator.tsx).
+ * - Leva para CadastroScreen.tsx pelo link "Criar conta".
  *
  * Visual: redesenhado para seguir o mockup (topo verde com logo + card
  * de formulário em creme). A LÓGICA de autenticação não foi alterada —
@@ -36,10 +38,13 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useNavigation } from "@react-navigation/native";
 import { login } from "../services/auth";
 import { colors } from "../theme/colors";
 
 export default function LoginScreen() {
+  const navigation = useNavigation<any>();
+
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [senhaVisivel, setSenhaVisivel] = useState(false);
@@ -50,7 +55,7 @@ export default function LoginScreen() {
     setErro(null);
     setCarregando(true);
     try {
-      await login(email, senha);
+      await login(email.trim(), senha);
       // A navegação troca sozinha: o AppNavigator escuta isAuthenticated
       // via useEffect, então não precisa navegar manualmente aqui.
     } catch (e) {
@@ -87,12 +92,15 @@ export default function LoginScreen() {
 
         {/* Formulário */}
         <View style={styles.formulario}>
-          <Text style={styles.label}>E-mail ou ID do Produtor</Text>
+          <Text style={styles.label}>E-mail</Text>
           <TextInput
             style={styles.input}
             placeholder="produtor@ecovision.app"
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="email"
+            textContentType="emailAddress"
             keyboardType="email-address"
             value={email}
             onChangeText={setEmail}
@@ -120,7 +128,10 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.linkEsqueci}>
+          <TouchableOpacity
+            style={styles.linkEsqueci}
+            onPress={() => navigation.navigate("RecuperarSenha")}
+          >
             <Text style={styles.linkEsqueciTexto}>Esqueci a senha?</Text>
           </TouchableOpacity>
 
@@ -136,6 +147,16 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.botaoEntrarTexto}>Entrar</Text>
             )}
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.linkCadastro}
+            onPress={() => navigation.navigate("Cadastro")}
+          >
+            <Text style={styles.linkCadastroTexto}>
+              Não tem conta?{" "}
+              <Text style={styles.linkCadastroDestaque}>Criar conta</Text>
+            </Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -243,5 +264,18 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 16,
     fontWeight: "700",
+  },
+  linkCadastro: {
+    alignItems: "center",
+    marginTop: 20,
+  },
+  linkCadastroTexto: {
+    color: colors.textDark,
+    fontSize: 14,
+  },
+  linkCadastroDestaque: {
+    color: colors.oliveGreen,
+    fontWeight: "700",
+    textDecorationLine: "underline",
   },
 });

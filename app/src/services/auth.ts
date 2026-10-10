@@ -60,3 +60,26 @@ export async function logout(): Promise<void> {
   await limparTokens();
   notificarMudancaDeAuth(false);
 }
+/** Cria a conta do produtor.
+ *
+ * AINDA MOCKADA: espera e retorna sem criar nada. A rota
+ * POST /auth/register nao existe no backend (ver
+ * cloud/app/api/routes/auth.py). Enquanto isso, CadastroScreen exibe
+ * "Conta criada!" sem que exista conta. Proximo commit implementa a
+ * rota e troca este corpo pela chamada real. */
+export async function registrar(dados: {
+  nome: string;
+  email: string;
+  senha: string;
+  dataNascimento: string; // AAAA-MM-DD
+}): Promise<void> {
+  await new Promise((r) => setTimeout(r, 800)); // simula latência
+}
+
+/** Dispara o envio do codigo de recuperacao de senha.
+ *
+ * AINDA MOCKADA: nao existe POST /auth/forgot-password nem provedor de
+ * e-mail configurado em cloud/app/config.py. */
+export async function solicitarRecuperacaoSenha(email: string): Promise<void> {
+  await new Promise((r) => setTimeout(r, 800)); // simula latência
+}
