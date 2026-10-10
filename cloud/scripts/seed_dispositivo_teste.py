@@ -32,7 +32,12 @@ from app.db.session import _SessionLocal
 
 logger = logging.getLogger("ecovision.cloud.seed")
 
-DEVICE_ID_REAL = "TROCAR_PELO_DEVICE_ID_REAL_DO_PI"
+# Decidido com o grupo em 2026-10-10. Tem que bater EXATAMENTE com o
+# DEVICE_ID do edge/.env no cartao do Raspberry (edge/src/config.py
+# exige a variavel e nao tem valor padrao). Se os dois divergirem, as
+# capturas chegam ao banco mas ficam sem dono e, com o filtro de
+# app/api/escopo.py, invisiveis em todas as telas.
+DEVICE_ID_REAL = "pi-estufa-01"
 NOME_TESTE = "Estufa 1"
 EMAIL_DONO = "joao.pereira@exemplo.com"  # mesma conta de seed_usuario_teste.py
 
