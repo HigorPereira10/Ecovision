@@ -60,16 +60,42 @@ class Settings(BaseSettings):
     # Para Gmail: host smtp.gmail.com, porta 587, usuario o proprio
     # email e senha uma "senha de app" (exige verificacao em duas etapas
     # ativada na conta Google). A senha normal do Gmail NAO funciona.
+    # --- Caminho 1: API HTTP (Brevo). E o que funciona em PRODUCAO. ---
+    #
+    # O Railway BLOQUEIA as portas de SMTP (25, 465, 587, 2525) nos
+    # planos Free, Trial e Hobby, para impedir spam a partir dos
+    # servidores deles. Nao e configuracao errada nem provedor ruim:
+    # no plano Hobby, que e o do projeto, SMTP nunca vai funcionar.
+    # A saida indicada pelo proprio Railway e usar servico de email com
+    # API HTTP, que trafega na porta 443 e nao e bloqueada.
+    BREVO_API_KEY: str = ""
+
+    # --- Caminho 2: SMTP. Util em DESENVOLVIMENTO local. ---
     SMTP_HOST: str = ""
     SMTP_PORT: int = 587
     SMTP_USUARIO: str = ""
     SMTP_SENHA: str = ""
-    SMTP_REMETENTE: str = ""
+
+    # Remetente dos emails, usado pelos DOIS caminhos. Nao se chama
+    # SMTP_REMETENTE porque o Brevo nao usa SMTP, e o nome antigo
+    # sugeria que ele so valia para aquele caminho.
+    #
+    # No Brevo, precisa ser um endereco VERIFICADO na conta: enviar de
+    # um endereco nao verificado e recusado com HTTP 400.
+    EMAIL_REMETENTE: str = ""
+
+    @property
+    def remetente(self) -> str:
+        return self.EMAIL_REMETENTE or self.SMTP_USUARIO
+
+    @property
+    def smtp_configurado(self) -> bool:
+        return bool(self.SMTP_HOST and self.SMTP_USUARIO and self.SMTP_SENHA)
 
     @property
     def email_configurado(self) -> bool:
-        """True quando da para enviar email de verdade."""
-        return bool(self.SMTP_HOST and self.SMTP_USUARIO and self.SMTP_SENHA)
+        """True quando da para enviar email por algum dos dois caminhos."""
+        return bool(self.BREVO_API_KEY and self.remetente) or self.smtp_configurado
 
     # --- Modelo ---
     # Caminho do .tflite. Quando relativo, e resolvido a partir da RAIZ

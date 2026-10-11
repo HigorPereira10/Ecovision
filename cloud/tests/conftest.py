@@ -34,6 +34,25 @@ os.environ.setdefault("SUPABASE_STORAGE_BUCKET", "ecovision-imagens-teste")
 os.environ.setdefault("DATABASE_URL", f"sqlite+aiosqlite:///{_DB_PATH.as_posix()}")
 os.environ.setdefault("DEVICE_API_KEY", "chave-de-teste-dispositivo")
 
+# Desliga o envio de email À FORÇA (os.environ vence o .env na ordem de
+# precedência do pydantic-settings). Não é setdefault: precisa
+# sobrescrever mesmo quando a variável existe.
+#
+# Sem isto, a suíte lia o cloud/.env de quem estivesse rodando e tentava
+# MANDAR EMAIL DE VERDADE a cada cadastro de teste. Além de deixar os
+# testes lentos e dependentes de rede, o resultado passava a variar
+# conforme a máquina: quem tivesse SMTP configurado via falhas que
+# ninguém mais via. Os testes que precisam de email ligado simulam isso
+# por monkeypatch (ver test_email_verificacao.py).
+for _chave in (
+    "BREVO_API_KEY",
+    "SMTP_HOST",
+    "SMTP_USUARIO",
+    "SMTP_SENHA",
+    "EMAIL_REMETENTE",
+):
+    os.environ[_chave] = ""
+
 import pytest_asyncio  # noqa: E402
 
 from app.core.security import criar_access_token, gerar_hash_senha  # noqa: E402
