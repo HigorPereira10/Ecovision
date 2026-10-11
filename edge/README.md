@@ -46,7 +46,7 @@ edge/
 │   ├── compress.py          # Pillow + libjpeg-turbo
 │   ├── sensors/
 │   │   ├── dht22.py         # adafruit-circuitpython-dht
-│   │   └── soil_moisture.py # Adafruit ADS1x15
+│   │   └── soil_moisture.py # ADS1115 via smbus2 (ADR 0015)
 │   ├── actuators/
 │   │   └── led_flash.py     # RPi.GPIO, acionamento do Ring LED via MOSFET
 │   ├── fila/
@@ -94,7 +94,14 @@ cada teste e como rodar (WSL/Linux ou Windows).
   capturada, com `None` no(s) campo(s) que falharam.
 - **`edge/src/sensors/dht22.py`**: usa `adafruit-circuitpython-dht` em
   vez do legado `Adafruit_DHT` (descontinuado, instalação frágil em
-  Raspberry Pi OS atual), mesma linha CircuitPython/Blinka do ADS1115.
+  Raspberry Pi OS atual). É a única parte do projeto que ainda usa a
+  pilha Blinka, e não é afetada pelo problema do ADS1115 porque fala
+  1-Wire por GPIO, não I2C.
+- **`edge/src/sensors/soil_moisture.py`**: fala direto com os
+  registradores do ADS1115 via `smbus2`, fora da pilha da Adafruit, que
+  falha com `OSError: [Errno 5]` neste Raspberry Pi
+  ([ADR 0015](../docs/decisions/0015-ads1115-por-smbus2.md)). Medido no
+  dispositivo: Adafruit 0 de 3, `smbus2` 10 de 10.
 - **`edge/requirements.txt`**: `picamera2` não é instalado via pip aqui, 
   vem do `apt` em `install.sh` (`python3-picamera2`), porque depende
   de bindings do libcamera compilados para o sistema.

@@ -155,8 +155,29 @@ banco, e deixá-los em `core/` romperia a regra.
 | Computador | Raspberry Pi 3 Model B+ (Anatel), quad-core Cortex-A53 1.4GHz, 1GB RAM | [ADR 0004](../decisions/0004-raspberry-pi-3b-plus.md), troca em relação ao Pi Zero 2 W |
 | Câmera | Camera Module 3, autofoco PDAF | [ADR 0001](../decisions/0001-camera-module-3.md) |
 | Ar | DHT22 (temperatura e umidade) | |
-| Solo | Sensor capacitivo via ADS1115 (ADC I2C) | Limiares em [ADR 0005](../decisions/0005-limiares-ambientais.md) |
-| Iluminação | Ring LED acionado por **MOSFET de canal N** | **Nunca ligar o LED direto no GPIO**: correção crítica do Blueprint, Fase 1 |
+| Solo | Sensor capacitivo via ADS1115 (ADC I2C), lido por `smbus2` | [ADR 0015](../decisions/0015-ads1115-por-smbus2.md); limiares em [ADR 0005](../decisions/0005-limiares-ambientais.md) |
+| Iluminação | LED de potência 5V acionado por **MOSFET de canal N** | **Nunca ligar o LED direto no GPIO**: correção crítica do Blueprint, Fase 1 |
+
+**Circuito de acionamento do LED, medido e validado em bancada:**
+
+```
+Pi pino 2 (5V) -> LED -> resistor 6,8R 2W -> Dreno
+Pi pino 12 (GPIO18) -> resistor 10k -> Gate      [MOSFET IRLZ44N]
+                                      Fonte -> Pi pino 6 (GND)
+```
+
+O GPIO suporta 16mA e o LED exige cerca de 265mA, daí o MOSFET: o pino
+comanda o gate, e a corrente do LED vem da fonte de 5V/3A. Dois valores
+aqui **divergem do que a lista de compras previa**, e os dois foram
+validados no dispositivo:
+
+- O resistor em série do LED (6,8R) **não constava da lista**, apesar de
+  ser obrigatório. Precisa ser de 2W: a 265mA ele dissipa 0,48W, o que
+  destruiria um resistor de 1/4W com o tempo.
+- O resistor de gate validado foi de **10k**, não os 220-330R previstos.
+  O gate é capacitivo e quase não consome corrente, então o valor só
+  muda a velocidade de chaveamento: 100 microssegundos de transição
+  dentro de um flash de segundos é irrelevante.
 
 ### 3.2. Responsabilidades e agendamento
 
@@ -167,8 +188,24 @@ Captura, compressão e transmissão. **Nenhuma inferência roda aqui.**
 | Captura (sensores, LED, foto, fila, upload) | a cada 2h | `cron` |
 | Drenagem da fila offline | a cada 15min | `cron` |
 
-Compressão: Pillow com libjpeg-turbo, `quality=70`, resultando em 150 a
-250 KB por foto.
+Compressão: Pillow com libjpeg-turbo, `quality=70`. O tamanho final
+varia bastante com a luz da cena: medidas reais no dispositivo foram de
+**204 KB a 718 KB**. Cena escura rende arquivo maior, porque o sensor
+compensa com ganho alto e ruído não comprime.
+
+**O "flash de 0,5s" do documento original não corresponde à realidade.**
+O `main.py` liga o LED, chama a captura e só desliga depois, e quem
+domina esse tempo é o autofoco. Medido no dispositivo:
+
+| Condição | Ciclo de captura | LED aceso |
+|---|---|---|
+| Cena escura, LED mal posicionado | 27 s | 27 s |
+| LED junto da lente | 5,6 s | 5,6 s |
+| Ciclo real disparado pelo cron | 8 s | 8 s |
+
+Isso importa para o dimensionamento térmico do resistor em série, e é o
+argumento concreto a favor de travar a lente numa posição calibrada em
+vez de rodar autofoco a cada ciclo (ver seção 10.2).
 
 **Fila offline (JSON Lines com lock de arquivo via `fcntl`):** é o que
 torna o sistema utilizável numa estufa de verdade. Quando a rede cai, a
@@ -194,10 +231,32 @@ nunca zero**. "0% de umidade do solo" é um valor válido e alarmante;
 
 ### 3.4. Estado atual
 
-O Pi está na estufa com `DEVICE_ID=pi-estufa-01` e credencial própria,
-mas **a captura automática está desativada** (linha do cron comentada,
-com nota datada) enquanto a fiação é ajustada. Enquanto isso, as telas
-de diagnóstico aparecem vazias, que é o comportamento correto.
+**Os três sensores, a câmera e o flash foram validados em 2026-10-11**,
+em bancada, com o dispositivo provisionado como
+`DEVICE_ID=ecovision-pi-01` e credencial própria.
+
+O ciclo completo rodou de ponta a ponta duas vezes, a segunda **disparada
+pelo cron**, que é o teste que importa: o cron roda sem venv ativado,
+com `PATH` mínimo e a partir da home, e é nesse ambiente que o projeto
+já quebrou antes (foi assim que apareceu o `ImportError` da pasta
+`queue`). Resultado da execução pelo cron:
+
+```
+Leituras: {'temperatura_c': 24.8, 'umidade_ar_pct': 63.2, 'umidade_solo_pct': 0.0}
+Imagem comprimida: 717961 bytes
+Registro 05c3da02cb144bc6924e8f6366c7c70c enfileirado
+Envio concluído: 1 confirmado(s), 0 ainda pendente(s)
+```
+
+A cadeia inteira foi confirmada no banco de produção: imagem no Supabase
+Storage, leitura ambiental com as três medições, e diagnóstico da IA
+gravado.
+
+**A captura automática continua desligada, agora por escolha e não por
+pendência.** Só a drenagem da fila (15min) está no cron. A linha de
+captura de 2 em 2 horas entra quando o equipamento for montado junto da
+planta, porque até lá a foto seria de uma bancada e entraria no banco
+de produção como dado real.
 
 ---
 
@@ -487,6 +546,9 @@ como pendência.
 
 - Cadeia completa Pi → API → Supabase → aplicativo, com leitura real de
   sensor que sobreviveu à fila offline.
+- **Camada de borda inteira, validada em hardware (2026-10-11):** DHT22,
+  sensor de solo calibrado, câmera e flash por MOSFET. O ciclo completo
+  rodou pelo cron, não só por invocação manual (seção 3.4).
 - Cadastro com confirmação por e-mail, reenvio de código e recuperação
   de senha, com o ciclo inteiro validado contra o ambiente real.
 - Isolamento por dono, com teste de que uma conta nova não vê a estufa
@@ -498,9 +560,33 @@ como pendência.
 
 ### 10.2. Pendências, por tipo
 
-**Depende do hardware:** reativar o cron de captura depois do ajuste da
-fiação, e recalibrar o limiar de umidade do solo com o sensor físico
-([ADR 0005](../decisions/0005-limiares-ambientais.md)).
+**Depende do hardware:**
+
+- Ligar a linha de captura no cron, quando o equipamento for montado
+  junto da planta. É uma linha, e o ambiente do cron já foi testado.
+- Passar da protoboard para a placa soldada. Dois remendos de bancada
+  precisam sumir nessa passagem: o canal do ADS mudou para o **A1**
+  porque o pino A0 do módulo não faz contato
+  ([ADR 0015](../decisions/0015-ads1115-por-smbus2.md)), e o módulo
+  inteiro sai do barramento I2C ao menor esbarrão nos fios.
+- **Recalibrar o sensor de solo em terra.** A calibração atual
+  (seco 17468, saturado 7179) foi feita no ar e em água pura. Água é o
+  extremo absoluto de saturação, então a faixa tende a estar
+  superestimada frente ao solo real, que é o que o
+  [ADR 0005](../decisions/0005-limiares-ambientais.md) assume.
+- **Decidir sobre o foco.** O autofoco domina o tempo de ciclo e, no
+  teste, travou em 2,70 dioptrias, ou seja **37cm**, com a folha mais
+  perto que isso. Para os 15cm de projeto o alvo é **6,67 dioptrias**.
+  Como a distância na case é fixa, dá para calibrar a lente uma vez e
+  usar `AfMode.Manual`, derrubando o ciclo de 8s para menos de 2s. Não
+  contradiz o [ADR 0001](../decisions/0001-camera-module-3.md): a
+  Camera Module 3 continua necessária para focar a 15cm, muda só
+  **quando** o foco é calculado.
+- **Iluminação uniforme.** O LED pontual ao lado da lente produziu
+  reflexo especular branco na folha e sombra dura projetada. O
+  Blueprint especifica um Ring LED em volta da lente justamente para
+  evitar isso, e reflexo branco pode ser confundido com lesão pelo
+  modelo.
 
 **Depende do grupo:** o João medir e documentar o gap entre F1 no
 dataset e desempenho em foto de campo; o Igor consolidar as atas (hoje
@@ -513,7 +599,11 @@ dispositivo pelo app com uma pessoa de verdade. O código existe e tem
 teste automatizado, mas nenhum usuário passou pelo fluxo.
 
 **Dívida técnica aceita:** remover o ramo de transição da chave global
-quando todos os Pis estiverem provisionados.
+quando todos os Pis estiverem provisionados. Hoje
+`validar_api_key_dispositivo()` em `cloud/app/core/security.py` já não é
+usada por rota nenhuma, só pelos próprios testes: o `/diagnostico`
+passou a usar `autenticar_dispositivo()` com o
+[ADR 0009](../decisions/0009-credencial-por-dispositivo.md).
 
 ### 10.3. As três perguntas difíceis, e as respostas
 
@@ -564,6 +654,7 @@ que seria necessário, e isso é trabalho futuro do TCC.
 | [0012](../decisions/0012-notificacao-local-sem-push.md) | Notificação local, sem push de servidor |
 | [0013](../decisions/0013-email-transacional-brevo.md) | E-mail pela API HTTP do Brevo |
 | [0014](../decisions/0014-deploy-railway-e-gate-de-ci.md) | Deploy no Railway com gate de CI |
+| [0015](../decisions/0015-ads1115-por-smbus2.md) | Leitura do ADS1115 por smbus2, fora da pilha Adafruit |
 
 ## 12. Referências
 

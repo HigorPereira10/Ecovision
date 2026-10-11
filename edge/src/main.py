@@ -84,6 +84,13 @@ def ciclo_de_captura() -> None:
     try:
         # Espera o LED estabilizar antes de disparar a câmera, para a foto
         # não sair mal iluminada por causa do LED ainda subindo de brilho.
+        #
+        # O LED fica aceso durante a captura inteira, não só por esta
+        # espera. Medido no dispositivo, o ciclo leva de 5,6s a 27s, e
+        # quem domina esse tempo é o autofoco: quanto mais escura a
+        # cena, mais ele demora a convergir. É esse tempo, e não os
+        # 0,5s do nome da variável, que dimensiona a potência do
+        # resistor em série do LED.
         time.sleep(config.LED_FLASH_DURATION_SECONDS)
         imagem_crua = capture.capturar_imagem()
     finally:

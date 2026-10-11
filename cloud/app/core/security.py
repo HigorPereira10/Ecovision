@@ -37,8 +37,15 @@ diferentes para pontas diferentes, deliberadamente.
    bcrypt é usado diretamente (não via passlib, ver requirements.txt).
 
 Relação com o resto do sistema:
-- validar_api_key_dispositivo() é usada como dependency no endpoint
-  /diagnostico (app/api/routes/diagnostico.py).
+- obter_credencial_dispositivo() é usada como dependency no endpoint
+  /diagnostico (app/api/routes/diagnostico.py), e quem valida de fato
+  é autenticar_dispositivo() em app/api/dispositivo_auth.py.
+- validar_api_key_dispositivo() NÃO é mais usada por rota nenhuma.
+  Ela implementa o modelo de chave global, substituído pela credencial
+  por dispositivo no ADR 0009. Hoje só os próprios testes a chamam, e
+  ela só continua aqui como ramo de transição enquanto houver Pi não
+  provisionado. Remover quando todos estiverem (Blueprint v4, seção
+  10.2).
 - obter_produtor_atual() é usada como dependency nos endpoints do
   dashboard (app/api/routes/leituras.py, diagnosticos.py, alertas.py).
 - criar_access_token()/criar_refresh_token()/verificar_senha() são
@@ -58,8 +65,13 @@ from app.config import settings
 
 
 def validar_api_key_dispositivo(authorization: str | None = Header(default=None)) -> None:
-    """Dependency FastAPI: valida o header Authorization contra a API
-    Key estática do dispositivo. Levanta 401 se ausente ou incorreta.
+    """Valida o header Authorization contra a API Key estática e global
+    do dispositivo. Levanta 401 se ausente ou incorreta.
+
+    LEGADO: nenhuma rota usa mais esta função. O modelo de chave global
+    foi substituído por credencial por dispositivo (ADR 0009), e o
+    /diagnostico passou a usar autenticar_dispositivo(). Mantida como
+    ramo de transição; ver o cabeçalho deste módulo.
 
     A comparação é feita em BYTES, não em texto: secrets.compare_digest
     recusa comparar strings com caracteres não-ASCII e levanta TypeError,

@@ -58,18 +58,39 @@ QUEUE_DRAIN_INTERVAL_MINUTES = _inteira("QUEUE_DRAIN_INTERVAL_MINUTES", 15)
 # --- GPIO ---
 LED_MOSFET_PIN = _inteira("LED_MOSFET_PIN", 18)
 DHT22_PIN = _inteira("DHT22_PIN", 4)
+# CUIDADO COM O NOME: isto NÃO é quanto tempo o LED fica aceso. É só a
+# espera, com o LED já ligado, antes de disparar a câmera, para o brilho
+# estabilizar (ver main.py). O LED permanece aceso durante a captura
+# inteira, e quem domina esse tempo é o autofoco: medido no dispositivo,
+# o ciclo levou de 5,6s a 27s conforme a luz ambiente.
+#
+# O nome enganoso já se propagou para a documentação, que afirmava um
+# "flash de 0,5s" (corrigido em docs/planejamento/lista-compras-hardware.md
+# e no Blueprint v4, seção 3.2). Importa porque é esse tempo que dimensiona
+# a potência do resistor em série do LED.
 LED_FLASH_DURATION_SECONDS = _flutuante("LED_FLASH_DURATION_SECONDS", 0.5)
 
 # --- ADS1115 (sensor de umidade do solo, I2C) ---
+# O canal é configurável porque nem sempre dá para usar o A0: no
+# dispositivo atual esse pino do módulo não faz contato, e a montagem
+# usa o A1 (ver ADR 0015). Na placa soldada isso deve voltar para 0.
 SOIL_ADS1115_CHANNEL = _inteira("SOIL_ADS1115_CHANNEL", 0)
 
-# Valores brutos do ADC (0-26400 no ganho padrão) lidos com o sensor
-# totalmente seco e totalmente submerso em água. Os defaults abaixo são
-# apenas placeholders de fabricante.
-# TODO, CUIDADO: calibrar com o sensor físico assim que o hardware
-# estiver montado (Blueprint, Fase 1 do Plano de Execução: "montar em
-# protoboard e validar cada sensor isoladamente"). Sem essa calibração,
-# a leitura de umidade do solo não é confiável.
+# Valores brutos do ADC (0-26400 no fundo de escala de 4,096V) com o
+# sensor seco e saturado. São ESPECÍFICOS de cada sensor e da tensão
+# que o alimenta, por isso vivem no .env de cada dispositivo, não aqui.
+# Os defaults abaixo continuam sendo placeholders de fabricante e não
+# servem para medir nada.
+#
+# Calibração real medida em 2026-10-11, no ecovision-pi-01, com o
+# sensor alimentado em 3,3V:
+#
+#     seco, suspenso no ar ..... 17468  (2,184 V)
+#     submerso ateh a linha .....  7179  (0,897 V)
+#
+# PENDENTE: refazer com o sensor em TERRA. Água pura é o extremo
+# absoluto de saturação, então a faixa acima provavelmente superestima
+# o que o solo real entrega, e é o solo que o ADR 0005 usa como limiar.
 SOIL_DRY_RAW = _inteira("SOIL_DRY_RAW", 18000)
 SOIL_WET_RAW = _inteira("SOIL_WET_RAW", 8000)
 

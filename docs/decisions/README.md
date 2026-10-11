@@ -16,6 +16,7 @@ de ele ter caducado é em si um bom argumento de banca.
 - [0004: Raspberry Pi 3 Model B+ no lugar do Pi Zero 2 W](0004-raspberry-pi-3b-plus.md)
 - [0002: Framework de frontend: Expo (React Native)](0002-frontend-framework-pendente.md)
 - [0014: Deploy no Railway como monorepo compartilhado, com gate de CI](0014-deploy-railway-e-gate-de-ci.md)
+- [0015: Leitura do ADS1115 por smbus2, fora da pilha Adafruit](0015-ads1115-por-smbus2.md)
 
 ## Segurança e acesso
 
