@@ -23,11 +23,18 @@ pillow
 
 # --- GPIO / Sensores ---
 RPi.GPIO
-Adafruit-Blinka
-adafruit-circuitpython-ads1x15
+Adafruit-Blinka              # fornece o módulo `board`, usado pelo DHT22.
 adafruit-circuitpython-dht   # DHT22, substitui o legado Adafruit_DHT (descontinuado,
                               # instalação frágil em Raspberry Pi OS atual). Requer
                               # libgpiod3 no sistema (instalado em install.sh).
+smbus2                       # ADS1115 (sensor de solo). Substituiu
+                              # adafruit-circuitpython-ads1x15: a pilha
+                              # Blinka/Adafruit-PureIO falha com
+                              # `OSError: [Errno 5]` em toda leitura de
+                              # registrador no Pi 3B+ com Raspberry Pi OS
+                              # trixie (Python 3.13, kernel 6.18, ARM64).
+                              # Medido no dispositivo: Adafruit 0/3,
+                              # smbus2 10/10. Ver soil_moisture.py.
 
 # --- Rede, fila e agendamento ---
 requests

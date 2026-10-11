@@ -35,10 +35,76 @@ os.environ.setdefault("DEVICE_API_KEY", "chave-de-teste")
 os.environ.setdefault("DEVICE_ID", "pi-teste-automatizado")
 
 
+class EstadoAds1115:
+    """Valor bruto que o ADS1115 falso devolve na próxima conversão.
+
+    Os testes de soil_moisture.py escrevem aqui em vez de simular a
+    leitura inteira, mas o código sob teste continua montando a
+    configuração e decodificando os dois bytes de verdade. Isso é
+    proposital: o dublê anterior substituía a conversão inteira, e por
+    isso não pegou que a API da Adafruit tinha mudado de `ads1115.P0`
+    para `ads1x15.Pin.A0`, deixando os testes verdes enquanto o
+    Raspberry Pi quebrava.
+    """
+
+    valor_bruto = 0
+
+
+class _MensagemI2cFalsa:
+    """Imita o objeto devolvido por i2c_msg.write() / i2c_msg.read()."""
+
+    def __init__(self, endereco: int, dados=None, tamanho: int = 0):
+        self.endereco = endereco
+        self.dados = list(dados or [])
+        self.tamanho = tamanho
+
+    def __iter__(self):
+        return iter(self.dados)
+
+
+def _montar_smbus2_falso() -> types.ModuleType:
+    """ADS1115 falso que responde pelo barramento I2C.
+
+    O smbus2 real só funciona onde existe /dev/i2c-N com o módulo
+    conectado. Este dublê devolve EstadoAds1115.valor_bruto codificado
+    em complemento de dois, big-endian, como o chip faria.
+    """
+
+    class _I2cMsgFalso:
+        @staticmethod
+        def write(endereco, dados):
+            return _MensagemI2cFalsa(endereco, dados=dados)
+
+        @staticmethod
+        def read(endereco, tamanho):
+            return _MensagemI2cFalsa(endereco, tamanho=tamanho)
+
+    class _SMBusFalso:
+        def __init__(self, barramento):
+            self.barramento = barramento
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def i2c_rdwr(self, *mensagens):
+            for mensagem in mensagens:
+                if mensagem.tamanho:
+                    bruto = EstadoAds1115.valor_bruto & 0xFFFF
+                    mensagem.dados = [(bruto >> 8) & 0xFF, bruto & 0xFF]
+
+    modulo = types.ModuleType("smbus2")
+    modulo.SMBus = _SMBusFalso
+    modulo.i2c_msg = _I2cMsgFalso
+    return modulo
+
+
 def _instalar_fakes_de_hardware() -> None:
-    """Substitui RPi.GPIO, board, busio e as libs do DHT22/ADS1115 por
-    dublês em sys.modules, ANTES de qualquer teste importar os módulos
-    de edge/src/actuators e edge/src/sensors. Essas libs só existem de
+    """Substitui RPi.GPIO, board, adafruit_dht e smbus2 por dublês em
+    sys.modules, ANTES de qualquer teste importar os módulos de
+    edge/src/actuators e edge/src/sensors. Essas libs só existem de
     verdade (e só instalam) em hardware Raspberry Pi com os componentes
     físicos conectados; sem esse dublê, os testes desses módulos nem
     conseguiriam importar o código fora do Pi."""
@@ -59,36 +125,11 @@ def _instalar_fakes_de_hardware() -> None:
     fake_board.SDA = "SDA"
     sys.modules["board"] = fake_board
 
-    fake_busio = types.ModuleType("busio")
-    fake_busio.I2C = MagicMock(name="busio.I2C")
-    sys.modules["busio"] = fake_busio
-
     fake_adafruit_dht = types.ModuleType("adafruit_dht")
     fake_adafruit_dht.DHT22 = MagicMock(name="adafruit_dht.DHT22")
     sys.modules["adafruit_dht"] = fake_adafruit_dht
 
-    sys.modules["adafruit_ads1x15"] = types.ModuleType("adafruit_ads1x15")
-
-    fake_ads1115 = types.ModuleType("adafruit_ads1x15.ads1115")
-    fake_ads1115.ADS1115 = MagicMock(name="ADS1115")
-    sys.modules["adafruit_ads1x15.ads1115"] = fake_ads1115
-
-    # Pin.A0..A3 são inteiros 0..3 na lib real, e ficam em ads1x15, não em
-    # ads1115. Este dublê já imitou a API antiga (P0..P3 em ads1115), o que
-    # fez os testes passarem enquanto o código quebrava no Raspberry Pi de
-    # verdade. Manter fiel à lib instalada: um dublê errado é pior que
-    # nenhum, porque esconde a falha em vez de revelá-la.
-    fake_ads1x15 = types.ModuleType("adafruit_ads1x15.ads1x15")
-
-    class _PinFalso:
-        A0, A1, A2, A3 = 0, 1, 2, 3
-
-    fake_ads1x15.Pin = _PinFalso
-    sys.modules["adafruit_ads1x15.ads1x15"] = fake_ads1x15
-
-    fake_analog_in_mod = types.ModuleType("adafruit_ads1x15.analog_in")
-    fake_analog_in_mod.AnalogIn = MagicMock(name="AnalogIn")
-    sys.modules["adafruit_ads1x15.analog_in"] = fake_analog_in_mod
+    sys.modules["smbus2"] = _montar_smbus2_falso()
 
 
 _instalar_fakes_de_hardware()
@@ -111,8 +152,13 @@ def fake_dht22_classe():
 
 
 @pytest.fixture
-def fake_analog_in_classe():
-    """AnalogIn falso, usado pelos testes de edge/src/sensors/soil_moisture.py."""
-    classe = sys.modules["adafruit_ads1x15.analog_in"].AnalogIn
-    classe.reset_mock(return_value=True, side_effect=True)
-    yield classe
+def fake_ads1115():
+    """ADS1115 falso, usado pelos testes de edge/src/sensors/soil_moisture.py.
+
+    O teste define `fake_ads1115.valor_bruto`, e o código sob teste faz
+    a conversão para porcentagem passando pela decodificação real dos
+    dois bytes devolvidos pelo chip.
+    """
+    EstadoAds1115.valor_bruto = 0
+    yield EstadoAds1115
+    EstadoAds1115.valor_bruto = 0

@@ -8,10 +8,13 @@ Precisão do sensor: ±0.5°C / ±2-5%RH. O BoM prevê 2 unidades (1 sobressalen
 
 Biblioteca: usamos adafruit-circuitpython-dht (import adafruit_dht) em vez
 do antigo Adafruit_DHT, que está descontinuado e tem histórico de
-falha de instalação em versões recentes do Raspberry Pi OS. A nova lib
-também deixa a integração consistente com o ADS1115 (mesma linha
-CircuitPython/Blinka, ver soil_moisture.py). Requer o pacote de sistema
-libgpiod2 (instalado em edge/scripts/install.sh).
+falha de instalação em versões recentes do Raspberry Pi OS. Requer o
+pacote de sistema libgpiod2 (instalado em edge/scripts/install.sh).
+
+Esta é a única parte do projeto que ainda usa a pilha Blinka. O sensor
+de solo saiu dela e fala I2C direto via smbus2, porque a camada de I2C
+da Blinka quebra neste Raspberry Pi (ver soil_moisture.py). O DHT22 não
+é afetado: ele usa 1-Wire por GPIO, não I2C.
 
 ATENÇÃO: adafruit_dht levanta RuntimeError com frequência em leituras
 normais (erros de checksum/timing são esperados no protocolo 1-Wire do
