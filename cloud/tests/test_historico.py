@@ -13,6 +13,10 @@ GET /diagnosticos):
 4. GET /diagnosticos inclui a signed URL da imagem (gerar_url_assinada_imagem,
    ver infra/supabase/storage_policies.md), e não quebra a lista
    inteira se a geração da URL falhar para um item específico.
+5. GET /diagnosticos informa de QUAL dispositivo veio cada diagnóstico.
+   Sem isso, o filtro por estufa da tela de Histórico não tem como
+   funcionar, e o app chegou a contornar a falta assumindo que todo
+   diagnóstico era do dispositivo de id 1.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -20,7 +24,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import Diagnostico, LeituraAmbiental, RegistroImagem
+from app.db.models import Diagnostico, Dispositivo, LeituraAmbiental, RegistroImagem
 from app.db.session import engine
 from app.main import app
 
@@ -34,12 +38,17 @@ async def _url_assinada_falsa(caminho: str) -> str:
 
 
 async def _criar_registro_com_leitura_e_diagnostico(
-    sessao: AsyncSession, *, idempotency_key: str, capturado_em: datetime, temperatura_c: float
+    sessao: AsyncSession,
+    *,
+    idempotency_key: str,
+    capturado_em: datetime,
+    temperatura_c: float,
+    device_id: str = "pi-teste",
 ) -> None:
     registro = RegistroImagem(
-        device_id="pi-teste",
+        device_id=device_id,
         idempotency_key=idempotency_key,
-        caminho_arquivo=f"pi-teste/{idempotency_key}.jpg",
+        caminho_arquivo=f"{device_id}/{idempotency_key}.jpg",
         capturado_em=capturado_em,
     )
     sessao.add(registro)
@@ -157,3 +166,95 @@ async def test_filtro_horas_exclui_itens_antigos(token_produtor: str):
     assert resposta.status_code == 200
     temperaturas = [item["temperatura_c"] for item in resposta.json()]
     assert temperaturas == [25.0]
+
+
+async def test_diagnosticos_informam_o_dispositivo_de_origem(
+    token_produtor: str, usuario_produtor, monkeypatch
+):
+    """O campo que faltava para o filtro por estufa do app funcionar.
+
+    Dois dispositivos do MESMO produtor: os dois aparecem na lista (não
+    é teste de isolamento, isso está em test_escopo.py), cada um com seu
+    próprio device_id. Antes, o app não tinha como separá-los e tratava
+    tudo como se fosse do dispositivo de id 1."""
+    monkeypatch.setattr("app.api.routes.historico.gerar_url_assinada_imagem", _url_assinada_falsa)
+
+    async with AsyncSession(engine) as sessao:
+        sessao.add(
+            Dispositivo(device_id="pi-estufa-02", usuario_id=usuario_produtor.id, nome="Estufa 2")
+        )
+        await sessao.commit()
+
+        await _criar_registro_com_leitura_e_diagnostico(
+            sessao, idempotency_key="da-um", capturado_em=AGORA, temperatura_c=25.0
+        )
+        await _criar_registro_com_leitura_e_diagnostico(
+            sessao,
+            idempotency_key="da-dois",
+            capturado_em=AGORA - timedelta(hours=1),
+            temperatura_c=26.0,
+            device_id="pi-estufa-02",
+        )
+
+    with TestClient(app) as client:
+        resposta = client.get("/diagnosticos", headers={"Authorization": f"Bearer {token_produtor}"})
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert len(corpo) == 2
+    assert [item["device_id"] for item in corpo] == ["pi-teste", "pi-estufa-02"]
+
+
+async def test_limite_controla_quantos_diagnosticos_voltam(token_produtor: str, monkeypatch):
+    """A rota gera uma signed URL por imagem, e cada uma é uma chamada de
+    rede ao Supabase. Com captura a cada 2h, 7 dias dão cerca de 84
+    itens, ou seja, 84 idas ao Supabase para montar uma tela que mostra
+    um diagnóstico e uma fileira de miniaturas. `limite` é o que a tela
+    de Diagnóstico usa para não pagar esse preço."""
+    chamadas: list[str] = []
+
+    async def _contando(caminho: str) -> str:
+        chamadas.append(caminho)
+        return f"https://storage.teste/{caminho}?signed=1"
+
+    monkeypatch.setattr("app.api.routes.historico.gerar_url_assinada_imagem", _contando)
+
+    async with AsyncSession(engine) as sessao:
+        for n in range(5):
+            await _criar_registro_com_leitura_e_diagnostico(
+                sessao,
+                idempotency_key=f"item-{n}",
+                capturado_em=AGORA - timedelta(hours=n),
+                temperatura_c=25.0,
+            )
+
+    with TestClient(app) as client:
+        resposta = client.get(
+            "/diagnosticos",
+            params={"limite": 2},
+            headers={"Authorization": f"Bearer {token_produtor}"},
+        )
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert len(corpo) == 2
+    # Os DOIS MAIS RECENTES, não dois quaisquer.
+    assert [item["caminho_arquivo"] for item in corpo] == [
+        "pi-teste/item-0.jpg",
+        "pi-teste/item-1.jpg",
+    ]
+    # E o Supabase foi chamado só para esses dois, que é o ponto.
+    assert len(chamadas) == 2
+
+
+async def test_limite_acima_do_maximo_e_recusado(token_produtor: str):
+    """Sem o teto, `?limite=999999` desfaria a proteção que o próprio
+    parâmetro existe para dar."""
+    with TestClient(app) as client:
+        resposta = client.get(
+            "/diagnosticos",
+            params={"limite": 999_999},
+            headers={"Authorization": f"Bearer {token_produtor}"},
+        )
+
+    assert resposta.status_code == 422

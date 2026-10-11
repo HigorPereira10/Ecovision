@@ -113,15 +113,31 @@ async def listar_leituras(
 )
 async def listar_diagnosticos(
     horas: int | None = Query(default=None, gt=0, description="Filtra diagnósticos dos últimos N horas."),
+    limite: int = Query(
+        default=_LIMITE_MAXIMO_ITENS,
+        gt=0,
+        le=_LIMITE_MAXIMO_ITENS,
+        description="Quantos diagnósticos devolver, do mais recente para o mais antigo.",
+    ),
     produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """Lista diagnósticos, mais recente primeiro (feed de histórico)."""
+    """Lista diagnósticos, mais recente primeiro (feed de histórico).
+
+    POR QUE `limite` EXISTE: esta rota gera uma signed URL por imagem,
+    e cada uma é uma chamada de rede ao Supabase. Com captura a cada 2h,
+    a janela padrão de 7 dias do app dá cerca de 84 itens, ou seja, 84
+    idas ao Supabase numa única requisição. A tela de Diagnóstico mostra
+    só os resultados mais recentes, então ela pede poucos e a resposta
+    chega rápido; a de Histórico pede a janela inteira, porque é para
+    isso que ela serve. Sem o parâmetro, as duas pagariam o preço da
+    segunda.
+    """
     consulta = (
-        select(Diagnostico, RegistroImagem.caminho_arquivo)
+        select(Diagnostico, RegistroImagem.caminho_arquivo, RegistroImagem.device_id)
         .join(RegistroImagem, Diagnostico.registro_imagem_id == RegistroImagem.id)
         .order_by(Diagnostico.criado_em.desc())
-        .limit(_LIMITE_MAXIMO_ITENS)
+        .limit(limite)
     )
 
     device_ids = await device_ids_visiveis(sessao, produtor)
@@ -137,12 +153,12 @@ async def listar_diagnosticos(
 
     # Uma chamada de rede ao Supabase por imagem (gera a signed URL sob
     # demanda, ver storage_policies.md: nao faz sentido persistir algo
-    # que expira). Aceito para o volume de 1 dispositivo do protótipo;
-    # se _LIMITE_MAXIMO_ITENS crescer muito, isso pode virar o gargalo
-    # da rota antes do banco.
+    # que expira). É o gargalo desta rota, e chega antes do banco: é o
+    # que o parâmetro `limite` existe para conter.
     return [
         {
             "id": diagnostico.id,
+            "device_id": device_id,
             "classe_prevista": diagnostico.classe_prevista,
             "confianca": diagnostico.confianca,
             "recomendacao": diagnostico.recomendacao,
@@ -150,5 +166,5 @@ async def listar_diagnosticos(
             "url_imagem": await gerar_url_assinada_imagem(caminho_arquivo),
             "criado_em": diagnostico.criado_em,
         }
-        for diagnostico, caminho_arquivo in linhas
+        for diagnostico, caminho_arquivo, device_id in linhas
     ]

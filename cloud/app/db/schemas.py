@@ -89,6 +89,19 @@ class EsqueciSenhaRequest(BaseModel):
     email: str
 
 
+class ReenviarCodigoRequest(BaseModel):
+    """Corpo de POST /auth/resend-code.
+
+    Pede um código de confirmação novo para uma conta que ainda não
+    confirmou o e-mail. Existe porque, sem ele, um e-mail que não chega
+    (cai no spam e é apagado, endereço digitado com um caractere
+    errado, falha momentânea do Brevo) deixaria a conta permanentemente
+    inacessível: o login recusa quem não confirmou, e não havia outro
+    jeito de gerar um código."""
+
+    email: str
+
+
 class RedefinirSenhaRequest(BaseModel):
     """Corpo de POST /auth/reset-password."""
 
@@ -164,11 +177,25 @@ class DiagnosticoHistoricoOut(BaseModel):
     app/storage/supabase_storage.py e
     infra/supabase/storage_policies.md), válida por um tempo limitado;
     vem None se a geração da URL falhar (a lista não deve quebrar por
-    causa de uma imagem)."""
+    causa de uma imagem).
+
+    `device_id` vem de registros_imagem (via join), igual ao de
+    LeituraOut: o diagnóstico não guarda o dispositivo, ele chega pelo
+    registro de imagem que foi classificado. É o que permite à tela de
+    Histórico filtrar diagnóstico por estufa com o mesmo seletor que
+    filtra leitura. Antes de existir, o app assumia que todo
+    diagnóstico era do dispositivo de id 1, o que só funcionava
+    enquanto houvesse um único Pi no mundo.
+
+    `classe_prevista` é o nome técnico da classe ('pinta_preta',
+    'septoriose', 'saudavel'), não um rótulo de exibição. Quem traduz
+    para texto de tela é app/src/domain/doencas.ts, no frontend: a API
+    devolve o dado, a interface decide como escrevê-lo."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    device_id: str
     classe_prevista: str
     confianca: float
     recomendacao: str | None

@@ -294,3 +294,90 @@ async def test_codigo_fica_guardado_como_hash_e_nao_em_claro(smtp_ligado):
     assert registro.codigo_hash != codigo
     assert codigo not in registro.codigo_hash
     assert registro.codigo_hash.startswith("$2b$"), "esperado hash bcrypt"
+
+
+# ------------------------------------------------------- reenvio de código
+
+async def test_reenvio_manda_codigo_novo_e_invalida_o_antigo(smtp_ligado, monkeypatch):
+    """O caso que motivou a rota: o primeiro e-mail não chegou (ou foi
+    apagado junto com o spam) e a conta ficaria presa sem isto."""
+    # Sem a trava de intervalo o teste teria que esperar 60s de verdade.
+    monkeypatch.setattr("app.api.routes.auth._INTERVALO_REENVIO", timedelta(seconds=0))
+
+    with TestClient(app) as client:
+        _registrar(client, "reenvio@exemplo.com")
+        primeiro = _codigo_do_email(smtp_ligado)
+
+        resposta = client.post("/auth/resend-code", json={"email": "reenvio@exemplo.com"})
+        assert resposta.status_code == 200
+        segundo = _codigo_do_email(smtp_ligado)
+        assert primeiro != segundo
+        assert segundo not in resposta.text
+
+        # Vale o último: o código do primeiro e-mail morreu.
+        antigo = client.post(
+            "/auth/verify-email", json={"email": "reenvio@exemplo.com", "codigo": primeiro}
+        )
+        assert antigo.status_code == 400
+
+        novo = client.post(
+            "/auth/verify-email", json={"email": "reenvio@exemplo.com", "codigo": segundo}
+        )
+        assert novo.status_code == 200
+        assert _logar(client, "reenvio@exemplo.com", SENHA_BOA).status_code == 200
+
+
+async def test_reenvio_responde_igual_para_conta_inexistente_e_ja_confirmada(smtp_ligado):
+    """Senão esta rota viraria um detector de quais e-mails têm conta e
+    quais ainda estão pendentes de confirmação."""
+    with TestClient(app) as client:
+        _registrar(client, "ativa@exemplo.com")
+        codigo = _codigo_do_email(smtp_ligado)
+        client.post("/auth/verify-email", json={"email": "ativa@exemplo.com", "codigo": codigo})
+        smtp_ligado.clear()
+
+        confirmada = client.post("/auth/resend-code", json={"email": "ativa@exemplo.com"})
+        inexistente = client.post("/auth/resend-code", json={"email": "ninguem@exemplo.com"})
+
+    assert confirmada.status_code == inexistente.status_code == 200
+    assert confirmada.json() == inexistente.json()
+    # E nenhum dos dois casos gastou e-mail.
+    assert smtp_ligado == []
+
+
+async def test_reenvio_respeita_intervalo_minimo(smtp_ligado):
+    """A cota do Brevo é de 300 e-mails por dia. Sem a trava, um toque
+    repetido no botão esgotaria a cota e derrubaria o cadastro de todo
+    mundo.
+
+    O PRÓPRIO CADASTRO conta como primeiro envio. Então pedir reenvio
+    logo depois de se cadastrar não manda nada, e é justamente por isso
+    que a tela de confirmação mantém o botão em contagem regressiva:
+    sem ela, o produtor leria "código reenviado" sem que e-mail nenhum
+    tivesse saído."""
+    with TestClient(app) as client:
+        _registrar(client, "flood@exemplo.com")
+        assert len(smtp_ligado) == 1  # o e-mail do cadastro
+
+        bloqueada = client.post("/auth/resend-code", json={"email": "flood@exemplo.com"})
+        assert bloqueada.status_code == 200
+        assert len(smtp_ligado) == 1, "reenvio dentro do intervalo nao pode gastar e-mail"
+
+    # Envelhece o último código para além do intervalo, simulando o
+    # produtor que esperou antes de tocar em "não recebi o código".
+    async with AsyncSession(engine) as sessao:
+        registro = await sessao.scalar(
+            select(CodigoEmail)
+            .where(CodigoEmail.email == "flood@exemplo.com")
+            .order_by(CodigoEmail.id.desc())
+        )
+        registro.criado_em = datetime.now(timezone.utc) - timedelta(minutes=2)
+        await sessao.commit()
+
+    with TestClient(app) as client:
+        liberada = client.post("/auth/resend-code", json={"email": "flood@exemplo.com"})
+
+    assert liberada.status_code == 200
+    # A resposta é idêntica nos dois casos: a trava nunca é anunciada.
+    assert liberada.json() == bloqueada.json()
+    assert len(smtp_ligado) == 2, "passado o intervalo, o reenvio tem de sair"

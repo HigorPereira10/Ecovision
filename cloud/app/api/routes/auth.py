@@ -4,21 +4,39 @@ cloud/app/api/routes/auth.py
 Endpoints de autenticação do PRODUTOR no dashboard/app (não confundir com
 a API Key do dispositivo IoT, ver app/core/security.py para a distinção).
 
-Conforme Blueprint v3.0 Seção 4.3 / ADR 0003:
+Rotas, conforme ADR 0003 (JWT do produtor) e ADR 0010 (cadastro aberto
+e confirmação por e-mail):
+- POST /auth/register: cria conta de produtor. Cadastro ABERTO, com
+  papel sempre 'produtor' e e-mail pendente de confirmação.
+- POST /auth/verify-email: confirma a conta com o código de 6 dígitos.
+- POST /auth/resend-code: reenvia o código de uma conta pendente.
 - POST /auth/login: valida email/senha (hash bcrypt) e emite um par de
   tokens: JWT de acesso (24h) + refresh token (30 dias).
+- POST /auth/forgot-password e POST /auth/reset-password: recuperação
+  de senha pelo mesmo mecanismo de código por e-mail.
 - POST /auth/refresh: troca um refresh token válido por um novo JWT de
   acesso (não emite um novo refresh token; a sessão de 30 dias continua
   contada a partir do login original).
 
-A primeira conta de produtor é semeada manualmente (não existe endpoint
-de cadastro nesta rodada, decisão do grupo em 2026-09-11): ver
-cloud/scripts/seed_usuario_teste.py.
+HISTÓRICO: até 2026-10-10 não existia cadastro, e a única conta de
+produtor era semeada à mão por cloud/scripts/seed_usuario_teste.py. O
+script continua existindo para popular ambiente de teste, mas não é
+mais o caminho normal de criar conta.
+
+TRÊS PROTEÇÕES QUE PARECEM DETALHE E NÃO SÃO:
+1. Anti-enumeração: login, recuperação e reenvio respondem igual para
+   e-mail cadastrado e inexistente, inclusive no tempo de resposta
+   (ver HASH_DESCARTAVEL em app/core/security.py).
+2. O código enviado por e-mail nunca aparece em nenhuma resposta da
+   API, e no banco fica apenas o hash bcrypt dele.
+3. Força bruta de senha é travada por e-mail digitado, não por conta
+   existente (ver TentativaLogin em app/db/models.py).
 
 Relação com o resto do sistema:
 - Consumido pelo frontend (app/) para autenticar o produtor.
 - Depende de app/core/security.py (geração/validação de JWT, verificação
-  de hash bcrypt) e app/db/models.py (tabela usuarios).
+  de hash bcrypt), app/core/emails.py (envio do código) e
+  app/db/models.py (tabelas usuarios, codigos_email, tentativas_login).
 """
 
 import logging
@@ -49,6 +67,7 @@ from app.db.schemas import (
     MensagemOut,
     RedefinirSenhaRequest,
     RefreshRequest,
+    ReenviarCodigoRequest,
     RegistroRequest,
     TokenResponse,
     UsuarioCriadoOut,
@@ -123,6 +142,15 @@ async def _registrar_falha(sessao: AsyncSession, email: str) -> None:
 
 _VALIDADE_CODIGO = timedelta(minutes=15)
 _MAX_TENTATIVAS_CODIGO = 5
+
+# Intervalo minimo entre dois reenvios de codigo para o mesmo email.
+# Nao e protecao contra invasao (o reenvio nao revela nada e so manda
+# email para o proprio dono do endereco): e protecao de RECURSO. O
+# plano gratuito do Brevo da 300 emails por dia, e um botao de
+# "reenviar" sem trava permitiria esgotar a cota do dia em segundos,
+# derrubando o cadastro de todo mundo. 60 segundos tambem cobre o caso
+# honesto de quem toca duas vezes porque o email demorou a chegar.
+_INTERVALO_REENVIO = timedelta(seconds=60)
 
 TIPO_VERIFICACAO = "verificacao"
 TIPO_RECUPERACAO = "recuperacao"
@@ -394,6 +422,64 @@ async def verificar_email(
         logger.info("Email confirmado: %s", email)
 
     return MensagemOut(mensagem="E-mail confirmado. Agora é só entrar.")
+
+
+@router.post("/auth/resend-code", response_model=MensagemOut)
+async def reenviar_codigo(
+    dados: ReenviarCodigoRequest, sessao: AsyncSession = Depends(get_session)
+) -> MensagemOut:
+    """Envia um código de confirmação novo para uma conta pendente.
+
+    POR QUE ESTA ROTA EXISTE: sem ela, uma conta cujo e-mail de
+    confirmação não chegasse ficava inacessível para sempre. O login
+    recusa quem não confirmou (ver login() acima), o cadastro recusa o
+    e-mail por já existir, e não havia nenhum caminho para gerar outro
+    código. Bastava o e-mail cair no spam e ser apagado.
+
+    Responde SEMPRE a mesma coisa, como /auth/forgot-password: conta
+    inexistente, conta já confirmada e código recém-enviado recebem
+    resposta idêntica. Diferenciar transformaria esta rota num
+    detector de quais e-mails têm conta e quais ainda estão pendentes.
+
+    Um código novo invalida o anterior, porque _criar_codigo() derruba
+    os códigos não usados do mesmo tipo. Então quem pedir reenvio e
+    depois digitar o código do primeiro e-mail recebe "código
+    inválido", o que é o comportamento correto: vale o último.
+    """
+    email = dados.email.strip().lower()
+    resposta = MensagemOut(
+        mensagem="Se houver um cadastro pendente para este e-mail, o código foi reenviado."
+    )
+
+    usuario = await sessao.scalar(select(Usuario).where(Usuario.email == email))
+    if usuario is None or usuario.email_verificado:
+        logger.info(
+            "Reenvio ignorado para %s (conta inexistente ou ja confirmada).", email
+        )
+        return resposta
+
+    if not settings.email_configurado:
+        logger.error("SMTP nao configurado: reenvio de codigo indisponivel para %s", email)
+        return resposta
+
+    ultimo_envio = await sessao.scalar(
+        select(CodigoEmail.criado_em)
+        .where(CodigoEmail.email == email, CodigoEmail.tipo == TIPO_VERIFICACAO)
+        .order_by(CodigoEmail.id.desc())
+        .limit(1)
+    )
+    if ultimo_envio is not None:
+        if ultimo_envio.tzinfo is None:  # SQLite devolve datetime sem fuso
+            ultimo_envio = ultimo_envio.replace(tzinfo=timezone.utc)
+        if _agora() - ultimo_envio < _INTERVALO_REENVIO:
+            logger.info("Reenvio recusado por intervalo minimo: %s", email)
+            return resposta
+
+    codigo = await _criar_codigo(sessao, email, TIPO_VERIFICACAO)
+    assunto, corpo = emails.montar_email_verificacao(usuario.nome or "produtor", codigo)
+    emails.enviar(email, assunto, corpo)
+    logger.info("Codigo de verificacao reenviado: %s", email)
+    return resposta
 
 
 @router.post("/auth/forgot-password", response_model=MensagemOut)
