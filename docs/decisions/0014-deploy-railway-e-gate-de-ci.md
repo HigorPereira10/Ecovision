@@ -93,9 +93,7 @@ build). Nesses casos é build novo, obrigatoriamente.
 
 ## iOS
 
-Nenhum build de iOS existe, porque ninguém do grupo tem iPhone. A
-demonstração é Android mais Expo Go. Isso precisa estar dito na escrita,
-em vez de ficar como pendência pendurada.
+Nenhum build de iOS existe, porque ainda não testamos.
 
 ## Implementação
 
