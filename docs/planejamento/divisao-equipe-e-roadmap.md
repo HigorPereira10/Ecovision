@@ -1,5 +1,23 @@
 # Planejamento de Execução e Divisão de Equipe
 
+> **AVISO DE ESTADO (2026-10-11).** Este documento é de PLANEJAMENTO e
+> boa parte dele já foi executada. Para o estado real do sistema, leia
+> [`docs/architecture/blueprint-v4.md`](../architecture/blueprint-v4.md).
+>
+> O que mudou em relação ao que está escrito aqui:
+> - A Seção 1 (decisões pendentes) está quase toda resolvida; as tabelas
+>   abaixo foram marcadas uma por uma.
+> - O cronograma das Seções 3 em diante fala de "testar com dados
+>   mock/simulados". Isso foi feito e **foi desfeito**: desde
+>   2026-10-11 o aplicativo consome apenas dado real da API, exceto a
+>   tela Financeira, que segue local por decisão de escopo.
+> - A ativação do Railway, descrita aqui como "deliberadamente adiada
+>   até a Sprint 9", foi antecipada: o plano Hobby está contratado e a
+>   API está no ar ([ADR 0014](../decisions/0014-deploy-railway-e-gate-de-ci.md)).
+>
+> O cronograma por pessoa (Seção 3) e o apêndice histórico continuam
+> úteis como registro de como o trabalho foi dividido e por quê.
+
 **Status:** a divisão de equipe está **decidida**, ver
 [ADR 0007](../decisions/0007-divisao-equipe-final.md). Este documento
 traz o cronograma passo a passo de cada pessoa a partir dessa decisão
@@ -32,20 +50,20 @@ próprio README).
 |---|---|---|
 | ~~Framework de frontend~~ | ✅ Resolvido: Expo (React Native) confirmado. | [ADR 0002](../decisions/0002-frontend-framework-pendente.md) |
 | ~~Divisão de tarefas da equipe~~ | ✅ Resolvido. | [ADR 0007](../decisions/0007-divisao-equipe-final.md) |
-| **Cotação conjunta da lista de compras de hardware** | Itens "Semana 1" do BoM são bloqueadores explícitos do início do trabalho em `edge/`, sem eles comprados (e com compatibilidade elétrica conferida em conjunto), ninguém consegue montar o protótipo físico. | [`lista-compras-hardware.md`](lista-compras-hardware.md) |
-| **Schema fino das tabelas do banco** (colunas de `registros_imagem`, `leituras_ambientais`, `diagnosticos`, `alertas`, `usuarios`, `dispositivos`) | Bloqueia a implementação real de `cloud/app/db/models.py`, `infra/supabase/schema.sql` e, por consequência, boa parte do backend. Pode ser decidido em paralelo à ML/frontend, mas precisa fechar cedo. | `infra/supabase/schema.sql`, `cloud/app/db/models.py` |
-| **Correção das contradições textuais do TC1** (câmera V2→V3, contagem de classes do dataset, 10, não 11, hospedagem Railway em vez de AWS ECS/Cloud Run, autenticação) | Não bloqueia código, mas é um item explícito da Fase 0 do Plano de Execução do Blueprint, um avaliador pode notar a contradição entre TC1 e este Blueprint se não for corrigida a tempo. Baixo esforço, mas fácil de esquecer. | Blueprint, Plano de Execução, item 2 da Fase 0 |
+| ~~Cotação conjunta da lista de compras de hardware~~ | ✅ Resolvido: hardware comprado e montado, Pi instalado na estufa como `pi-estufa-01`. | [`lista-compras-hardware.md`](lista-compras-hardware.md) |
+| ~~Schema fino das tabelas do banco~~ | ✅ Resolvido e aplicado no Supabase real. Cresceu de 6 para **8 tabelas** (entraram `tentativas_login` e `codigos_email`), e `dispositivos` ganhou credencial, código de pareamento e metadados. | `cloud/app/db/models.py`, `infra/supabase/schema.sql`, migrations 0005 a 0007 |
+| **Correção das contradições textuais do TC1** (câmera V2→V3, contagem de classes, hospedagem, autenticação) | ⏳ **Segue aberto, e agora é mais fácil:** as quatro contradições têm decisão registrada. Câmera: [ADR 0001](../decisions/0001-camera-module-3.md). Classes: são **3** em produção, [ADR 0011](../decisions/0011-escopo-de-tres-classes.md). Hospedagem: Railway Hobby, [ADR 0014](../decisions/0014-deploy-railway-e-gate-de-ci.md). Autenticação: [ADR 0009](../decisions/0009-credencial-por-dispositivo.md) e [0010](../decisions/0010-cadastro-aberto-e-rbac.md). Falta levar isso para o texto. | [`docs/tcc/README.md`](../tcc/README.md) |
 
 ### 1.2. Podem esperar (não bloqueiam o início do desenvolvimento)
 
 | Decisão | Quando precisa estar resolvida | Onde está documentada |
 |---|---|---|
-| **Momento de ativação do trial do Railway** | Deliberadamente adiado, só perto da Sprint 9 (validação em campo). Ver Seção 5 deste documento. | [`infra/railway/README.md`](../../infra/railway/README.md), Blueprint Seção 4.5 |
+| ~~Momento de ativação do trial do Railway~~ | ✅ Antecipado e resolvido: o trial venceu e o grupo assinou o plano **Hobby**. A API está no ar com gate de CI. O motivo da antecipação: sem endereço fixo, o aplicativo dependia do IP da rede local, o que inviabilizava testar fora de casa e a demonstração na banca. | [ADR 0014](../decisions/0014-deploy-railway-e-gate-de-ci.md) |
 | **Data da banca / apresentação final** | Depende da coordenação do curso, fora do controle do grupo, mas assim que sair, deve alimentar imediatamente o calendário de sincronização. | [`infra/calendar/sincronizacao.md`](../../infra/calendar/sincronizacao.md) |
 | **Configuração do ping automático do UptimeRobot** | Necessário antes de qualquer período de 7+ dias sem uso do sistema, o Blueprint sugere configurar na Sprint 6, não antes. | [`infra/monitoring/uptimerobot.md`](../../infra/monitoring/uptimerobot.md) |
-| **Política de leitura de imagens no Supabase Storage** (signed URLs vs. bucket com leitura pública das imagens) | Só importa quando o dashboard for de fato exibir fotos, não bloqueia o desenvolvimento inicial do backend. | [`infra/supabase/storage_policies.md`](../../infra/supabase/storage_policies.md) |
+| ~~Política de leitura de imagens no Supabase Storage~~ | ✅ Resolvido por **signed URL**, bucket privado, URL gerada sob demanda por `GET /diagnosticos` e não persistida (ela expira). | [`infra/supabase/storage_policies.md`](../../infra/supabase/storage_policies.md) |
 | **Encomenda da placa de solda final e da case impressa em 3D** | Itens de Semana 4-5 do BoM, só depois do layout do circuito estar validado em protoboard. | [`lista-compras-hardware.md`](lista-compras-hardware.md) |
-| **Mecanismo de envio de push notifications do lado do servidor** | Só relevante se Expo for a escolha final de frontend; mesmo assim, é um refinamento tardio, não algo que bloqueia o MVP. | `app/src/notifications/pushNotifications.ts` |
+| ~~Mecanismo de envio de push notifications do lado do servidor~~ | ✅ **Decidido não fazer**, com justificativa registrada: notificação local, disparada pelo aparelho ao abrir o app. Push de servidor contrariaria a decisão de 1 único worker que sustenta três outras partes do sistema. O ADR lista o que seria necessário, como trabalho futuro. | [ADR 0012](../decisions/0012-notificacao-local-sem-push.md) |
 
 ---
 

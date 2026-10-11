@@ -210,7 +210,9 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
     if not Path(caminho_modelo).is_file():
         logger.warning(
             "Modelo .tflite não encontrado em %s: a inferência vai devolver "
-            "resultado placeholder até o time de ML entregar o modelo.",
+            "resultado placeholder. O modelo DEVERIA estar versionado em "
+            "ml/models/modelo.tflite; se a API subiu sem ele, o deploy não "
+            "trouxe o diretório ml/ (ver ADR 0014).",
             caminho_modelo,
         )
         return None

@@ -1,5 +1,12 @@
 # Referência rápida: Tech Stack Blueprint Consolidado v3.0
 
+> **Leia primeiro o [Blueprint v4.0](blueprint-v4.md).** Ele descreve o
+> sistema como ele é hoje, implantado, e é o documento de consulta do
+> projeto. Este arquivo continua sendo o índice do v3.0, que descreve o
+> sistema **como foi planejado** e segue útil como registro histórico.
+> Onde os dois divergem, vale o v4.0, e a seção 0 dele explica cada
+> divergência.
+
 Este arquivo é um índice de navegação para o documento externo
 "EcoVision: Tech Stack Blueprint Consolidado, TC2, v3.0" (mantido na
 pasta compartilhada do grupo, ver README raiz). O conteúdo completo NÃO
@@ -11,7 +18,7 @@ pasta compartilhada do grupo, ver README raiz). O conteúdo completo NÃO
 | Fase 2: Software de Borda | Captura, sensores, fila offline | `edge/` |
 | Fase 3: Pipeline de IA | Frankenstein Cirúrgico, split 70/15/15, metas de F1 | `ml/` |
 | Fase 4: Nuvem, Backend e BD | Railway, Supabase, autenticação, regras de código | `cloud/`, `infra/` |
-| Fase 4.3 | Autenticação (API Key + JWT/bcrypt) | `docs/decisions/0003-autenticacao-dual.md` |
+| Fase 4.3 | Autenticação (API Key + JWT/bcrypt). **A parte do dispositivo foi superada:** hoje é credencial por dispositivo | `docs/decisions/0003-autenticacao-dual.md`, `0009-credencial-por-dispositivo.md`, `0010-cadastro-aberto-e-rbac.md` |
 | Fase 4.6 | Calendário de sincronização Railway × banca | `infra/calendar/sincronizacao.md` |
 | Fase 5: Frontend | Framework decidido: Expo (React Native) | `docs/decisions/0002-frontend-framework-pendente.md`, `app/` |
 | Plano de Execução | Ordem de fases e sprints | (não replicado, ver documento original) |
@@ -57,5 +64,11 @@ Fonte editável: `diagramas/arquitetura-em-camadas.svg`.
 
 ## Status deste documento
 
-Se o Blueprint for revisado (ex.: v3.1 após decisões de grupo), este
-arquivo e os READMEs de cada pasta devem ser atualizados na mesma PR.
+Congelado como índice do v3.0. Decisão nova entra como ADR em
+`docs/decisions/` e é refletida no [Blueprint v4.0](blueprint-v4.md),
+não aqui.
+
+O diagrama acima **continua correto e vigente**: a arquitetura em
+camadas e a justificativa de por que não é EDA nem CQRS não mudaram
+entre as duas versões. O v4.0 aponta para este arquivo justamente por
+isso.

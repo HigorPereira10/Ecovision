@@ -6,14 +6,17 @@ Recebe do Raspberry Pi (edge/) a imagem comprimida + leituras de sensores,
 roda a inferência e persiste tudo no Supabase.
 
 Fluxo completo, conforme Blueprint v3.0 Seção 4.2:
-1. Autenticar a requisição via API Key estática (ver app/core/security.py).
+1. Autenticar a requisição pela credencial daquele dispositivo (ver
+   app/api/dispositivo_auth.py e ADR 0009).
 2. Checar se já existe um registro com essa idempotency_key. Se existir,
    é um reenvio: devolve o diagnóstico já existente sem reprocessar
    (ver "Idempotência" abaixo).
 3. Ler a imagem recebida em memória (BytesIO), nunca gravar em disco.
-4. Redimensionar para 224x224, normalizar, rodar inferência TFLite
-   (app/core/inference.py). Devolve um resultado placeholder se ainda
-   não houver modelo carregado (ver app/core/inference.py).
+4. Redimensionar para 224x224 com NEAREST, rodar inferência TFLite
+   (app/core/inference.py). NÃO normalizar aqui: o modelo normaliza por
+   dentro e espera pixels crus de 0 a 255 (ver ADR 0011 para as duas
+   armadilhas desse contrato). Devolve um resultado placeholder se
+   nenhum modelo foi carregado.
 5. Fazer upload da imagem já comprimida para o Supabase Storage
    (app/storage/supabase_storage.py) e obter o caminho salvo.
 6. Persistir no Supabase Postgres (app/db/models.py):

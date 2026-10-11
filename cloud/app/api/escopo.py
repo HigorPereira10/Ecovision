@@ -21,14 +21,16 @@ A cadeia de posse é:
               <- alertas
 
 ATENÇÃO (consequência operacional): `registros_imagem.device_id` é uma
-string livre, sem chave estrangeira para `dispositivos`. O Pi se
-autentica com a API Key global (ADR 0003) e envia o device_id que
-estiver no .env dele. Logo, uma captura cujo device_id não tenha linha
+string livre, sem chave estrangeira para `dispositivos`. O Pi envia o
+device_id que estiver no .env dele, autenticado pela credencial daquele
+aparelho (ADR 0009). Logo, uma captura cujo device_id não tenha linha
 em `dispositivos`, ou cuja linha esteja com usuario_id nulo, NÃO tem
 dono e fica invisível para todo mundo. Os dados continuam no banco,
 mas nenhuma tela mostra. Para o Pi real aparecer, a tabela
-`dispositivos` precisa ter o device_id dele vinculado a um usuário:
-ver cloud/scripts/seed_dispositivo_teste.py.
+`dispositivos` precisa ter o device_id dele vinculado a um usuário,
+o que acontece quando o produtor digita o código de pareamento no app
+(POST /dispositivos/vincular) ou, em ambiente de teste, via
+cloud/scripts/seed_dispositivo_teste.py.
 
 Administrador vê tudo: é o papel usado para suporte e para a
 apresentação, e é concedido só via seed manual, nunca pelo cadastro

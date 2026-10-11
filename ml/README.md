@@ -1,10 +1,16 @@
 # ml: Pipeline de IA (Treino Offline)
 
-Referência arquitetural: **Tech Stack Blueprint Consolidado v3.0, Fase 3 (Pipeline de IA)**.
+Referência arquitetural: [**Blueprint v4.0**](../docs/architecture/blueprint-v4.md),
+seção 5. O Blueprint v3.0, Fase 3, segue valendo para o planejamento do
+pipeline.
 
-> Nota: no início desta reestruturação, a pasta `ml/` continha apenas um
-> `.gitkeep`. Nenhum conteúdo pré-existente foi encontrado ou alterado
-> além do que está descrito aqui.
+> **ESTADO EM PRODUÇÃO (2026-10-11):** `ml/models/modelo.tflite`,
+> MobileNetV2, float32, 8,9 MB, **3 classes** na ordem `septoriose`,
+> `pinta_preta`, `saudavel`. O recorte de três classes é uma decisão
+> registrada, com o motivo e o procedimento para reativar as outras, em
+> [ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md). O
+> aplicativo declara esse limite ao produtor na tela de Diagnóstico, em
+> vez de dar a entender que reconhece qualquer doença de tomate.
 
 ## Papel desta camada
 
@@ -65,5 +71,34 @@ ml/
 - O pipeline de `rembg` leva 4-8h para ~7k imagens: executar **uma vez**,
   salvar o resultado no Google Drive e reutilizar; não gerar on-the-fly
   a cada treino.
-- Contagem de classes do dataset: **10**, não 11 (ponto de correção do TC1
-  citado no Plano de Execução, Fase 0).
+- Contagem de classes **do dataset**: 10, não 11 (ponto de correção do
+  TC1). Atenção para não confundir dois números diferentes: o catálogo
+  agronômico tem 10 classes, com recomendação e fonte para cada uma
+  ([ADR 0006](../docs/decisions/0006-recomendacoes-por-diagnostico.md)),
+  e o **modelo em produção reconhece 3**
+  ([ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md)). As
+  outras 7 estão no catálogo esperando dado de treino.
+
+## Se o modelo for retreinado, leia isto antes
+
+Três lugares têm que concordar, e o segundo falha **em silêncio**:
+
+1. Exportar com `ml/src/export/convert_tflite.py` (sem quantização, ver
+   a justificativa medida no topo do arquivo).
+2. `_CLASSES_DO_MODELO` em `cloud/app/core/inference.py`, na **ordem
+   exata** das saídas do modelo. A ordem vem do treino, onde
+   `image_dataset_from_directory` ordena os diretórios alfabeticamente.
+   Trocar o `.tflite` sem atualizar essa lista faz cada predição sair
+   com o nome e a recomendação de **outra doença**, sem erro nenhum.
+3. `ativa: true` na classe correspondente em
+   `app/src/domain/doencas.ts`.
+
+E duas armadilhas de contrato do modelo, as duas medidas:
+
+- O modelo **normaliza por dentro** (a camada `preprocess_input` faz
+  parte do grafo exportado), então quem chama passa **pixels crus de 0 a
+  255**. Dividir por 255 antes faz tudo colapsar para "saudavel" com
+  cerca de 90% de confiança.
+- O redimensionamento tem que ser **NEAREST**. Com NEAREST, 6 de 6
+  predições batem com o Keras original; com BILINEAR ou BICUBIC, 0 de 6,
+  e duas classes mudam.

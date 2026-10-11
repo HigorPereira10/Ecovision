@@ -8,37 +8,42 @@ decisões registradas, atas de reunião e a escrita acadêmica do TCC.
 ```
 docs/
 ├── architecture/
-│   └── blueprint-reference.md   # ponteiro para o Tech Stack Blueprint v3.0 (fonte única de verdade técnica)
-├── decisions/                   # ADRs: Architecture Decision Records
-│   ├── 0001-camera-module-3.md
-│   ├── 0002-frontend-framework-pendente.md  # decisão final: Expo (React Native)
-│   ├── 0003-autenticacao-dual.md
-│   ├── 0004-raspberry-pi-3b-plus.md
-│   ├── 0005-limiares-ambientais.md
-│   ├── 0006-recomendacoes-por-diagnostico.md
-│   └── 0007-divisao-equipe-final.md
+│   ├── blueprint-v4.md          # DOCUMENTO PRINCIPAL: o sistema como ele é
+│   ├── blueprint-reference.md   # índice do Blueprint v3.0 (histórico) + diagrama
+│   └── diagramas/               # arquitetura em camadas (png + svg editável)
+├── decisions/                   # ADRs, 14 decisões (ver decisions/README.md)
 ├── planejamento/                # divisão de equipe, roadmap, lista de compras
-│   ├── divisao-equipe-e-roadmap.md
-│   ├── lista-compras-hardware.md
-│   └── responsabilidades-documentacao-igor.md
 ├── atas/                        # atas de reunião do grupo
 └── tcc/                         # capítulos da escrita acadêmica do TCC
 ```
 
-## Sobre o Tech Stack Blueprint
+## Qual documento ler
 
-O documento **"EcoVision: Tech Stack Blueprint Consolidado, TC2, v3.0"**
-é a fonte única de verdade arquitetural do projeto (substitui o TC1 em
-decisões técnicas). Ele não foi duplicado neste repositório, mantém-se
-na pasta compartilhada do grupo (Google Drive, ver link no README raiz).
-`docs/architecture/blueprint-reference.md` traz um resumo de navegação
-por seção, para uso rápido durante o desenvolvimento.
+**[`architecture/blueprint-v4.md`](architecture/blueprint-v4.md)** é o
+documento de consulta do projeto. Ele descreve o sistema **como ele é**,
+implantado, e vive dentro do repositório justamente para envelhecer
+junto com o código.
+
+O **"Tech Stack Blueprint Consolidado, TC2, v3.0"** continua na pasta
+compartilhada do grupo e descreve o sistema **como foi planejado**. Ele
+segue valendo como registro histórico e como referência das fases de
+execução. Três premissas dele caíram em contato com a realidade, e a
+seção 0 do v4.0 lista quais, por quê, e em qual ADR cada queda está
+registrada.
+
+Onde os dois divergirem, vale o v4.0.
 
 ## ADRs (`docs/decisions/`)
 
-Registram decisões arquiteturais que já foram tomadas, com o motivo,
-incluindo as que ainda estão **pendentes** de fechamento pelo grupo,
-para que fiquem visíveis e não se percam entre conversas.
+Registram decisões arquiteturais com o motivo e o que foi descartado.
+Índice organizado por tema em
+[`decisions/README.md`](decisions/README.md).
+
+Regra que vale para esta pasta: **decisão superada não é apagada.** Ela
+recebe nota de status apontando para a substituta. O
+[ADR 0003](decisions/0003-autenticacao-dual.md) é o exemplo, e o motivo
+de ele ter caducado é em si um bom argumento de banca, porque mostra uma
+premissa sendo revista por evidência.
 
 ## Planejamento (`docs/planejamento/`)
 

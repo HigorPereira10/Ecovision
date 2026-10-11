@@ -1,10 +1,19 @@
 # edge: Software de Borda (Raspberry Pi 3 Model B+)
 
-Referência arquitetural: **Tech Stack Blueprint Consolidado v3.0, Fase 2 (Software de Borda)**.
+Referência arquitetural: [**Blueprint v4.0**](../docs/architecture/blueprint-v4.md),
+seção 3.
 
 > Hardware: **Raspberry Pi 3 Model B+ (Anatel)**, troca em relação ao
 > Pi Zero 2 W do Blueprint original, ver
 > [ADR 0004](../docs/decisions/0004-raspberry-pi-3b-plus.md).
+
+> **ESTADO EM CAMPO (2026-10-11):** o Pi está instalado na estufa como
+> `pi-estufa-01`, com credencial própria
+> ([ADR 0009](../docs/decisions/0009-credencial-por-dispositivo.md)),
+> mas a **captura automática está desativada** (linha do cron
+> comentada, com nota datada) enquanto a fiação é ajustada. Reativar é
+> descomentar a linha. Enquanto isso, as telas de diagnóstico do
+> aplicativo aparecem vazias, que é o comportamento correto.
 
 ## Papel desta camada
 
@@ -32,7 +41,7 @@ Responsabilidades:
 edge/
 ├── src/
 │   ├── main.py              # orquestração: sensores -> LED -> foto -> fila -> upload
-│   ├── config.py            # variáveis de ambiente (URL da API, API Key, intervalos)
+│   ├── config.py            # variáveis de ambiente (URL da API, credencial, intervalos)
 │   ├── capture.py           # Picamera2 + autofoco (AfMode.Auto)
 │   ├── compress.py          # Pillow + libjpeg-turbo
 │   ├── sensors/
@@ -43,7 +52,8 @@ edge/
 │   ├── fila/
 │   │   └── offline_queue.py # fila JSON Lines + fcntl (lock de arquivo)
 │   └── upload/
-│       └── uploader.py      # requests, retry/backoff, header Authorization (API Key)
+│       └── uploader.py      # requests, retry/backoff, header Authorization
+│                            # (credencial deste aparelho, ADR 0009)
 ├── scripts/
 │   └── install.sh           # setup de dependências no Pi (apt + venv + crontab)
 ├── crontab.example          # agendamento: captura 2h / upload da fila 15min

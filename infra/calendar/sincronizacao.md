@@ -1,22 +1,43 @@
 # Calendário de sincronização: Railway × Supabase × Banca
 
-Espelho da tabela do Tech Stack Blueprint v3.0, Seção 4.6. Preencher
-com datas reais assim que a data da banca for confirmada pela
-coordenação, **não deixar apenas nomes de sprint**.
+> **O risco que este documento existia para controlar DESAPARECEU.**
+>
+> A versão anterior girava em torno da janela de 30 dias do trial
+> gratuito do Railway: a preocupação era que a coleta de campo e a banca
+> caíssem dentro dela, senão a API pararia de responder no pior momento.
+>
+> O trial venceu e o grupo **assinou o plano Hobby** (5 dólares por mês),
+> em 2026-10-10. Não existe mais janela de 30 dias para sincronizar, e a
+> API fica no ar enquanto a assinatura estiver ativa
+> ([ADR 0014](../../docs/decisions/0014-deploy-railway-e-gate-de-ci.md)).
 
-Objetivo: garantir que a ativação do trial do Railway e a coleta de
-campo (Sprint 9) aconteçam dentro da janela de 30 dias que termina
-**depois** da banca, não antes.
+## O que ainda precisa de controle de data
 
-| Marco | Prazo/regra | Data planejada |
+| Marco | Regra | Status |
 |---|---|---|
-| Ativação do trial Railway | Início da contagem de 30 dias corridos | A DEFINIR |
-| Sprint 9: validação em campo (14 dias contínuos) | Precisa estar 100% dentro da janela ativa do Railway | A DEFINIR |
-| Expiração do trial Railway (30 dias após ativação) | Depois disso, API para de responder sem plano pago | A DEFINIR |
-| Data da banca / apresentação final | Precisa ocorrer com Railway e Supabase ainda ativos | A DEFINIR |
-| Ping automático Supabase (UptimeRobot) | Configurar antes de qualquer período de 7+ dias sem uso | Configurar na Sprint 6 |
+| Assinatura do Railway ativa | Cartão válido e sem falha de cobrança até **depois** da banca | ✅ Ativa. Conferir a cobrança no mês da apresentação |
+| Supabase sem pausa por inatividade | O projeto gratuito pausa após cerca de 7 dias sem nenhuma requisição | ✅ Mitigado: UptimeRobot pinga `GET /health` |
+| Coleta de campo (validação do modelo com foto real) | Precisa de captura ligada no Pi, hoje desativada pelo ajuste de fiação | ⏳ Depende do hardware |
+| Data da banca | Depende da coordenação do curso | ⏳ A DEFINIR |
 
-## Pendência de grupo
+## Os dois riscos reais que sobraram
 
-Todas as datas "A DEFINIR" dependem da confirmação da data da banca pela
-coordenação do curso, fora do escopo desta reestruturação de repositório.
+**1. Falha de cobrança no Railway.** Com plano pago, o modo de falhar
+deixou de ser "o trial venceu" e passou a ser "o cartão recusou". O
+efeito é o mesmo: API fora do ar. Conferir o status da assinatura na
+semana da banca, não no dia.
+
+**2. Supabase pausado por inatividade.** O projeto gratuito pausa depois
+de cerca de 7 dias sem requisição, e reativar leva alguns minutos. Numa
+apresentação, alguns minutos são fatais. O UptimeRobot pingando
+`GET /health` resolve isso, **desde que esteja configurado e
+funcionando**: conferir que o monitor está verde, e não apenas que foi
+criado algum dia. Ver
+[`infra/monitoring/uptimerobot.md`](../monitoring/uptimerobot.md).
+
+## Recomendação para o dia da banca
+
+Fazer um teste de ponta a ponta na véspera, não na hora: abrir o
+aplicativo, entrar, e conferir que as telas carregam. Isso exercita
+API, banco e Storage de uma vez, e dá tempo de reagir se algo estiver
+pausado ou expirado.

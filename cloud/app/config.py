@@ -38,7 +38,12 @@ class Settings(BaseSettings):
     SUPABASE_STORAGE_BUCKET: str = "ecovision-imagens"
     DATABASE_URL: str
 
-    # --- Autenticação do dispositivo IoT (API Key estática) ---
+    # --- Autenticação do dispositivo IoT ---
+    # Chave global do ADR 0003, hoje mantida APENAS pelo ramo de
+    # transição de app/api/dispositivo_auth.py. A credencial de verdade
+    # é por dispositivo (ADR 0009) e vive como hash em
+    # `dispositivos.chave_hash`, nunca aqui. Remover esta variável
+    # quando todos os Pis estiverem provisionados.
     DEVICE_API_KEY: str
 
     # --- Autenticação do dashboard (JWT) ---

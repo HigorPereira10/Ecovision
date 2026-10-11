@@ -5,24 +5,27 @@ Implementa as DUAS mecânicas de autenticação decididas no Blueprint v3.0,
 Seção 4.3 (ver docs/decisions/0003-autenticacao-dual.md): mecanismos
 diferentes para pontas diferentes, deliberadamente.
 
-1. Dispositivo IoT (Raspberry Pi -> API): API Key estática, comparada
-   contra o valor definido na variável de ambiente DEVICE_API_KEY,
+1. Dispositivo IoT (Raspberry Pi -> API): credencial POR DISPOSITIVO,
    enviada CRUA no header Authorization, sem prefixo "Bearer" (é
-   exatamente o que edge/src/upload/uploader.py envia). A comparação é
-   feita em tempo constante (secrets.compare_digest), pra não vazar a
-   chave por um ataque de timing.
+   exatamente o que edge/src/upload/uploader.py envia). Quem confere é
+   app/api/dispositivo_auth.py, contra o hash bcrypt guardado em
+   `dispositivos.chave_hash`. A comparação é feita em tempo constante
+   (secrets.compare_digest no ramo de transição, bcrypt no caminho
+   normal), para não vazar a credencial por um ataque de timing.
 
-   ALERTA DE SEGURANÇA, LIMITAÇÃO CONHECIDA E ACEITA (ADR 0003): é uma
-   chave ÚNICA e GLOBAL, não uma chave por dispositivo. Isso significa
-   que o campo `device_id` do formulário em /diagnostico NÃO é
-   validado contra nenhum cadastro: qualquer requisição com a chave
-   certa pode se identificar como QUALQUER device_id. Isso é aceitável
-   enquanto existir só 1 dispositivo físico de verdade (o motivo
-   original do ADR 0003 é que um JWT rotativo para 1 único device seria
-   complexidade desnecessária). Se o projeto crescer para múltiplos
-   dispositivos físicos, isso PRECISA virar uma chave por dispositivo
-   (a tabela `dispositivos` já existe no schema, mas ainda sem uso)
-   antes de qualquer implantação com mais de um Raspberry Pi em campo.
+   Este módulo contribui com a GERAÇÃO dessas credenciais
+   (gerar_segredo_dispositivo e gerar_codigo_pareamento, abaixo); a
+   verificação mora em app/api/ porque precisa consultar o banco, e
+   app/core/ não importa app/db/.
+
+   HISTÓRICO: o ADR 0003 escolheu uma chave única e GLOBAL, com a
+   justificativa de que havia "1 único dispositivo". Isso significava
+   que qualquer requisição com a chave certa podia se identificar como
+   QUALQUER device_id, ou seja, injetar diagnóstico falso na estufa de
+   outro produtor. A premissa caiu quando o cadastro foi aberto, e o
+   ADR 0009 substituiu o mecanismo. A chave global ainda é aceita num
+   ramo de transição explícito, para não derrubar um Pi em campo no
+   momento do deploy; cada uso dela gera aviso no log.
 
 2. Dashboard (login do produtor): JWT de acesso (24h) + refresh token
    (30 dias), senha com hash bcrypt. Payload do JWT carrega `sub`

@@ -1,9 +1,13 @@
 # infra: Automação, Deploy e Configuração de Ambiente
 
-Referência arquitetural: **Tech Stack Blueprint Consolidado v3.0, Fase 4
-(Nuvem, Backend e Banco de Dados)**, especialmente as Seções 4.4 (regras
-obrigatórias do Railway), 4.5 (risco de timing dos trials) e 4.6
-(calendário de sincronização).
+Referência arquitetural: [**Blueprint v4.0**](../docs/architecture/blueprint-v4.md),
+seções 4 e 9.
+
+> **ESTADO (2026-10-11):** tudo nesta camada está aplicado e no ar. API
+> em `https://ecovision-production.up.railway.app`, plano **Hobby**
+> contratado, schema aplicado no Supabase real, monitor do UptimeRobot
+> configurado, e deploy publicando só depois de a CI passar
+> ([ADR 0014](../docs/decisions/0014-deploy-railway-e-gate-de-ci.md)).
 
 ## Papel desta camada
 
@@ -15,8 +19,10 @@ sem conter lógica de aplicação:
 - Templates de variáveis de ambiente (`.env.example`) para `cloud/` e `edge/`.
 - Notas de monitoramento (UptimeRobot, para evitar a pausa por
   inatividade do Supabase).
-- Calendário de sincronização entre a ativação do trial do Railway e a
-  data real da banca (Blueprint Seção 4.6).
+- Calendário de sincronização com a data da banca. O risco mudou de
+  natureza: não é mais a janela de 30 dias do trial, é manter a
+  assinatura paga ativa e o Supabase sem pausar
+  ([`calendar/sincronizacao.md`](calendar/sincronizacao.md)).
 
 ## Estrutura
 
@@ -33,7 +39,7 @@ infra/
 ├── monitoring/
 │   └── uptimerobot.md
 └── calendar/
-    └── sincronizacao.md        # espelho da tabela da Seção 4.6, a preencher com datas reais
+    └── sincronizacao.md        # riscos de data que ainda importam
 ```
 
 O workflow de CI/CD (GitHub Actions) precisa, por exigência técnica do
@@ -41,27 +47,38 @@ GitHub, morar em `.github/workflows/` na raiz do repositório, não
 dentro de `infra/`. Ver `.github/workflows/deploy-railway.yml` (esqueleto)
 e a nota em `infra/railway/README.md`.
 
-## Riscos e regras que esta camada precisa refletir (Blueprint)
+## Riscos e regras que esta camada precisa refletir
 
-- **Zero gravação em disco no Railway**: reforçado aqui como restrição
-  de infraestrutura, não só de código (Seção 4.4).
-- **Trial do Railway expira 30 dias corridos após ativação**: não são
-  30 dias de uso. Sincronizar com a data real da banca (Seção 4.5/4.6).
-  Reservar ~R$30-50 para o plano Hobby como contingência.
-- **Supabase pausa após 7 dias de inatividade**: mitigar com ping
-  periódico via UptimeRobot, configurado já na Sprint 6.
+- **Zero gravação em disco no Railway**: restrição de infraestrutura,
+  não só de código. O plano não tem volume persistente.
+- **Nenhum root directory no serviço do Railway.** Apontar o serviço
+  para `cloud/` faria o Railway baixar só aquela pasta, e `ml/models/`
+  desapareceria do container: a API subiria sem modelo e devolveria
+  placeholder em toda captura, **sem erro visível**. Daí o
+  `requirements.txt` na raiz e o start command que entra na pasta certa.
+- **Supabase pausa após cerca de 7 dias de inatividade**: mitigado por
+  ping periódico do UptimeRobot em `GET /health`. Conferir que o monitor
+  está verde antes da banca, não apenas que existe.
+- **Portas de SMTP bloqueadas no plano Hobby** (25, 465, 587, 2525):
+  e-mail sai pela API HTTP do Brevo, porta 443
+  ([ADR 0013](../docs/decisions/0013-email-transacional-brevo.md)).
+
+## Decisões que estavam pendentes e foram fechadas
+
+- ~~signed URL contra bucket público~~: **signed URL**, bucket privado,
+  gerada sob demanda e não persistida
+  ([`supabase/storage_policies.md`](supabase/storage_policies.md)).
+- ~~Ativação do Railway e monitor do UptimeRobot~~: feitos.
+- ~~Momento de contratar plano pago~~: Hobby contratado em 2026-10-10.
 
 ## Pendências de grupo
 
-- Datas reais do calendário de sincronização (`infra/calendar/sincronizacao.md`),
-  que dependem da data da banca, ainda não confirmada pela coordenação.
-- Decisão signed URL vs. bucket público para leitura das imagens no
-  dashboard (`infra/supabase/storage_policies.md`), bloqueada até o
-  `app/` do dashboard existir de verdade.
-- Ativação do trial do Railway e configuração do monitor no
-  UptimeRobot, que só dá pra fazer quando o serviço for de fato criado no
-  painel do Railway (`infra/railway/README.md` já tem o start command
-  e as variáveis prontas para colar).
+- Data da banca, que ainda depende da coordenação do curso. É o único
+  campo "A DEFINIR" que sobrou em
+  [`calendar/sincronizacao.md`](calendar/sincronizacao.md).
+- Conferir a cobrança da assinatura do Railway na semana da
+  apresentação: com plano pago, o modo de falhar deixou de ser "o trial
+  venceu" e passou a ser "o cartão recusou".
 
 ## Planejamento relacionado
 
