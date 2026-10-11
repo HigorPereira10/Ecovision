@@ -12,9 +12,19 @@
  * Recebe o e-mail por parâmetro de rota, vindo da CadastroScreen, para
  * o produtor não precisar digitá-lo de novo e não errar justamente o
  * endereço que acabou de cadastrar.
+ *
+ * REENVIO COM CONTAGEM REGRESSIVA: sem o botão de reenviar, um e-mail
+ * que não chegasse (caiu no spam e foi apagado, falha momentânea do
+ * provedor) deixava a conta inacessível para sempre, porque o login
+ * recusa quem não confirmou e o cadastro recusa o e-mail por já
+ * existir. O botão fica travado por SEGUNDOS_PARA_REENVIO porque a API
+ * ignora pedidos feitos dentro desse intervalo (para não esgotar a cota
+ * diária de e-mails) e responde a mesma coisa de qualquer jeito. Sem a
+ * contagem visível, o produtor leria "código reenviado" sem que e-mail
+ * nenhum tivesse saído, e esperaria por um e-mail que não vem.
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -30,8 +40,14 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useNavigation, useRoute } from "@react-navigation/native";
-import { verificarEmail } from "../services/auth";
+import { reenviarCodigo, verificarEmail } from "../services/auth";
 import { colors } from "../theme/colors";
+
+/** Tem que ser >= _INTERVALO_REENVIO de cloud/app/api/routes/auth.py.
+ * Se ficar menor, o botão libera antes de a API aceitar e o reenvio
+ * falha em silêncio. Os 5 segundos de folga cobrem a diferença entre o
+ * relógio do celular e o do servidor. */
+const SEGUNDOS_PARA_REENVIO = 65;
 
 /** Mantém só dígitos e corta em 6: o código é numérico, e deixar o
  * produtor digitar letras só produziria um erro depois. */
@@ -48,8 +64,42 @@ export default function VerificarEmailScreen() {
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
+  const [segundosRestantes, setSegundosRestantes] = useState(SEGUNDOS_PARA_REENVIO);
+  const [avisoReenvio, setAvisoReenvio] = useState<string | null>(null);
+  const [reenviando, setReenviando] = useState(false);
 
   const codigoCompleto = codigo.length === 6;
+  const podeReenviar = segundosRestantes === 0 && !reenviando;
+
+  // Um único intervalo de 1s, criado na montagem e desfeito na
+  // desmontagem. O guarda `anterior <= 1` para o contador em zero em
+  // vez de deixá-lo negativo, e a dependência vazia evita recriar o
+  // intervalo a cada tique.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setSegundosRestantes((anterior) => (anterior <= 1 ? 0 : anterior - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  async function handleReenviar() {
+    setReenviando(true);
+    setErro(null);
+    try {
+      await reenviarCodigo(email);
+      // A API responde igual em todos os casos, então a mensagem fala
+      // do que foi pedido, não do que aconteceu. Prometer "enviamos"
+      // seria afirmar algo que esta tela não tem como saber.
+      setAvisoReenvio("Pedido enviado. Se houver cadastro pendente, o código chega em instantes.");
+      setSegundosRestantes(SEGUNDOS_PARA_REENVIO);
+      setCodigo("");
+    } catch (e) {
+      setAvisoReenvio(null);
+      setErro(e instanceof Error ? e.message : "Não foi possível pedir um código novo.");
+    } finally {
+      setReenviando(false);
+    }
+  }
 
   async function handleVerificar() {
     setErro(null);
@@ -158,6 +208,30 @@ export default function VerificarEmailScreen() {
                   <Text style={styles.botaoTexto}>Confirmar</Text>
                 )}
               </TouchableOpacity>
+
+              {avisoReenvio && <Text style={styles.avisoReenvio}>{avisoReenvio}</Text>}
+
+              <TouchableOpacity
+                style={styles.linkReenviar}
+                onPress={handleReenviar}
+                disabled={!podeReenviar}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                {reenviando ? (
+                  <ActivityIndicator size="small" color={colors.oliveGreen} />
+                ) : (
+                  <Text
+                    style={[
+                      styles.linkReenviarTexto,
+                      !podeReenviar && styles.linkReenviarDesabilitado,
+                    ]}
+                  >
+                    {podeReenviar
+                      ? "Não recebi o código. Enviar outro"
+                      : `Pedir outro código em ${segundosRestantes}s`}
+                  </Text>
+                )}
+              </TouchableOpacity>
             </>
           )}
         </View>
@@ -240,6 +314,18 @@ const styles = StyleSheet.create({
   },
   botaoDesabilitado: { opacity: 0.5 },
   botaoTexto: { color: colors.white, fontSize: 16, fontWeight: "700" },
+  avisoReenvio: {
+    fontSize: 13,
+    color: colors.oliveGreen,
+    lineHeight: 18,
+    marginTop: 16,
+    textAlign: "center",
+  },
+  linkReenviar: { marginTop: 18, alignItems: "center", minHeight: 22 },
+  linkReenviarTexto: { fontSize: 14, fontWeight: "600", color: colors.oliveGreen },
+  // Cinza no estado travado, para o toque sem efeito nao parecer falha
+  // do app: o texto ao lado ja diz quantos segundos faltam.
+  linkReenviarDesabilitado: { color: colors.textMuted, fontWeight: "400" },
   sucesso: { alignItems: "center", paddingTop: 12 },
   sucessoTitulo: {
     fontSize: 18,

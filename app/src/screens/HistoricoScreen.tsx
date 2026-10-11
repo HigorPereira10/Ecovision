@@ -3,17 +3,23 @@
  *
  * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Tela de Histórico: diagnósticos e leituras ambientais passadas, com
- * filtro por período e por campo (dispositivo). Segue o mesmo padrão
- * de camada de dados do DashboardScreen, nunca lê os JSONs direto,
- * sempre via services/.
+ * filtro por período e por campo (dispositivo). Os dois vêm da API
+ * real, via services/leituras.ts e services/diagnosticos.ts.
+ *
+ * FILTRO POR CAMPO, o detalhe que mudou em 2026-10-11: antes, a lista
+ * de diagnósticos era filtrada contra um id de dispositivo FIXO em
+ * código (getDispositivoIdUnico, que devolvia 1), porque o mock de
+ * diagnósticos não carregava de qual aparelho a foto tinha vindo. A
+ * consequência era silenciosa e errada: escolher qualquer estufa
+ * diferente da primeira esvaziava a lista de diagnósticos inteira. A
+ * API passou a devolver `device_id` em cada diagnóstico (ver
+ * DiagnosticoHistoricoOut em cloud/app/db/schemas.py) e agora os dois
+ * filtros usam o mesmo critério, comparando o device_id de verdade.
  *
  * Loading/erro/refresh padronizados via useCarregamentoAssincrono
- * (mesmo hook usado nas outras telas).
- *
- * ATUALIZAÇÃO (Dia 25): os avisos de "nenhum resultado no período"
- * (tanto pra diagnósticos quanto pra leituras) passaram a usar o
- * componente compartilhado EstadoVazio (variante "secao"), no mesmo
- * padrão visual das outras telas.
+ * (mesmo hook usado nas outras telas), e os avisos de "nenhum
+ * resultado no período" usam o componente compartilhado EstadoVazio
+ * (variante "secao").
  *
  * Header sem botão de voltar por enquanto (a ser implementado quando
  * a navegação para esta tela deixar de ser só pela tab bar).
@@ -31,12 +37,7 @@ import {
 
 import { colors } from '../theme/colors';
 import { getHistoricoLeituras, LeituraAmbiental } from '../services/leituras';
-import {
-  getDiagnosticos,
-  getImagemDoRegistro,
-  getDispositivoIdUnico,
-  Diagnostico,
-} from '../services/diagnosticos';
+import { getDiagnosticos, Diagnostico } from '../services/diagnosticos';
 import { FiltroDropdown } from '../components/FiltroDropdown';
 import { UmidadeBarChart } from '../components/UmidadeBarChart';
 import { DiagnosticoHistoricoCard } from '../components/DiagnosticoHistoricoCard';
@@ -49,31 +50,16 @@ import { OPCOES_PERIODO, filtrarPorPeriodo } from '../utils/periodo';
 
 const OPCAO_TODOS_CAMPOS = { valor: 'todos', rotulo: 'Todos os campos' };
 
-interface DiagnosticoComImagem extends Diagnostico {
-  caminhoImagem: string | null;
-}
-
 interface DadosHistorico {
   leituras: LeituraAmbiental[];
-  diagnosticos: DiagnosticoComImagem[];
+  diagnosticos: Diagnostico[];
 }
 
 async function buscarDadosHistorico(): Promise<DadosHistorico> {
+  // Em paralelo porque são duas rotas independentes: em série, a tela
+  // esperaria a soma das duas latências sem precisar.
   const [leituras, diagnosticos] = await Promise.all([getHistoricoLeituras(), getDiagnosticos()]);
-
-  const diagnosticosComImagem: DiagnosticoComImagem[] = await Promise.all(
-    diagnosticos.map(async (d) => {
-      const imagem = await getImagemDoRegistro(d.registro_imagem_id);
-      const caminho = imagem?.caminho_arquivo ?? null;
-      // Só usamos a imagem se for URL remota (http/https). Caminhos
-      // locais de mock não são resolvíveis dinamicamente pelo Metro —
-      // ver nota em services/diagnosticos.ts.
-      const caminhoValido = caminho && /^https?:\/\//.test(caminho) ? caminho : null;
-      return { ...d, caminhoImagem: caminhoValido };
-    })
-  );
-
-  return { leituras, diagnosticos: diagnosticosComImagem };
+  return { leituras, diagnosticos };
 }
 
 export default function HistoricoScreen() {
@@ -88,17 +74,26 @@ export default function HistoricoScreen() {
   const leituras = dados?.leituras ?? [];
   const diagnosticos = dados?.diagnosticos ?? [];
 
+  // As opções saem das DUAS listas, não só das leituras. Um
+  // dispositivo pode ter mandado foto e nenhuma leitura (sensor
+  // falhando, ver edge/src/main.py), e nesse caso ele precisa aparecer
+  // no filtro, senão seus diagnósticos ficariam inalcançáveis.
+  //
+  // O rótulo é o próprio device_id ('pi-estufa-01'), que é o nome que
+  // o produtor vê na tela de Perfil e no corpo do aparelho. Prefixar
+  // com "Estufa" produzia "Estufa pi-estufa-01".
   const opcoesCampo = useMemo(() => {
-    const idsUnicos = Array.from(new Set(leituras.map((l) => l.dispositivo_id)));
-    return [
-      OPCAO_TODOS_CAMPOS,
-      ...idsUnicos.map((id) => ({ valor: String(id), rotulo: `Estufa ${id}` })),
-    ];
-  }, [leituras]);
+    const idsUnicos = Array.from(
+      new Set([
+        ...leituras.map((l) => l.dispositivo_id),
+        ...diagnosticos.map((d) => d.dispositivo_id),
+      ]),
+    ).sort();
+    return [OPCAO_TODOS_CAMPOS, ...idsUnicos.map((id) => ({ valor: id, rotulo: id }))];
+  }, [leituras, diagnosticos]);
 
   const horasSelecionadas =
     OPCOES_PERIODO.find((o) => o.valor === periodoSelecionado)?.horas ?? null;
-  const dispositivoUnicoId = getDispositivoIdUnico();
 
   const leiturasFiltradas = useMemo(() => {
     let resultado = filtrarPorPeriodo(leituras, (l) => l.timestamp, horasSelecionadas);
@@ -110,11 +105,11 @@ export default function HistoricoScreen() {
 
   const diagnosticosFiltrados = useMemo(() => {
     let resultado = filtrarPorPeriodo(diagnosticos, (d) => d.timestamp, horasSelecionadas);
-    if (campoSelecionado !== 'todos' && campoSelecionado !== String(dispositivoUnicoId)) {
-      resultado = [];
+    if (campoSelecionado !== 'todos') {
+      resultado = resultado.filter((d) => d.dispositivo_id === campoSelecionado);
     }
     return resultado;
-  }, [diagnosticos, horasSelecionadas, campoSelecionado, dispositivoUnicoId]);
+  }, [diagnosticos, horasSelecionadas, campoSelecionado]);
 
   if (carregando && !dados) {
     return <EstadoCarregamento />;
@@ -171,7 +166,7 @@ export default function HistoricoScreen() {
           />
         ) : (
           diagnosticosFiltrados.map((d) => (
-            <DiagnosticoHistoricoCard key={d.id} diagnostico={d} caminhoImagem={d.caminhoImagem} />
+            <DiagnosticoHistoricoCard key={d.id} diagnostico={d} />
           ))
         )}
 

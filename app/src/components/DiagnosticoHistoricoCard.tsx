@@ -2,7 +2,15 @@
  * app/src/components/DiagnosticoHistoricoCard.tsx
  *
  * Card de diagnóstico na lista do Histórico: imagem (ou placeholder),
- * data, classificação (colorida por saudável/doente) e confiança.
+ * data, classificação (verde para sadia, vermelho para doença) e
+ * confiança.
+ *
+ * A imagem e o rótulo vêm prontos no objeto Diagnostico, resolvidos em
+ * services/diagnosticos.ts. Este componente não normaliza texto nem
+ * decide o que é "saudável": antes ele fazia isso por conta própria,
+ * com uma segunda cópia da mesma regra que a tela de Diagnóstico já
+ * tinha. Duas cópias da mesma decisão divergem na primeira vez que
+ * alguém mexe em uma delas. A regra única está em src/domain/doencas.ts.
  */
 
 import React from 'react';
@@ -13,19 +21,9 @@ import { Diagnostico } from '../services/diagnosticos';
 
 interface Props {
   diagnostico: Diagnostico;
-  caminhoImagem: string | null;
 }
 
-function ehSaudavel(classificacao: string): boolean {
-  return classificacao
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .includes('saudavel');
-}
-
-export function DiagnosticoHistoricoCard({ diagnostico, caminhoImagem }: Props) {
-  const saudavel = ehSaudavel(diagnostico.classificacao);
+export function DiagnosticoHistoricoCard({ diagnostico }: Props) {
   const dataFormatada = new Date(diagnostico.timestamp).toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
@@ -36,8 +34,8 @@ export function DiagnosticoHistoricoCard({ diagnostico, caminhoImagem }: Props) 
 
   return (
     <View style={styles.card}>
-      {caminhoImagem ? (
-        <Image source={{ uri: caminhoImagem }} style={styles.imagem} />
+      {diagnostico.urlImagem ? (
+        <Image source={{ uri: diagnostico.urlImagem }} style={styles.imagem} />
       ) : (
         <View style={[styles.imagem, styles.imagemPlaceholder]}>
           <Ionicons name="leaf-outline" size={22} color={colors.oliveGreen} />
@@ -47,7 +45,10 @@ export function DiagnosticoHistoricoCard({ diagnostico, caminhoImagem }: Props) 
       <View style={styles.info}>
         <Text style={styles.data}>{dataFormatada}</Text>
         <Text
-          style={[styles.classificacao, { color: saudavel ? colors.oliveGreen : colors.danger }]}
+          style={[
+            styles.classificacao,
+            { color: diagnostico.saudavel ? colors.oliveGreen : colors.danger },
+          ]}
         >
           {diagnostico.classificacao}
         </Text>

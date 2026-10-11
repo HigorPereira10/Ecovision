@@ -177,6 +177,25 @@ export async function post<T>(caminho: string, corpo: unknown): Promise<T> {
   });
 }
 
+/** PATCH autenticado, para alterar parte de um recurso existente
+ * (marcar um alerta como lido). Mesmo caminho do GET e do POST, então
+ * herda a renovação automática de sessão no 401.
+ *
+ * Aceita corpo opcional porque PATCH /alertas/{id}/lido não tem corpo:
+ * o próprio caminho já diz o que fazer. Enviar `{}` funcionaria, mas
+ * declarar um Content-Type para um corpo vazio é mentir sobre a
+ * requisição. */
+export async function patch<T>(caminho: string, corpo?: unknown): Promise<T> {
+  if (corpo === undefined) {
+    return requisicaoAutenticada<T>(caminho, { method: "PATCH" });
+  }
+  return requisicaoAutenticada<T>(caminho, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(corpo),
+  });
+}
+
 /**
  * POST sem autenticação, para os endpoints de login e refresh (que são
  * justamente os que ainda não têm token válido para enviar).

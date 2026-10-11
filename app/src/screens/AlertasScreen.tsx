@@ -5,10 +5,12 @@
  * (Crítico / Cuidado / Informativo), com status lido/não lido e ação
  * "Marcar como lido".
  *
- * Os dados vêm de services/alertas.ts (camada de serviço), nunca do
- * JSON mockado diretamente — quando a API do Higor estiver pronta,
- * só a implementação interna de getAlertas()/marcarAlertaLido() muda
- * (PATCH /alertas/{id}/lido), esta tela não precisa ser tocada.
+ * Os dados vêm de services/alertas.ts, que desde 2026-10-11 consome a
+ * API real (GET /alertas e PATCH /alertas/{id}/lido). O mock local
+ * deixou de existir. A previsão de que a tela não precisaria mudar se
+ * cumpriu quase inteira: só o alerta sintético de dispositivo inativo
+ * (ADR 0008) exigiu mexer aqui, porque ele chega sem id e não pode ser
+ * marcado como lido, então o botão não deve nem aparecer nele.
  *
  * Loading/erro/refresh padronizados via useCarregamentoAssincrono
  * (mesmo hook usado nas outras telas). "Marcar como lido" tem seu
@@ -22,10 +24,13 @@
  * headerShown: false, senão aparecem dois headers sobrepostos (mesmo
  * problema já resolvido no DiagnosticoScreen).
  *
- * Notificações locais (Dia 22-23, Blueprint Fase 5): useFocusEffect
- * roda uma verificação automática (verificarNovosAlertasNaoLidos)
- * toda vez que a tela ganha foco, simulando o que futuramente será um
- * push real vindo do backend. Ver services/notificacoes.ts.
+ * Notificações locais: useFocusEffect roda uma verificação automática
+ * (verificarNovosAlertasNaoLidos) toda vez que a tela ganha foco. Os
+ * alertas conferidos são os de verdade, vindos da API, mas a
+ * notificação em si continua sendo disparada pelo próprio aparelho:
+ * não existe push enviado pelo servidor (ver ADR 0012 para o porquê e
+ * para o que falta). Ou seja, o produtor só é avisado quando abre o
+ * app, nunca com o app fechado. Ver services/notificacoes.ts.
  *
  * O botão de sino que dispara uma notificação de demonstração é
  * ferramenta de apresentação, não funcionalidade: para o produtor ele
@@ -86,7 +91,10 @@ export default function AlertasScreen() {
 
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [ehAdministrador, setEhAdministrador] = useState(false);
-  const [marcandoId, setMarcandoId] = useState<number | null>(null);
+  // Indexado pela CHAVE, não pelo id: o alerta sintético tem id null, e
+  // comparar `marcandoId === item.id` acenderia o spinner dele toda vez
+  // que o estado estivesse em repouso (null === null).
+  const [marcandoChave, setMarcandoChave] = useState<string | null>(null);
   const [erroMarcarLido, setErroMarcarLido] = useState<string | null>(null);
   const { mensagem: mensagemToast, mostrarToast } = useToastSucesso();
 
@@ -116,19 +124,19 @@ export default function AlertasScreen() {
     }, [])
   );
 
-  async function marcarComoLido(id: number) {
-    setMarcandoId(id);
+  async function marcarComoLido(alerta: Alerta) {
+    setMarcandoChave(alerta.chave);
     setErroMarcarLido(null);
     try {
-      await marcarAlertaLido(id);
-      // Refaz a busca pra refletir o estado persistido pelo serviço —
-      // no futuro, pelo backend real, que passa a ser a fonte da verdade.
+      await marcarAlertaLido(alerta.id);
+      // Refaz a busca para refletir o estado já persistido no banco,
+      // que é a fonte da verdade desde que o mock saiu.
       await atualizar();
       mostrarToast('Alerta marcado como lido');
     } catch (e) {
       setErroMarcarLido('Não foi possível marcar como lido. Tente novamente.');
     } finally {
-      setMarcandoId(null);
+      setMarcandoChave(null);
     }
   }
 
@@ -189,7 +197,7 @@ export default function AlertasScreen() {
           style={styles.lista}
           contentContainerStyle={styles.listaConteudo}
           data={alertasFiltrados}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item) => item.chave}
           refreshing={atualizando}
           onRefresh={atualizar}
           ListHeaderComponent={
@@ -214,7 +222,7 @@ export default function AlertasScreen() {
           }
           renderItem={({ item }) => {
             const config = SEVERIDADE_CONFIG[item.severidade];
-            const marcandoEsteItem = marcandoId === item.id;
+            const marcandoEsteItem = marcandoChave === item.chave;
             return (
               <View style={styles.card}>
                 <View style={[styles.faixa, { backgroundColor: config.cor }]}>
@@ -234,22 +242,33 @@ export default function AlertasScreen() {
                   <Text style={[styles.descricao, { color: config.cor }]}>{item.descricao}</Text>
                   <Text style={styles.data}>{formatarData(item.timestamp)}</Text>
 
-                  <Pressable
-                    style={[styles.botao, item.lido && styles.botaoLido]}
-                    onPress={() => marcarComoLido(item.id)}
-                    disabled={item.lido || marcandoEsteItem}
-                  >
-                    {marcandoEsteItem ? (
-                      <ActivityIndicator size="small" color={colors.oliveGreen} />
-                    ) : (
-                      <>
-                        <Ionicons name="checkmark" size={16} color={item.lido ? colors.textMuted : colors.oliveGreen} />
-                        <Text style={[styles.botaoTexto, item.lido && styles.botaoTextoLido]}>
-                          {item.lido ? 'Lido' : 'Marcar como lido'}
-                        </Text>
-                      </>
-                    )}
-                  </Pressable>
+                  {/* O alerta de dispositivo inativo é recalculado a
+                      cada consulta e não tem linha no banco: marcá-lo
+                      como lido não teria o que atualizar, e ele voltaria
+                      na requisição seguinte de qualquer forma. Em vez do
+                      botão, explica-se o que fazer. */}
+                  {item.sintetico ? (
+                    <Text style={styles.avisoSintetico}>
+                      Este aviso desaparece sozinho quando o dispositivo voltar a enviar dados.
+                    </Text>
+                  ) : (
+                    <Pressable
+                      style={[styles.botao, item.lido && styles.botaoLido]}
+                      onPress={() => marcarComoLido(item)}
+                      disabled={item.lido || marcandoEsteItem}
+                    >
+                      {marcandoEsteItem ? (
+                        <ActivityIndicator size="small" color={colors.oliveGreen} />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark" size={16} color={item.lido ? colors.textMuted : colors.oliveGreen} />
+                          <Text style={[styles.botaoTexto, item.lido && styles.botaoTextoLido]}>
+                            {item.lido ? 'Lido' : 'Marcar como lido'}
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  )}
                 </View>
               </View>
             );
@@ -339,5 +358,13 @@ const styles = StyleSheet.create({
   },
   botaoLido: { borderColor: '#DADAD2', backgroundColor: '#F2F2ED' },
   botaoTexto: { color: colors.oliveGreen, fontWeight: '700', fontSize: 13 },
-  botaoTextoLido: { color: colors.textMuted }
+  botaoTextoLido: { color: colors.textMuted },
+  // Ocupa o lugar do botao "marcar como lido" no alerta sintetico.
+  avisoSintetico: {
+    fontSize: 12,
+    color: colors.textMuted,
+    lineHeight: 17,
+    marginTop: 10,
+    fontStyle: 'italic',
+  },
 });

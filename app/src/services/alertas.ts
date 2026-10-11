@@ -1,80 +1,109 @@
 /**
  * app/src/services/alertas.ts
  *
- * Camada de dados para o painel de Alertas. Hoje lê do mock local
- * (src/mocks/alertas.json); no futuro vira fetch() para o FastAPI
- * (GET /alertas e PATCH /alertas/{id}/lido). Mesma assinatura
- * async/Promise usada em services/leituras.ts e services/diagnosticos.ts,
- * pra troca sem refatorar a tela.
+ * Camada de dados do painel de Alertas. Consome GET /alertas e
+ * PATCH /alertas/{id}/lido da API real (ver
+ * cloud/app/api/routes/alertas.py).
  *
- * TODO quando a API estiver pronta:
- * - getAlertas() vira `await api.get('/alertas')` (usando o cliente
- *   central de services/api.ts, já autenticado via JWT).
- * - marcarAlertaLido() vira `await api.patch(`/alertas/${alertaId}/lido`)`.
- * - Como o backend real vai persistir o estado "lido" no Postgres, o
- *   array em memória abaixo deixa de existir — cada chamada a
- *   getAlertas() vai refletir o estado já atualizado no servidor.
+ * Até 2026-10-11 este módulo lia de src/mocks/alertas.json e guardava o
+ * estado "lido" num array em memória, que se perdia a cada reinício do
+ * app. Agora o backend é a fonte da verdade: o PATCH persiste no
+ * Postgres e vale em qualquer aparelho que entre na mesma conta.
+ *
+ * DUAS COISAS AQUI NÃO SÃO ÓBVIAS, E AS DUAS QUEBRAM A TELA SE FOREM
+ * IGNORADAS:
+ *
+ * 1. SEVERIDADE TEM VOCABULÁRIO DIFERENTE NAS DUAS PONTAS. O backend
+ *    grava 'alta' e 'media' (ver cloud/app/core/alertas_ambientais.py e
+ *    o catálogo de cloud/app/core/inference.py); a tela foi construída
+ *    com 'critico', 'cuidado' e 'informativo', que é o vocabulário do
+ *    design da Amanda. A tela indexa um Record por esse valor, então
+ *    uma severidade desconhecida viraria `undefined` e a tela quebraria
+ *    ao ler a cor. A tradução acontece aqui, e o `default` do mapa é o
+ *    que garante que uma severidade nova inventada no backend degrade
+ *    para 'informativo' em vez de derrubar a lista.
+ *
+ * 2. ALERTA SINTÉTICO NÃO TEM id. O item de "dispositivo inativo" (ADR
+ *    0008) é calculado a cada requisição e não existe na tabela
+ *    `alertas`: ele chega com id=null e sintetico=true. Não dá para
+ *    marcá-lo como lido, porque não há linha para atualizar, e o
+ *    backend responde 404 a quem tentar. A tela usa `sintetico` para
+ *    esconder o botão, e `chave` para ter um identificador estável de
+ *    lista mesmo sem id.
  */
 
-import alertasMock from '../mocks/alertas.json';
+import { get, patch } from './api';
 
+/** Vocabulário da TELA. Mantido como estava para não refazer o design. */
 export type SeveridadeAlerta = 'critico' | 'cuidado' | 'informativo';
 
-export interface Alerta {
-  id: number;
-  tipo: string;
-  severidade: SeveridadeAlerta;
+/** Vocabulário do BANCO, traduzido acima. */
+const SEVERIDADE_DA_API: Record<string, SeveridadeAlerta> = {
+  alta: 'critico',
+  media: 'cuidado',
+  baixa: 'informativo',
+};
+
+/** Formato devolvido pela API (GET /alertas). */
+interface AlertaDaApi {
+  id: number | null;
   titulo: string;
   descricao: string;
+  severidade: string;
   lido: boolean;
+  criado_em: string;
+  sintetico: boolean;
+}
+
+export interface Alerta {
+  /** null no alerta sintético de dispositivo inativo. */
+  id: number | null;
+  /** Identificador estável de lista, inclusive para o item sem id. */
+  chave: string;
+  titulo: string;
+  descricao: string;
+  severidade: SeveridadeAlerta;
+  lido: boolean;
+  /** true = calculado pela API, não existe no banco, não pode ser lido. */
+  sintetico: boolean;
   timestamp: string;
 }
 
-// Cópia mutável em memória do mock, pra simular persistência do estado
-// "lido" entre chamadas dentro da mesma sessão do app (o JSON importado
-// é somente leitura). Isso deixa de existir quando marcarAlertaLido()
-// virar uma chamada PATCH real — o backend passa a ser a fonte da verdade.
-let alertasEmMemoria: Alerta[] = [...(alertasMock as Alerta[])];
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+function traduzir(bruto: AlertaDaApi): Alerta {
+  return {
+    id: bruto.id,
+    // O sintético é sempre no máximo um por resposta, então 'sintetico'
+    // basta como chave; os reais usam o id do banco.
+    chave: bruto.id !== null ? `alerta-${bruto.id}` : 'alerta-sintetico',
+    titulo: bruto.titulo,
+    descricao: bruto.descricao,
+    severidade: SEVERIDADE_DA_API[bruto.severidade] ?? 'informativo',
+    lido: bruto.lido,
+    sintetico: bruto.sintetico,
+    timestamp: bruto.criado_em,
+  };
 }
 
-function ordenarPorDataDesc(alertas: Alerta[]): Alerta[] {
-  return [...alertas].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  );
-}
-
-/**
- * Retorna todos os alertas, do mais recente para o mais antigo.
- * Futuro: `await fetch(`${API_URL}/alertas`, { headers: authHeader })`.
- */
+/** Alertas do produtor logado, do mais recente para o mais antigo.
+ *
+ * O alerta sintético de dispositivo inativo, quando existe, vem
+ * primeiro da API. A ordenação por data é aplicada depois de propósito
+ * apenas sobre a data: o sintético carrega a data da última captura,
+ * então ele se posiciona no tempo junto com o resto, sem precisar de
+ * tratamento especial. */
 export async function getAlertas(): Promise<Alerta[]> {
-  await delay(300); // simula latência de rede
-  return ordenarPorDataDesc(alertasEmMemoria);
+  const brutos = await get<AlertaDaApi[]>('/alertas');
+  return brutos
+    .map(traduzir)
+    .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 }
 
-/**
- * Marca um alerta específico como lido.
- * Futuro: `await fetch(`${API_URL}/alertas/${alertaId}/lido`, { method: 'PATCH', headers: authHeader })`.
- */
-export async function marcarAlertaLido(alertaId: number): Promise<void> {
-  await delay(200);
-
-  const index = alertasEmMemoria.findIndex((alerta) => alerta.id === alertaId);
-  if (index === -1) {
-    throw new Error(`Alerta com id ${alertaId} não encontrado.`);
+/** Marca um alerta real como lido. Só aceita alerta com id: chamar isto
+ * para o sintético é erro de programação, não condição de rede, por
+ * isso falha alto em vez de ir pedir 404 à API. */
+export async function marcarAlertaLido(alertaId: number | null): Promise<void> {
+  if (alertaId === null) {
+    throw new Error('Alerta de dispositivo inativo não pode ser marcado como lido.');
   }
-
-  alertasEmMemoria[index] = { ...alertasEmMemoria[index], lido: true };
-}
-
-/**
- * Retorna a contagem de alertas não lidos.
- * Útil pra um badge na tab bar ou no header, se quiser adicionar depois.
- */
-export async function getContagemNaoLidos(): Promise<number> {
-  await delay(100);
-  return alertasEmMemoria.filter((alerta) => !alerta.lido).length;
+  await patch(`/alertas/${alertaId}/lido`);
 }

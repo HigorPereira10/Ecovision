@@ -8,6 +8,7 @@ import {
   Image,
 } from 'react-native';
 import { getUltimaLeitura, getHistoricoLeituras, LeituraAmbiental } from '../services/leituras';
+import { getDiagnosticosRecentes } from '../services/diagnosticos';
 import { LeituraCard } from '../components/LeituraCard';
 import { SituacaoSanitariaCard } from '../components/SituacaoSanitariaCard';
 import { SerieTemporalCard } from '../components/SerieTemporalCard';
@@ -18,8 +19,15 @@ import { AvisoErroInline } from '../components/AvisoErroInline';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
 
-// TODO: ajustar quando confirmarmos o schema real de diagnosticos.json
-import diagnosticosMock from '../mocks/diagnosticos.json';
+/**
+ * Esta tela foi a última a sair do mock, em 2026-10-11. O card de
+ * situação sanitária contava folhas de src/mocks/diagnosticos.json,
+ * sempre as mesmas 6, enquanto os cards de temperatura e umidade logo
+ * abaixo já mostravam o sensor de verdade. Metade real e metade
+ * inventada é pior do que vazia: na banca, um diagnóstico de uma folha
+ * que nunca existiu ao lado de 29,5 °C medidos na estufa é exatamente o
+ * tipo de coisa que destrói a credibilidade do resto.
+ */
 
 interface DiagnosticoResumo {
   saudaveis: number;
@@ -32,30 +40,28 @@ interface DadosDashboard {
   situacao: DiagnosticoResumo;
 }
 
-function calcularSituacaoSanitaria(): DiagnosticoResumo {
-  const diagnosticos = diagnosticosMock as any[];
-  let saudaveis = 0;
-  let comDoenca = 0;
-
-  diagnosticos.forEach((d) => {
-    const classificacaoNormalizada = (d.classificacao || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, ''); // remove acentos
-
-    if (classificacaoNormalizada.includes('saudavel')) {
-      saudaveis++;
-    } else {
-      comDoenca++;
-    }
-  });
-
-  return { saudaveis, comDoenca };
-}
-
 async function buscarDadosDashboard(): Promise<DadosDashboard> {
-  const [leitura, historico] = await Promise.all([getUltimaLeitura(), getHistoricoLeituras()]);
-  return { leitura, historico, situacao: calcularSituacaoSanitaria() };
+  const [leitura, historico, diagnosticos] = await Promise.all([
+    getUltimaLeitura(),
+    getHistoricoLeituras(),
+    getDiagnosticosRecentes(),
+  ]);
+
+  // Quem decide o que conta como sadio é src/domain/doencas.ts, e o
+  // serviço já entrega o campo resolvido. O Dashboard não repete essa
+  // regra: ela é a mesma que pinta a cor na tela de Diagnóstico e no
+  // card do Histórico, e três cópias dela divergiriam.
+  //
+  // A contagem é sobre os diagnósticos RECENTES, não sobre o histórico
+  // inteiro, e isso é proposital: o card responde "como está a estufa
+  // agora", e uma doença resolvida há seis dias continuaria pesando no
+  // número se a janela fosse maior.
+  const situacao: DiagnosticoResumo = {
+    saudaveis: diagnosticos.filter((d) => d.saudavel).length,
+    comDoenca: diagnosticos.filter((d) => !d.saudavel).length,
+  };
+
+  return { leitura, historico, situacao };
 }
 
 export default function DashboardScreen() {

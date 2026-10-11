@@ -45,7 +45,19 @@ import { colors } from '../theme/colors';
 
 type ModuloNotificacoes = typeof import('expo-notifications');
 
-const CHAVE_IDS_NOTIFICADOS = '@ecovision:notificacoes_ids_notificados';
+// Guarda a CHAVE do alerta, não o id numérico. Mudou junto com a
+// migração de services/alertas.ts para a API real: o alerta sintético
+// de dispositivo inativo (ADR 0008) chega com id null, e `null` como
+// identificador fazia todos os alertas sem id colidirem num só.
+//
+// O nome da chave de armazenamento ganhou sufixo porque o formato
+// guardado mudou de número para texto. Ler a lista antiga com o
+// formato novo não daria erro, daria algo pior: nenhuma correspondência
+// e notificação repetida de tudo, sem explicação visível. Com chave
+// nova, a lista antiga é simplesmente ignorada, e o custo é no máximo
+// uma notificação repetida dos alertas não lidos que já existiam no
+// aparelho na primeira abertura após a atualização.
+const CHAVE_IDS_NOTIFICADOS = '@ecovision:notificacoes_chaves_notificadas';
 
 const SEVERIDADE_TITULO: Record<SeveridadeAlerta, string> = {
   critico: '🔴 Alerta crítico',
@@ -164,18 +176,21 @@ export async function dispararNotificacaoAlerta(alerta: Alerta): Promise<void> {
 }
 
 /**
- * Dispara uma notificação de demonstração, sem depender do estado
- * real dos mocks. Usada pelo botão de teste na tela de Alertas —
- * pensada especificamente pra demonstração na banca.
+ * Dispara uma notificação de demonstração, sem depender de haver
+ * alerta de verdade no banco. Usada pelo botão de sino da tela de
+ * Alertas, que só aparece em __DEV__ ou para conta de administrador:
+ * é ferramenta de apresentação na banca, não funcionalidade do
+ * produtor.
  */
 export async function dispararNotificacaoTeste(): Promise<void> {
   const alertaDemo: Alerta = {
     id: -1,
-    tipo: 'demo',
+    chave: 'alerta-demo',
     severidade: 'cuidado',
     titulo: 'Novo alerta fitossanitário detectado na estufa 1',
     descricao: 'Notificação de demonstração (EcoVision).',
     lido: false,
+    sintetico: false,
     timestamp: new Date().toISOString(),
   };
 
@@ -188,9 +203,12 @@ export async function dispararNotificacaoTeste(): Promise<void> {
  * instalação do app (controle via AsyncStorage). Retorna quantos
  * alertas novos foram notificados.
  *
- * Pensada pra ser chamada ao abrir/focar a tela de Alertas — quando o
- * backend real existir, o ideal é substituir por um listener reativo
- * em vez de checagem sob demanda.
+ * Chamada ao focar a tela de Alertas. Os alertas conferidos são os de
+ * verdade, vindos da API, mas quem dispara a notificação é o próprio
+ * aparelho: com o app fechado, ninguém é avisado de nada. Push de
+ * servidor exigiria guardar o token do Expo por usuário e um processo
+ * que observe alertas novos; ver ADR 0012 para a decisão de não fazer
+ * isso agora e para o que seria necessário.
  */
 export async function verificarNovosAlertasNaoLidos(): Promise<number> {
   // Sai antes de tocar no AsyncStorage: sem isso, os alertas seriam
@@ -202,18 +220,18 @@ export async function verificarNovosAlertasNaoLidos(): Promise<number> {
   const naoLidos = alertas.filter((a) => !a.lido);
   if (naoLidos.length === 0) return 0;
 
-  const idsNotificadosRaw = await AsyncStorage.getItem(CHAVE_IDS_NOTIFICADOS);
-  const idsNotificados: number[] = idsNotificadosRaw ? JSON.parse(idsNotificadosRaw) : [];
-  const idsNotificadosSet = new Set(idsNotificados);
+  const chavesRaw = await AsyncStorage.getItem(CHAVE_IDS_NOTIFICADOS);
+  const chavesNotificadas: string[] = chavesRaw ? JSON.parse(chavesRaw) : [];
+  const jaNotificadas = new Set(chavesNotificadas);
 
-  const novos = naoLidos.filter((a) => !idsNotificadosSet.has(a.id));
+  const novos = naoLidos.filter((a) => !jaNotificadas.has(a.chave));
   if (novos.length === 0) return 0;
 
   for (const alerta of novos) {
     await dispararNotificacaoAlerta(alerta);
-    idsNotificadosSet.add(alerta.id);
+    jaNotificadas.add(alerta.chave);
   }
 
-  await AsyncStorage.setItem(CHAVE_IDS_NOTIFICADOS, JSON.stringify(Array.from(idsNotificadosSet)));
+  await AsyncStorage.setItem(CHAVE_IDS_NOTIFICADOS, JSON.stringify(Array.from(jaNotificadas)));
   return novos.length;
 }

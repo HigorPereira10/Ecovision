@@ -100,6 +100,21 @@ export async function verificarEmail(email: string, codigo: string): Promise<voi
   });
 }
 
+/** Pede um código de confirmação novo (POST /auth/resend-code).
+ *
+ * A API responde sempre a mesma coisa: conta inexistente, conta já
+ * confirmada e pedido feito antes do intervalo mínimo de 60 segundos
+ * recebem resposta idêntica. Então esta função não tem como dizer à
+ * tela se o e-mail saiu de verdade, e a tela não deve prometer que
+ * saiu. É por isso que a tela de confirmação mantém o botão em
+ * contagem regressiva em vez de confiar na resposta: o cadastro já
+ * conta como primeiro envio, e um toque imediato não manda nada. */
+export async function reenviarCodigo(email: string): Promise<void> {
+  await postSemAutenticacao("/auth/resend-code", {
+    email: email.trim().toLowerCase(),
+  });
+}
+
 /** Pede o código de redefinição de senha (POST /auth/forgot-password).
  *
  * A API responde sempre a mesma coisa, exista ou não a conta, para não

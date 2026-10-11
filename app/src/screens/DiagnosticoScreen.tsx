@@ -4,33 +4,33 @@
  * Framework: Expo (React Native), decisão confirmada pelo grupo.
  * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
  *
- * Exibe o diagnóstico mais recente, incluindo a foto da folha. A URL
- * da imagem vem PRONTA da API (Blueprint Seção 4.2, passo 5); esta
- * tela nunca busca a imagem diretamente no Supabase Storage.
+ * Exibe o diagnóstico mais recente da IA, com a foto da folha que foi
+ * classificada. A URL da imagem vem PRONTA da API (signed URL de bucket
+ * privado): esta tela nunca fala com o Supabase Storage diretamente.
  *
- * ATUALIZAÇÃO: esta tela passou a consumir services/diagnosticos.ts
- * (getDiagnosticos / getImagemDoRegistro) em vez de importar
- * diagnosticos.json e imagens.json diretamente. O serviço já existia
- * e já era usado pela tela de Histórico, mas o Diagnóstico ainda
- * estava lendo os JSONs direto — quebrando a regra de "nenhuma tela
- * acessa mock direto" documentada no relatório de progresso. Ajustado
- * aqui junto com o tratamento de loading/erro.
+ * DADO REAL desde 2026-10-11: consome services/diagnosticos.ts, que
+ * chama GET /diagnosticos. Antes, os JSONs de src/mocks/ faziam a tela
+ * mostrar seis folhas inventadas, com nomes de doenças que o modelo em
+ * produção nem reconhece. Com o Pi ainda sem captura ligada, o normal
+ * é esta tela aparecer VAZIA, e isso é o comportamento correto: vazio
+ * diz a verdade, mock não.
  *
- * NOTA: imagens.json hoje só tem 1 registro, mas diagnosticos.json
- * tem 6 (registro_imagem_id de 1 a 6). Enquanto isso não é corrigido,
- * usamos um placeholder visual pra ids sem imagem correspondente.
+ * O rótulo da doença não vem pronto da API. A API devolve o nome
+ * técnico da classe ('pinta_preta') e src/domain/doencas.ts traduz para
+ * o texto da tela. É lá também que está a lista do que o modelo
+ * reconhece hoje, resumida no pé desta tela para deixar o limite da IA
+ * explícito ao produtor, em vez de dar a entender que ela identifica
+ * qualquer doença de tomate.
  *
- * NOTA: "MobileNetV2 (TFLite)" está fixo no código porque não existe
- * campo "modelo" em diagnosticos.json ainda.
+ * NOTA: "MobileNetV2 (TFLite)" está fixo no código porque a tabela
+ * `diagnosticos` não guarda qual modelo gerou cada predição. Enquanto
+ * houver um único modelo em produção isso é verdade; quando houver
+ * versionamento de modelo, o campo precisa vir do banco.
  *
  * NOTA: esta tela é raiz de aba (Tab.Navigator), não faz parte de um
- * stack empilhado — por isso não tem botão de voltar. headerShown está
+ * stack empilhado, por isso não tem botão de voltar. headerShown está
  * como false na definição da aba em AppNavigator.tsx, e o header abaixo
  * (logo + título) segue o mesmo padrão do DashboardScreen.
- *
- * ATUALIZAÇÃO (Dia 25): estado "nenhum diagnóstico ainda" passou a usar
- * o componente compartilhado EstadoVazio, no mesmo padrão visual das
- * outras telas, em vez do bloco de texto solto que havia antes.
  */
 
 import React, { useState } from 'react';
@@ -43,12 +43,8 @@ import {
   TouchableOpacity,
   RefreshControl,
 } from 'react-native';
-import {
-  getDiagnosticos,
-  getImagemDoRegistro,
-  Diagnostico,
-  RegistroImagem,
-} from '../services/diagnosticos';
+import { getDiagnosticosRecentes } from '../services/diagnosticos';
+import { resumoDoEscopoDoModelo } from '../domain/doencas';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
 import { EstadoVazio } from '../components/EstadoVazio';
@@ -57,17 +53,6 @@ import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
 
 const MODELO_IA = 'MobileNetV2 (TFLite)';
-
-function normalizarTexto(texto: string): string {
-  return texto
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
-}
-
-function isSaudavel(classificacao: string): boolean {
-  return normalizarTexto(classificacao).includes('saudavel');
-}
 
 function formatarData(timestamp: string): string {
   return new Date(timestamp).toLocaleString('pt-BR', {
@@ -79,77 +64,55 @@ function formatarData(timestamp: string): string {
   });
 }
 
-interface DadosDiagnostico {
-  diagnosticos: Diagnostico[];
-  imagensPorRegistro: Map<number, RegistroImagem>;
-}
-
-async function buscarDadosDiagnostico(): Promise<DadosDiagnostico> {
-  const diagnosticos = await getDiagnosticos();
-  const imagensPorRegistro = new Map<number, RegistroImagem>();
-
-  await Promise.all(
-    diagnosticos.map(async (d) => {
-      const imagem = await getImagemDoRegistro(d.registro_imagem_id);
-      if (imagem) imagensPorRegistro.set(d.registro_imagem_id, imagem);
-    })
-  );
-
-  return { diagnosticos, imagensPorRegistro };
-}
-
 export default function DiagnosticoScreen() {
-  const { dados, carregando, atualizando, erro, recarregar, atualizar } =
-    useCarregamentoAssincrono(buscarDadosDiagnostico, []);
+  const { dados: diagnosticos, carregando, atualizando, erro, recarregar, atualizar } =
+    useCarregamentoAssincrono(getDiagnosticosRecentes, []);
 
   const [diagnosticoAtualId, setDiagnosticoAtualId] = useState<number | null>(null);
 
-  if (carregando && !dados) {
+  if (carregando && !diagnosticos) {
     return <EstadoCarregamento />;
   }
 
-  if (erro && !dados) {
+  if (erro && !diagnosticos) {
     return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
-  if (!dados || dados.diagnosticos.length === 0) {
+  // Cabeçalho repetido no estado vazio de propósito: sem ele a tela
+  // perde a identidade visual justamente no caso mais comum hoje, com o
+  // Pi ainda sem captura ligada.
+  const cabecalho = (
+    <View style={styles.header}>
+      <Image
+        source={require('../../assets/images/logo-ecovision.png')}
+        style={styles.logo}
+      />
+      <Text style={styles.headerTitulo}>Diagnóstico de Campo</Text>
+      <View style={{ width: 32 }} />
+    </View>
+  );
+
+  if (!diagnosticos || diagnosticos.length === 0) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <Image
-            source={require('../../assets/images/logo-ecovision.png')}
-            style={styles.logo}
-          />
-          <Text style={styles.headerTitulo}>Diagnóstico de Campo</Text>
-          <View style={{ width: 32 }} />
-        </View>
+        {cabecalho}
         <EstadoVazio
           icone="scan-outline"
-          titulo="Nenhum diagnóstico disponível ainda"
-          subtitulo="Assim que a IA analisar as primeiras imagens da estufa, os resultados aparecem aqui."
+          titulo="Nenhum diagnóstico ainda"
+          subtitulo="Quando o dispositivo enviar a primeira foto da estufa, o resultado da análise aparece aqui."
         />
       </View>
     );
   }
 
-  const idSelecionado = diagnosticoAtualId ?? dados.diagnosticos[0].id;
-  const diagnostico =
-    dados.diagnosticos.find((d) => d.id === idSelecionado) ?? dados.diagnosticos[0];
-  const registroImagem = dados.imagensPorRegistro.get(diagnostico.registro_imagem_id);
-  const saudavel = isSaudavel(diagnostico.classificacao);
-  const corStatus = saudavel ? colors.oliveGreen : colors.danger;
+  const idSelecionado = diagnosticoAtualId ?? diagnosticos[0].id;
+  const diagnostico = diagnosticos.find((d) => d.id === idSelecionado) ?? diagnosticos[0];
+  const corStatus = diagnostico.saudavel ? colors.oliveGreen : colors.danger;
   const confiancaPercentual = Math.round(diagnostico.confianca * 100);
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Image
-          source={require('../../assets/images/logo-ecovision.png')}
-          style={styles.logo}
-        />
-        <Text style={styles.headerTitulo}>Diagnóstico de Campo</Text>
-        <View style={{ width: 32 }} />
-      </View>
+      {cabecalho}
 
       <ScrollView
         style={styles.scroll}
@@ -160,8 +123,8 @@ export default function DiagnosticoScreen() {
       >
         {erro && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
 
-        {registroImagem ? (
-          <Image source={{ uri: registroImagem.caminho_arquivo }} style={styles.imagem} />
+        {diagnostico.urlImagem ? (
+          <Image source={{ uri: diagnostico.urlImagem }} style={styles.imagem} />
         ) : (
           <View style={[styles.imagem, styles.imagemPlaceholder]}>
             <Text style={styles.imagemPlaceholderTexto}>Imagem não disponível</Text>
@@ -190,55 +153,68 @@ export default function DiagnosticoScreen() {
           </View>
         </View>
 
-        <View style={styles.cardRecomendacao}>
-          <Text style={styles.recomendacaoTitulo}>Recomendação de manejo</Text>
-          <Text style={styles.recomendacaoTexto}>{diagnostico.recomendacao}</Text>
-        </View>
+        {/* Planta sadia não tem recomendação de manejo no catálogo
+            agronômico (ADR 0006), então `recomendacao` chega nula. Sem
+            esta guarda o card apareceria vazio, dando a impressão de
+            que o texto não carregou. */}
+        {diagnostico.recomendacao && (
+          <View style={styles.cardRecomendacao}>
+            <Text style={styles.recomendacaoTitulo}>Recomendação de manejo</Text>
+            <Text style={styles.recomendacaoTexto}>{diagnostico.recomendacao}</Text>
+          </View>
+        )}
 
         <Text style={styles.metaTexto}>
           Capturado em {formatarData(diagnostico.timestamp)} · {MODELO_IA}
         </Text>
 
-        <Text style={styles.secaoTitulo}>Resultados recentes</Text>
+        {diagnosticos.length > 1 && (
+          <>
+            <Text style={styles.secaoTitulo}>Resultados recentes</Text>
 
-        <View style={styles.grid}>
-          {dados.diagnosticos.map((item) => {
-            const itemImagem = dados.imagensPorRegistro.get(item.registro_imagem_id);
-            const itemSaudavel = isSaudavel(item.classificacao);
-            const itemCor = itemSaudavel ? colors.oliveGreen : colors.danger;
-            const selecionado = item.id === diagnostico.id;
+            <View style={styles.grid}>
+              {diagnosticos.map((item) => {
+                const itemCor = item.saudavel ? colors.oliveGreen : colors.danger;
+                const selecionado = item.id === diagnostico.id;
 
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.gridItem}
-                onPress={() => setDiagnosticoAtualId(item.id)}
-                activeOpacity={0.7}
-              >
-                {itemImagem ? (
-                  <Image
-                    source={{ uri: itemImagem.caminho_arquivo }}
-                    style={[
-                      styles.gridImagem,
-                      selecionado && { borderColor: colors.oliveGreen, borderWidth: 2 },
-                    ]}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      styles.gridImagem,
-                      styles.gridImagemPlaceholder,
-                      selecionado && { borderColor: colors.oliveGreen, borderWidth: 2 },
-                    ]}
-                  />
-                )}
-                <Text style={[styles.gridLabel, { color: itemCor }]} numberOfLines={1}>
-                  {item.classificacao}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={styles.gridItem}
+                    onPress={() => setDiagnosticoAtualId(item.id)}
+                    activeOpacity={0.7}
+                  >
+                    {item.urlImagem ? (
+                      <Image
+                        source={{ uri: item.urlImagem }}
+                        style={[
+                          styles.gridImagem,
+                          selecionado && { borderColor: colors.oliveGreen, borderWidth: 2 },
+                        ]}
+                      />
+                    ) : (
+                      <View
+                        style={[
+                          styles.gridImagem,
+                          styles.gridImagemPlaceholder,
+                          selecionado && { borderColor: colors.oliveGreen, borderWidth: 2 },
+                        ]}
+                      />
+                    )}
+                    <Text style={[styles.gridLabel, { color: itemCor }]} numberOfLines={1}>
+                      {item.classificacao}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </>
+        )}
+
+        {/* O limite do modelo, dito ao produtor. Sem isto, uma folha
+            com requeima classificada como "saudável" parece erro da IA,
+            quando na verdade é doença que ela nunca aprendeu a ver. */}
+        <Text style={styles.escopoTexto}>{resumoDoEscopoDoModelo()}</Text>
       </ScrollView>
     </View>
   );
@@ -394,6 +370,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
     marginTop: 4,
+    textAlign: 'center',
+  },
+  escopoTexto: {
+    fontSize: 11,
+    color: '#999',
+    lineHeight: 16,
+    marginTop: 8,
     textAlign: 'center',
   },
 });
