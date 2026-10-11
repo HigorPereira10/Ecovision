@@ -21,6 +21,30 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
     .filter((l) => l.umidade_ar !== null)
     .map((l) => ({ x: new Date(l.timestamp), y: l.umidade_ar as number }));
 
+  // Uma linha precisa de DOIS pontos para existir. Com um ponto só, o
+  // gráfico saía desenhado, com eixos e grade, e completamente vazio
+  // por dentro, enquanto o eixo do tempo repetia o mesmo horário cinco
+  // vezes (foi o que apareceu no primeiro teste com o dispositivo real:
+  // "16:50" cinco vezes e nenhuma linha). Um gráfico vazio parece
+  // defeito; uma frase explicando o que falta, não.
+  const pontosSuficientes = dadosTemperatura.length >= 2 || dadosUmidade.length >= 2;
+
+  if (!pontosSuficientes) {
+    const algumaMedicao = dadosTemperatura.length > 0 || dadosUmidade.length > 0;
+    return (
+      <View style={styles.card}>
+        <Text style={styles.titulo}>Série temporal</Text>
+        <Text style={styles.subtitulo}>
+          {leituras.length === 0
+            ? 'Nenhuma leitura recebida ainda.'
+            : algumaMedicao
+              ? 'Só há uma medição até agora. O gráfico aparece a partir da segunda.'
+              : 'As leituras recebidas não trazem temperatura nem umidade do ar.'}
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.card}>
       <Text style={styles.titulo}>Série temporal</Text>

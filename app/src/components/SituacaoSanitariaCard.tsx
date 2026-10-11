@@ -6,13 +6,27 @@ import { colors } from '../theme/colors';
 interface SituacaoSanitariaCardProps {
   saudaveis: number;
   comDoenca: number;
-  periodoHoras?: number;
+}
+
+/** O subtítulo descreve a AMOSTRA, não uma janela de tempo.
+ *
+ * Ele dizia "Diagnósticos das últimas 48 horas", com 48 fixo no código,
+ * enquanto a busca real era de outra janela. O número no texto e o
+ * número na consulta viviam em arquivos diferentes e, na primeira vez
+ * que a consulta mudou, o rótulo passou a mentir sem que nada quebrasse.
+ *
+ * Contar o que está no próprio card elimina a possibilidade: seja qual
+ * for a janela que services/diagnosticos.ts usar amanhã, esta frase
+ * continua verdadeira. */
+function descreverAmostra(total: number): string {
+  if (total === 0) return 'Nenhum diagnóstico recebido ainda';
+  if (total === 1) return 'Baseado no último diagnóstico';
+  return `Baseado nos ${total} diagnósticos mais recentes`;
 }
 
 export function SituacaoSanitariaCard({
   saudaveis,
   comDoenca,
-  periodoHoras = 48,
 }: SituacaoSanitariaCardProps) {
   const total = saudaveis + comDoenca;
   const data =
@@ -28,9 +42,7 @@ export function SituacaoSanitariaCard({
   return (
     <View style={styles.card}>
       <Text style={styles.titulo}>Situação sanitária</Text>
-      <Text style={styles.subtitulo}>
-        Diagnósticos das últimas {periodoHoras} horas
-      </Text>
+      <Text style={styles.subtitulo}>{descreverAmostra(total)}</Text>
 
       <View style={styles.graficoContainer}>
         <VictoryPie

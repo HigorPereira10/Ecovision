@@ -16,9 +16,18 @@
  *   mostrar um aviso não-bloqueante (ver AvisoErroInline) sem perder
  *   o que já estava na tela. Falha de rede não deve apagar o último
  *   dado bom conhecido.
+ * - RECARREGA AO VOLTAR PARA A TELA. Sem isso, os dados ficavam presos
+ *   no momento em que a aba foi aberta pela primeira vez. Foi exatamente
+ *   o que aconteceu no primeiro teste com o dispositivo real em
+ *   2026-10-11: uma captura chegou às 18:50, o Histórico (aberto depois)
+ *   já mostrava o diagnóstico novo, e o Início continuava exibindo a
+ *   contagem de antes, porque tinha sido carregado mais cedo e nunca
+ *   mais buscou nada. Para o produtor isso lê como "o app não viu minha
+ *   captura", que é o oposto do que estava acontecendo.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { obterMensagemErro } from '../utils/erros';
 
 type ModoExecucao = 'inicial' | 'atualizacao' | 'nova_tentativa';
@@ -34,7 +43,8 @@ interface ResultadoCarregamentoAssincrono<T> {
 
 export function useCarregamentoAssincrono<T>(
   buscarDados: () => Promise<T>,
-  deps: React.DependencyList = []
+  deps: React.DependencyList = [],
+  recarregarAoFocar: boolean = true
 ): ResultadoCarregamentoAssincrono<T> {
   const [dados, setDados] = useState<T | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -82,6 +92,26 @@ export function useCarregamentoAssincrono<T>(
     executar('inicial');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
+
+  // O primeiro foco acontece JUNTO com a montagem, e sem esta guarda
+  // toda tela faria duas requisições iguais ao abrir.
+  const primeiroFoco = useRef(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (primeiroFoco.current) {
+        primeiroFoco.current = false;
+        return;
+      }
+      if (!recarregarAoFocar) return;
+
+      // Modo 'atualizacao' de propósito: mantém o que já está na tela
+      // enquanto busca. Usar 'inicial' faria a tela piscar o spinner de
+      // tela cheia a cada troca de aba.
+      executar('atualizacao');
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [executar, recarregarAoFocar])
+  );
 
   const recarregar = useCallback(() => executar('nova_tentativa'), [executar]);
   const atualizar = useCallback(() => executar('atualizacao'), [executar]);

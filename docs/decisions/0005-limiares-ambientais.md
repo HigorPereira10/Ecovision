@@ -85,3 +85,35 @@ Os limiares de umidade do solo devem ser revisados assim que:
 
 - `cloud/app/core/alertas_ambientais.py`
 - Consumido por `cloud/app/api/routes/diagnostico.py`
+
+
+## Adendo (2026-10-11): leitura de solo em 0,0% é suspeita de sensor
+
+Descoberto no primeiro ciclo com o dispositivo montado. Com o sensor
+capacitivo fora da terra, a leitura voltou em **0,0%** e o sistema
+gerou um alerta **crítico** de "Solo seco, risco de estresse hídrico".
+
+0,0% é o **piso da escala**, não uma medição: o percentual vem de um
+clamp entre 0 e 100 sobre o valor bruto do ADS1115
+(`edge/src/sensors/soil_moisture.py`), então zero significa "leu no
+limite seco ou além dele". Isso acontece com sensor fora da terra,
+haste solta, conector frouxo ou `SOIL_DRY_RAW` mal calibrado, e não com
+solo de estufa irrigada, que não chega a zero absoluto.
+
+**Decisão:** exatamente 0,0% gera "Verifique o sensor de umidade do
+solo", severidade **media**, em vez do alerta de seca. Qualquer valor
+acima de zero e abaixo de `UMIDADE_SOLO_MIN_PCT` continua sendo seca,
+com severidade alta.
+
+**Por quê:** mandar irrigar por causa de um sensor pendurado no ar é
+pior do que não alertar. Alarme que não corresponde ao mundo ensina
+quem usa o sistema a ignorar aquele alarme, e o primeiro a ser ignorado
+seria justamente o de seca.
+
+A margem é zero por enquanto, de propósito: só o valor exato dispara.
+Depois da calibração com terra de verdade, dá para subir o piso para um
+número medido, quando houver dado para escolhê-lo.
+
+Implementado em `cloud/app/core/alertas_ambientais.py`
+(`SOLO_PISO_SUSPEITO_PCT`), com teste em
+`cloud/tests/test_alertas_ambientais.py`.

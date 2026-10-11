@@ -75,6 +75,12 @@ function formatarMesReferencia(mesReferencia: string): string {
   return `${NOMES_MESES[Number(mes) - 1]} de ${ano}`;
 }
 
+/** Mês selecionado por extenso, em minúsculas, para caber no meio de
+ * uma frase ("em outubro de 2026"). */
+function formatarMesSelecionado(data: Date): string {
+  return `${NOMES_MESES[data.getMonth()].toLowerCase()} de ${data.getFullYear()}`;
+}
+
 function inicioDoMes(data: Date): Date {
   return new Date(data.getFullYear(), data.getMonth(), 1);
 }
@@ -226,11 +232,12 @@ export default function FinanceiroScreen() {
           <ResumoFinanceiroCard
             totalGasto={dados.resumo.totalGasto}
             quantidadeLancamentos={dados.resumo.quantidadeLancamentos}
+            periodo={formatarMesSelecionado(mesSelecionado)}
           />
         )}
 
         <Text style={styles.totalGeralTexto}>
-          Total geral (todos os períodos): {formatarMoeda(dados?.totalGeral ?? 0)}
+          Somando todos os meses já registrados: {formatarMoeda(dados?.totalGeral ?? 0)}
         </Text>
 
         {dados && dados.resumo.porCategoria.length > 0 && (

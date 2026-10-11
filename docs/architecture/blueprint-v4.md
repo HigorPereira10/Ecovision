@@ -521,7 +521,7 @@ documentação; o benefício é que **todo** commit na `main` tem veredito.
 **Como verificar antes de publicar:**
 
 ```bash
-cd cloud && pytest -q      # 121 testes
+cd cloud && pytest -q      # 123 testes
 cd app && npx tsc --noEmit # não há suíte de testes nesta camada
 ```
 

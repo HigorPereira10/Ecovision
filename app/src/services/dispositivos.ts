@@ -23,7 +23,10 @@ export interface Dispositivo {
   setor: string;
   status: 'ativo' | 'inativo';
   data_instalacao: string;
-  intervalo_captura_min: number;
+  /** null enquanto o dispositivo não for provisionado com esse
+   * metadado. A tela mostra "Não informado", como faz com campo e
+   * setor. */
+  intervalo_captura_min: number | null;
   limiar_temperatura: number;
   limiar_umidade_ar: number;
   limiar_umidade_solo: number;
@@ -61,9 +64,13 @@ function converter(bruto: DispositivoDaApi): Dispositivo {
     setor: bruto.setor?.trim() || NAO_INFORMADO,
     status: bruto.status,
     data_instalacao: bruto.criado_em,
-    // 0 em vez de um número plausível: o card mostraria "120 min" como
-    // se fosse real, e ninguém saberia que é chute.
-    intervalo_captura_min: bruto.intervalo_captura_min ?? 0,
+    // Nulo é PRESERVADO, não convertido para 0. A intenção de usar 0
+    // era boa (não inventar "120 min" como se fosse real), mas a tela
+    // acabava exibindo "Intervalo de captura: 0 min", que não é
+    // ausência de informação, é uma informação errada: lê-se como
+    // "captura a cada zero minutos". Quem decide como mostrar a
+    // ausência é o card, igual a campo e setor.
+    intervalo_captura_min: bruto.intervalo_captura_min,
     limiar_temperatura: bruto.limiar_temperatura,
     limiar_umidade_ar: bruto.limiar_umidade_ar,
     limiar_umidade_solo: bruto.limiar_umidade_solo,

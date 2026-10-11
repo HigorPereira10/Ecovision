@@ -50,6 +50,30 @@ import { OPCOES_PERIODO, filtrarPorPeriodo } from '../utils/periodo';
 
 const OPCAO_TODOS_CAMPOS = { valor: 'todos', rotulo: 'Todos os campos' };
 
+/** Monta o texto de uma leitura, pulando a medição que não existe.
+ *
+ * As três medições são opcionais: quando um sensor falha,
+ * edge/src/main.py grava null naquele campo e segue o ciclo, para não
+ * perder a foto por causa de um sensor instável.
+ *
+ * Antes, o texto era montado interpolando os três valores direto, e um
+ * null renderizava como vazio: a linha saía literalmente
+ * "°C · ar % · solo %", só as unidades, que parece app quebrado. Foi o
+ * que apareceu nas duas capturas de 10/10 em que o DHT22 não respondeu.
+ *
+ * Mostrar zero seria pior ainda: 0°C e 0% de umidade são valores
+ * válidos e alarmantes, e o produtor não teria como saber que na
+ * verdade não houve medição. */
+function descreverLeitura(l: LeituraAmbiental): string {
+  const partes: string[] = [];
+  if (l.temperatura !== null) partes.push(`${l.temperatura}°C`);
+  if (l.umidade_ar !== null) partes.push(`ar ${l.umidade_ar}%`);
+  if (l.umidade_solo !== null) partes.push(`solo ${l.umidade_solo}%`);
+
+  if (partes.length === 0) return 'Nenhum sensor respondeu neste ciclo';
+  return partes.join('  ·  ');
+}
+
 interface DadosHistorico {
   leituras: LeituraAmbiental[];
   diagnosticos: Diagnostico[];
@@ -186,9 +210,7 @@ export default function HistoricoScreen() {
                 {'  ·  '}
                 {new Date(l.timestamp).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
               </Text>
-              <Text style={styles.leituraValores}>
-                {l.temperatura}°C · ar {l.umidade_ar}% · solo {l.umidade_solo}%
-              </Text>
+              <Text style={styles.leituraValores}>{descreverLeitura(l)}</Text>
             </View>
           ))
         )}

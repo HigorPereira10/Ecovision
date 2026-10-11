@@ -14,12 +14,18 @@ import { formatarMoeda } from '../utils/formatarMoeda';
 interface Props {
   totalGasto: number;
   quantidadeLancamentos: number;
+  /** Mês a que este total se refere, por extenso. Sem isso o card
+   * dizia apenas "Total gasto com insumos", e logo abaixo da tela
+   * aparecia "Total geral (todos os períodos)" com outro valor: os
+   * dois juntos liam como contradição, quando são só recortes
+   * diferentes. */
+  periodo: string;
 }
 
-export function ResumoFinanceiroCard({ totalGasto, quantidadeLancamentos }: Props) {
+export function ResumoFinanceiroCard({ totalGasto, quantidadeLancamentos, periodo }: Props) {
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>Total gasto com insumos</Text>
+      <Text style={styles.label}>Total gasto com insumos em {periodo}</Text>
       <Text style={styles.valor}>{formatarMoeda(totalGasto)}</Text>
       <Text style={styles.subtitulo}>
         {quantidadeLancamentos} lançamento{quantidadeLancamentos !== 1 ? 's' : ''} · dados de demonstração

@@ -33,7 +33,11 @@ export function DispositivoCard({ dispositivo }: Props) {
       <View style={styles.grid}>
         <View style={styles.coluna}>
           <Text style={styles.label}>Intervalo de captura</Text>
-          <Text style={styles.valor}>{dispositivo.intervalo_captura_min} min</Text>
+          <Text style={styles.valor}>
+            {dispositivo.intervalo_captura_min !== null
+              ? `${dispositivo.intervalo_captura_min} min`
+              : 'Não informado'}
+          </Text>
         </View>
         <View style={styles.coluna}>
           <Text style={styles.label}>Limiar temperatura</Text>

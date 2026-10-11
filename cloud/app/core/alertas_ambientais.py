@@ -31,6 +31,26 @@ UMIDADE_AR_MAX_PCT = 90.0
 UMIDADE_SOLO_MIN_PCT = 20.0  # abaixo disso: risco de seca (convenção prática)
 UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: risco de solo encharcado (convenção prática)
 
+# Leitura de solo em exatamente 0,0% quase nunca é solo seco de verdade.
+# O percentual vem de _clamp(0, 100) sobre o valor bruto do ADS1115
+# (edge/src/sensors/soil_moisture.py), então 0,0% é o PISO da escala:
+# significa "leu no limite seco ou além dele". Isso acontece com o
+# sensor fora da terra, com a haste solta, com o conector frouxo, ou
+# com SOIL_DRY_RAW mal calibrado, e não com solo de estufa irrigada,
+# que não chega a zero absoluto.
+#
+# Decisão do grupo em 2026-10-11, depois do primeiro ciclo real: tratar
+# esse caso como SUSPEITA DE SENSOR, severidade média, em vez de alerta
+# crítico de seca. Dizer "risco de estresse hídrico" quando o sensor
+# está pendurado no ar manda o produtor irrigar sem motivo, e ensina o
+# grupo a ignorar o alerta de seca justamente antes da banca.
+#
+# A margem é zero por enquanto, de propósito: só o valor exato 0,0
+# dispara. Depois da calibração com terra de verdade, dá para subir
+# isso para um piso medido (por exemplo, abaixo de 2%), quando houver
+# dado suficiente para escolher o número.
+SOLO_PISO_SUSPEITO_PCT = 0.0
+
 
 def avaliar_risco_ambiental(
     temperatura_c: float | None,
@@ -45,7 +65,8 @@ def avaliar_risco_ambiental(
     Severidade ("alta" | "media"): "alta" para riscos com potencial de
     perda rápida da planta (calor/frio extremo, estresse hídrico por
     seca); "media" para riscos de progressão mais lenta (favorecem
-    doença, mas não matam a planta diretamente)."""
+    doença, mas não matam a planta diretamente) e para suspeita de
+    falha de sensor, que pede conferência e não ação no cultivo."""
     alertas: list[tuple[str, str, str]] = []
 
     if temperatura_c is not None and not (TEMPERATURA_MIN_C <= temperatura_c <= TEMPERATURA_MAX_C):
@@ -65,7 +86,18 @@ def avaliar_risco_ambiental(
         ))
 
     if umidade_solo_pct is not None:
-        if umidade_solo_pct < UMIDADE_SOLO_MIN_PCT:
+        if umidade_solo_pct <= SOLO_PISO_SUSPEITO_PCT:
+            # Antes de falar em seca, desconfiar do sensor. Ver a nota
+            # em SOLO_PISO_SUSPEITO_PCT para o porquê.
+            alertas.append((
+                "Verifique o sensor de umidade do solo",
+                "A leitura de umidade do solo voltou em 0%, o piso da escala. "
+                "Isso costuma indicar sensor fora da terra, haste solta, "
+                "conector frouxo ou calibração pendente, e não solo seco. "
+                "Confira a instalação antes de irrigar.",
+                "media",
+            ))
+        elif umidade_solo_pct < UMIDADE_SOLO_MIN_PCT:
             alertas.append((
                 "Solo seco",
                 f"Umidade do solo em {umidade_solo_pct:.1f}%, abaixo de "
