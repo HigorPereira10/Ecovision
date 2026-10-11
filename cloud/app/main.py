@@ -36,7 +36,7 @@ import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, Response, status
+from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -77,7 +77,11 @@ app.add_middleware(
 
 
 @app.get("/health")
-async def health(response: Response, sessao: AsyncSession = Depends(get_session)) -> dict:
+async def health(
+    request: Request,
+    response: Response,
+    sessao: AsyncSession = Depends(get_session),
+) -> dict:
     """Endpoint leve para o UptimeRobot: sem autenticação, sem lógica
     de negócio. Faz um SELECT trivial para confirmar que a conexão com
     o banco (Supabase) está de pé, não só que o processo FastAPI está
@@ -88,14 +92,39 @@ async def health(response: Response, sessao: AsyncSession = Depends(get_session)
     monitor externo como o UptimeRobot olha o status code, não o corpo
     da resposta, então nunca detectaria a falha daquele jeito. Por isso
     o código abaixo devolve 503 quando o banco não responde: nunca
-    remover essa parte achando que é redundante."""
+    remover essa parte achando que é redundante.
+
+    POR QUE O ESTADO DO MODELO APARECE AQUI: sem modelo carregado, a
+    inferência degrada para "indisponivel" em TODA captura, e nada no
+    sistema denuncia isso de fora. Já aconteceu uma vez, por caminho de
+    arquivo resolvido a partir do diretório errado, e o sintoma era
+    apenas diagnóstico vazio no app, indistinguível de dispositivo sem
+    capturar. Com este campo, conferir é uma requisição, de qualquer
+    lugar, inclusive do celular dentro da estufa.
+
+    MODELO AUSENTE NÃO DEVOLVE 503, de propósito. A API continua
+    recebendo e gravando captura, leitura e alerta ambiental: o serviço
+    está de pé, só a classificação está degradada. Marcar isso como
+    indisponível faria o UptimeRobot alarmar por algo que não é queda, e
+    alarme que não corresponde a queda é alarme que o grupo aprende a
+    ignorar."""
+    corpo = {
+        "status": "ok",
+        "banco": "ok",
+        # app.state.modelo_tflite é preenchido uma única vez no lifespan;
+        # vem None quando o .tflite não foi encontrado ou não pôde ser
+        # carregado (ver app/core/inference.py).
+        "modelo": "carregado" if request.app.state.modelo_tflite is not None else "ausente",
+    }
+
     try:
         await sessao.execute(text("SELECT 1"))
     except Exception:
         logger.error("Falha no /health ao consultar o banco.", exc_info=True)
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {"status": "erro", "banco": "indisponivel"}
-    return {"status": "ok", "banco": "ok"}
+        return {**corpo, "status": "erro", "banco": "indisponivel"}
+
+    return corpo
 
 
 app.include_router(diagnostico.router)

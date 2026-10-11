@@ -1,6 +1,6 @@
 # cloud/tests: Testes automatizados do backend
 
-**120 testes.** Rodar: `pytest -q` dentro de `cloud/`.
+**121 testes.** Rodar: `pytest -q` dentro de `cloud/`.
 
 ## Para quem nunca mexeu com testes automatizados: o que é isso?
 

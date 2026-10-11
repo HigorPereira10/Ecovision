@@ -53,7 +53,7 @@ documento de consulta.
 | `GET /usuarios/me` | Nome, e-mail e papel do produtor logado |
 | `GET /dispositivos` | Dispositivos do produtor, com `status` calculado |
 | `POST /dispositivos/vincular` | Reivindica um dispositivo pelo código `ECO-XXXX-XXXX` |
-| `GET /health` | Sem autenticação, para o UptimeRobot. Responde 503 se o banco falhar |
+| `GET /health` | Sem autenticação, para o UptimeRobot. Responde 503 se o banco falhar, e informa se o modelo de IA está carregado |
 
 ## Garantias implementadas que não são óbvias pelo nome da rota
 
@@ -139,7 +139,7 @@ cloud/
 │   ├── provisionar_dispositivo.py  # credencial + código de pareamento
 │   ├── seed_usuario_teste.py       # conta de teste
 │   └── seed_dispositivo_teste.py   # vínculo de dispositivo em teste
-├── tests/                   # 120 testes (ver cloud/tests/README.md)
+├── tests/                   # 121 testes (ver cloud/tests/README.md)
 └── requirements.txt
 ```
 

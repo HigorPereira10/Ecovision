@@ -243,6 +243,11 @@ log**, nunca derruba o sistema:
 | Signed URL de uma imagem | Aquele item vem com `url_imagem: null`, a lista não quebra |
 | Banco inacessível | `/health` responde 503, e o UptimeRobot avisa |
 
+`GET /health` informa qual desses caminhos está ativo no campo
+`modelo` (`carregado` ou `ausente`). Modelo ausente **não** devolve 503,
+de propósito: o serviço está degradado, não fora do ar, e alarmar o
+monitor por isso ensinaria o grupo a ignorar alarme.
+
 O caso do e-mail merece a justificativa explícita: criar a conta
 bloqueada quando o e-mail não pode sair prenderia o produtor numa conta
 que **ninguém** consegue confirmar. Entre "menos seguro" e
@@ -433,7 +438,7 @@ errado. São as mais caras de encontrar e as mais fáceis de reintroduzir.
 | 1 | O modelo normaliza por dentro: espera pixels **crus de 0 a 255** | Dividir por 255 antes faz tudo virar "saudavel" com ~90% de confiança | Comentário em `inference.py` e no conversor, mais [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) |
 | 2 | Redimensionar com BILINEAR/BICUBIC | 0 de 6 predições batem com o Keras, duas classes mudam | Medido e documentado |
 | 3 | `_CLASSES_DO_MODELO` fora de ordem após retreino | Cada predição sai com o nome e a recomendação de **outra doença** | Comentário no código e checklist de reativação no ADR 0011 |
-| 4 | Caminho de modelo relativo ao diretório de trabalho | API sobe sem modelo e devolve placeholder sempre | `caminho_do_modelo` em `config.py` mais teste de regressão |
+| 4 | Caminho de modelo relativo ao diretório de trabalho | API sobe sem modelo e devolve placeholder sempre | `caminho_do_modelo` em `config.py`, teste de regressão, e o campo `modelo` em `GET /health`, que torna a falha visível de fora |
 | 5 | `process.env[chave]` dinâmico no Expo | Variável vira `undefined` **só no build publicado**: funciona no Expo Go, quebra no APK | Acesso estático obrigatório em `src/config/env.ts` |
 | 6 | Vocabulário de severidade divergente (`alta`/`media` contra `critico`/`cuidado`/`informativo`) | Tela quebra ao buscar a cor de uma severidade inexistente | Tradução com valor padrão em `services/alertas.ts` |
 | 7 | Alerta sintético tem `id: null` | `null` como identificador faz todos os alertas sem id colidirem num só | Campo `chave` no app, e `sintetico` esconde o botão de "marcar como lido" |
@@ -457,7 +462,7 @@ documentação; o benefício é que **todo** commit na `main` tem veredito.
 **Como verificar antes de publicar:**
 
 ```bash
-cd cloud && pytest -q      # 120 testes
+cd cloud && pytest -q      # 121 testes
 cd app && npx tsc --noEmit # não há suíte de testes nesta camada
 ```
 
