@@ -125,3 +125,66 @@ def test_caminho_do_modelo_resolve_a_partir_da_raiz_do_repo():
         f"modelo nao encontrado em {caminho}. O .tflite e versionado no repositorio "
         "(Blueprint Secao 4.4): se sumiu ou foi renomeado, a API sobe sem inferencia."
     )
+
+
+# --------------------------------------------- guarda de qualidade de imagem
+
+def _imagem_jpeg(cor, tamanho=(224, 224)) -> bytes:
+    from io import BytesIO
+    from PIL import Image
+
+    buffer = BytesIO()
+    Image.new("RGB", tamanho, cor).save(buffer, format="JPEG")
+    return buffer.getvalue()
+
+
+def test_foto_escura_demais_e_reprovada():
+    """O caso que motivou a guarda: o modelo responde 'saudavel' com 0,93
+    a 0,97 de confiança para imagem preta, e a confiança CRESCE conforme
+    a foto escurece. Classificar isso afirmaria 'sua planta está
+    saudável' sobre uma imagem onde não se vê nada."""
+    motivo = inference.avaliar_qualidade_imagem(_imagem_jpeg((10, 10, 12)))
+
+    assert motivo is not None
+    assert "escura" in motivo.lower()
+    assert "iluminação" in motivo.lower(), "a mensagem tem que dizer o que fazer"
+
+
+def test_imagem_lisa_e_reprovada_por_falta_de_detalhe():
+    """Parede, lente tampada ou fora de foco total: brilho pode estar
+    perfeito e não haver folha nenhuma. Textura zero é o sinal."""
+    motivo = inference.avaliar_qualidade_imagem(_imagem_jpeg((128, 128, 128)))
+
+    assert motivo is not None
+    assert "detalhe" in motivo.lower()
+    assert "lente" in motivo.lower()
+
+
+def test_foto_real_do_conjunto_de_validacao_passa():
+    """A guarda não pode reprovar foto boa. Usa a imagem MAIS ESCURA do
+    conjunto de validação externa (brilho 74,6, textura 35,2), que é o
+    pior caso real conhecido: se ela passar, as outras passam."""
+    from pathlib import Path
+
+    caminho = Path(__file__).resolve().parents[2] / "ml" / "validacao_externa" / "pinta_preta_01.jpg"
+    if not caminho.is_file():
+        import pytest
+
+        pytest.skip("conjunto de validação externa não disponível")
+
+    assert inference.avaliar_qualidade_imagem(caminho.read_bytes()) is None
+
+
+def test_limiares_mantem_margem_sobre_a_pior_foto_boa():
+    """Trava de regressão sobre os números, não sobre o comportamento.
+
+    Os limiares foram escolhidos a partir de medição (brilho de 74,6 a
+    207,1 e textura de 35,2 a 71,4 nas fotos boas). Subir TEXTURA_MINIMA
+    para perto de 35 passaria a reprovar foto legítima, e o sintoma
+    seria o sistema recusando analisar plantas de verdade."""
+    assert inference.TEXTURA_MINIMA < 35.2, "nao pode alcancar a pior foto boa"
+    assert inference.BRILHO_MINIMO < 74.6
+    # E não pode ser tão frouxo a ponto de deixar passar 25% de luz
+    # (brilho 51,4 / textura 17,8), que foi o caso medido em que o
+    # modelo devolveu 0,97 de confiança para lixo.
+    assert inference.TEXTURA_MINIMA > 17.8

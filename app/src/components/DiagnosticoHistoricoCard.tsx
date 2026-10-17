@@ -47,14 +47,25 @@ export function DiagnosticoHistoricoCard({ diagnostico }: Props) {
         <Text
           style={[
             styles.classificacao,
-            { color: diagnostico.saudavel ? colors.oliveGreen : colors.danger },
+            {
+              color: diagnostico.semDiagnostico
+                ? colors.textMuted
+                : diagnostico.saudavel
+                  ? colors.oliveGreen
+                  : colors.danger,
+            },
           ]}
         >
           {diagnostico.classificacao}
         </Text>
       </View>
 
-      <Text style={styles.confianca}>{Math.round(diagnostico.confianca * 100)}%</Text>
+      {/* Sem diagnóstico não existe confiança: mostrar "0%" sugeriria
+          uma análise que deu quase certeza de nada, quando na verdade
+          análise nenhuma foi feita. */}
+      {!diagnostico.semDiagnostico && (
+        <Text style={styles.confianca}>{Math.round(diagnostico.confianca * 100)}%</Text>
+      )}
     </View>
   );
 }

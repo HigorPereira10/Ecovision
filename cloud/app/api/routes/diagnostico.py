@@ -74,11 +74,14 @@ logger = logging.getLogger("ecovision.cloud.diagnostico")
 
 router = APIRouter()
 
-# Classes que NÃO geram alerta automático: "saudavel" (nada a avisar) e
-# "indisponivel" (placeholder de app/core/inference.py quando ainda não
-# há modelo carregado). Avisar o produtor de uma classe que ainda não
-# significa nada seria pior do que simplesmente não avisar.
-_CLASSES_SEM_ALERTA = {"saudavel", "indisponivel"}
+# Classes que NÃO geram alerta de doença: "saudavel" (nada a avisar),
+# "indisponivel" (placeholder de app/core/inference.py quando não há
+# modelo carregado) e "imagem_inadequada" (a foto foi reprovada na
+# guarda de qualidade, então não existe diagnóstico a anunciar). Avisar
+# o produtor de uma classe que não significa nada seria pior do que
+# simplesmente não avisar. A imagem inadequada tem alerta PRÓPRIO, de
+# câmera, gerado mais abaixo.
+_CLASSES_SEM_ALERTA = {"saudavel", "indisponivel", inference.CLASSE_IMAGEM_INADEQUADA}
 
 # ALERTA DE SEGURANÇA (proteção contra negação de serviço): edge/src/
 # compress.py mira 150-250KB por foto, então 5MB já é uma margem bem
@@ -195,12 +198,38 @@ async def receber_diagnostico(
             detail="Imagem inválida ou corrompida.",
         )
 
-    interpretador = getattr(request.app.state, "modelo_tflite", None)
-    resultado = inference.rodar_inferencia(interpretador, imagem_preprocessada)
-    logger.info(
-        "Inferência concluída para device_id=%s: classe=%s confianca=%.2f",
-        device_id, resultado["classe"], resultado["confianca"],
-    )
+    # GUARDA DE QUALIDADE, antes de classificar. O modelo não tem uma
+    # saída para "isto não é uma folha": ele empurra qualquer entrada
+    # para uma das três classes, e no escuro empurra para "saudavel"
+    # com confiança altíssima (ver os números medidos em
+    # app/core/inference.py). Classificar uma foto preta produziria a
+    # afirmação mais perigosa que este sistema pode fazer: "sua planta
+    # está saudável", com 95% de confiança, sobre uma imagem onde não
+    # dá para ver nada.
+    #
+    # A captura NÃO é descartada: foto, leituras e alertas ambientais
+    # são gravados igual. O que não acontece é afirmar um diagnóstico.
+    # O produtor vê a própria imagem no app, junto do motivo, e julga.
+    motivo_imagem_ruim = inference.avaliar_qualidade_imagem(bytes_imagem)
+
+    if motivo_imagem_ruim is not None:
+        resultado = {
+            "classe": inference.CLASSE_IMAGEM_INADEQUADA,
+            "confianca": 0.0,
+            "recomendacao": motivo_imagem_ruim,
+            "severidade": None,
+        }
+        logger.warning(
+            "Imagem reprovada na guarda de qualidade para device_id=%s: %s",
+            device_id, motivo_imagem_ruim,
+        )
+    else:
+        interpretador = getattr(request.app.state, "modelo_tflite", None)
+        resultado = inference.rodar_inferencia(interpretador, imagem_preprocessada)
+        logger.info(
+            "Inferência concluída para device_id=%s: classe=%s confianca=%.2f",
+            device_id, resultado["classe"], resultado["confianca"],
+        )
 
     try:
         caminho_arquivo = await salvar_imagem(device_id, timestamp, bytes_imagem)
@@ -281,6 +310,26 @@ async def receber_diagnostico(
                 )
             )
             logger.info("Alerta gerado para device_id=%s (diagnostico_id=%s)", device_id, diagnostico.id)
+
+        # Alerta de câmera, em vez do de doença. Severidade média: pede
+        # conferência do equipamento, não ação no cultivo, e é o mesmo
+        # critério usado para a suspeita de sensor de solo (ADR 0005).
+        if resultado["classe"] == inference.CLASSE_IMAGEM_INADEQUADA:
+            sessao.add(
+                Alerta(
+                    diagnostico_id=diagnostico.id,
+                    titulo="Não foi possível analisar a foto",
+                    descricao=(
+                        f"{motivo_imagem_ruim} A imagem foi guardada no histórico "
+                        "para você conferir o que aconteceu."
+                    ),
+                    severidade="media",
+                )
+            )
+            logger.info(
+                "Alerta de qualidade de imagem gerado para device_id=%s (diagnostico_id=%s)",
+                device_id, diagnostico.id,
+            )
 
         for titulo, descricao, severidade in riscos_ambientais:
             sessao.add(

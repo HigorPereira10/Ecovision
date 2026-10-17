@@ -22,9 +22,14 @@ from pydantic import BaseModel, ConfigDict
 
 
 class DiagnosticoOut(BaseModel):
-    """Resposta de POST /diagnostico. Espelha o mock
-    app/src/mocks/diagnosticos.json do dashboard (campo "resultado" lá
-    corresponde a classe_prevista aqui)."""
+    """Resposta de POST /diagnostico, devolvida ao dispositivo.
+
+    `classe_prevista` pode ser uma das classes do modelo, ou um dos dois
+    valores especiais: "indisponivel" (nenhum modelo carregado) e
+    "imagem_inadequada" (a foto foi reprovada na guarda de qualidade de
+    app/core/inference.py, e nenhum diagnóstico foi afirmado). Nos dois
+    casos `confianca` vem 0.0, e em "imagem_inadequada" `recomendacao`
+    traz o motivo em linguagem de produtor."""
 
     model_config = ConfigDict(from_attributes=True)
 

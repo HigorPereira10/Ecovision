@@ -107,7 +107,11 @@ export default function DiagnosticoScreen() {
 
   const idSelecionado = diagnosticoAtualId ?? diagnosticos[0].id;
   const diagnostico = diagnosticos.find((d) => d.id === idSelecionado) ?? diagnosticos[0];
-  const corStatus = diagnostico.saudavel ? colors.oliveGreen : colors.danger;
+  const corStatus = diagnostico.semDiagnostico
+    ? colors.textMuted
+    : diagnostico.saudavel
+      ? colors.oliveGreen
+      : colors.danger;
   const confiancaPercentual = Math.round(diagnostico.confianca * 100);
 
   return (
@@ -138,19 +142,26 @@ export default function DiagnosticoScreen() {
             <Text style={[styles.classificacaoTexto, { color: corStatus }]} numberOfLines={2}>
               {diagnostico.classificacao}
             </Text>
-            <View style={[styles.badgeConfianca, { backgroundColor: corStatus }]}>
-              <Text style={styles.badgeConfiancaTexto}>{confiancaPercentual}% confiança</Text>
-            </View>
+            {/* Sem diagnóstico não há confiança a exibir: "0% confiança"
+                daria a entender que houve análise e ela deu quase zero,
+                quando na verdade análise nenhuma foi feita. */}
+            {!diagnostico.semDiagnostico && (
+              <View style={[styles.badgeConfianca, { backgroundColor: corStatus }]}>
+                <Text style={styles.badgeConfiancaTexto}>{confiancaPercentual}% confiança</Text>
+              </View>
+            )}
           </View>
 
-          <View style={styles.barraFundo}>
-            <View
-              style={[
-                styles.barraPreenchida,
-                { width: `${confiancaPercentual}%`, backgroundColor: corStatus },
-              ]}
-            />
-          </View>
+          {!diagnostico.semDiagnostico && (
+            <View style={styles.barraFundo}>
+              <View
+                style={[
+                  styles.barraPreenchida,
+                  { width: `${confiancaPercentual}%`, backgroundColor: corStatus },
+                ]}
+              />
+            </View>
+          )}
         </View>
 
         {/* Planta sadia não tem recomendação de manejo no catálogo
@@ -158,9 +169,24 @@ export default function DiagnosticoScreen() {
             esta guarda o card apareceria vazio, dando a impressão de
             que o texto não carregou. */}
         {diagnostico.recomendacao && (
-          <View style={styles.cardRecomendacao}>
-            <Text style={styles.recomendacaoTitulo}>Recomendação de manejo</Text>
+          <View
+            style={[
+              styles.cardRecomendacao,
+              diagnostico.semDiagnostico && styles.cardAviso,
+            ]}
+          >
+            <Text style={styles.recomendacaoTitulo}>
+              {diagnostico.semDiagnostico
+                ? 'Por que esta foto não foi analisada'
+                : 'Recomendação de manejo'}
+            </Text>
             <Text style={styles.recomendacaoTexto}>{diagnostico.recomendacao}</Text>
+            {diagnostico.semDiagnostico && (
+              <Text style={[styles.recomendacaoTexto, styles.recomendacaoSegundoParagrafo]}>
+                A foto acima é a que o dispositivo capturou. Compare com o que
+                você esperava ver para identificar o problema.
+              </Text>
+            )}
           </View>
         )}
 
@@ -317,6 +343,10 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
+  // Bege de aviso, para o bloco de "nao foi analisada" nao sair verde
+  // como se fosse recomendacao agronomica.
+  cardAviso: { backgroundColor: '#F5EFE0' },
+  recomendacaoSegundoParagrafo: { marginTop: 10 },
   cardRecomendacao: {
     backgroundColor: '#EEF3E7',
     borderRadius: 16,

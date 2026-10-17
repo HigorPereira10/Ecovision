@@ -115,6 +115,76 @@ percentual do Keras original.
 Economizar 6 MB não paga mudar diagnóstico, especialmente com a RAM
 sobrando (o interpretador inteiro ocupa cerca de 14 MB).
 
+## Adendo (2026-10-17): o modelo não sabe recusar uma entrada
+
+Medido depois do primeiro ciclo com o dispositivo montado, sobre o
+`.tflite` em produção:
+
+| Entrada | Classe | Confiança |
+|---|---|---|
+| Imagem preta | saudavel | 0,93 |
+| Quase preta | saudavel | **0,97** |
+| Ruído aleatório | saudavel | 0,94 |
+| Verde liso | saudavel | 0,90 |
+| Cinza liso | saudavel | 0,86 |
+
+E, pior, a confiança **cresce** conforme a foto escurece. A mesma imagem
+de folha sadia, escurecida artificialmente:
+
+| Luz | Classe | Confiança |
+|---|---|---|
+| 100% | saudavel | 0,69 |
+| 50% | saudavel | 0,91 |
+| 25% | saudavel | **0,97** |
+
+**O modelo confunde "escuro" com "saudável".** A causa é estrutural: ele
+tem três saídas e nenhuma delas é "isto não é uma folha de tomate", logo
+toda entrada é distribuída entre as três. Um classificador fechado não
+tem como rejeitar o que está fora do domínio.
+
+A consequência prática é a pior possível para este projeto: numa estufa
+à noite, ou com o Ring LED fraco, o sistema afirmaria "saudável" com 95%
+de confiança **mesmo com a planta doente**. Falso negativo sistemático,
+e o produtor não teria como desconfiar.
+
+**Mitigação implementada:** guarda de qualidade de imagem ANTES da
+inferência (`avaliar_qualidade_imagem` em `cloud/app/core/inference.py`),
+com limiares medidos e não arbitrados. Foto reprovada não vira
+diagnóstico: vira a classe `imagem_inadequada`, com a foto guardada e
+visível no app e um alerta de câmera. Decisão do grupo: guardar a imagem
+é o que permite ao produtor conferir se o aviso estava certo e
+identificar o problema olhando a própria foto.
+
+**O que isso NÃO resolve:** ruído aleatório passa na guarda (brilho 127,
+textura 49), e uma folha de outra espécie continua sendo forçada para
+uma das três classes. A solução de fundo seria uma classe "outro" no
+treino, ou um limiar de confiança calibrado, e isso depende de dado novo.
+
+## Desempenho medido no conjunto de validação externa
+
+Primeira medição de acurácia contra rótulos, em 2026-10-17:
+
+| Imagem | Esperado | Previsto | Confiança |
+|---|---|---|---|
+| pinta_preta_01 | pinta_preta | pinta_preta | 0,43 |
+| pinta_preta_03 | pinta_preta | pinta_preta | 0,80 |
+| saudavel_01 | saudavel | **pinta_preta** | 0,47 |
+| saudavel_02 | saudavel | **pinta_preta** | 0,52 |
+| saudavel_03 | saudavel | saudavel | 0,65 |
+| septoria_01 | septoriose | septoriose | 0,81 |
+
+**4 de 6.** Os dois erros são no mesmo sentido: planta sadia
+classificada como pinta preta, que leva o produtor a pulverizar
+fungicida sem necessidade.
+
+**Distinção importante para a banca:** a medição anterior, de "6 de 6
+batendo com o Keras", verificava que a **conversão para TFLite está
+fiel** ao modelo original. Não media acerto. São coisas diferentes, e
+esta é a primeira vez que o acerto foi medido.
+
+Com n=6, isto é indicativo e não conclusivo. Serve para orientar o
+retreino, não para ser publicado como métrica de desempenho.
+
 ## Pendências
 
 - Documentar o gap entre F1 no dataset e desempenho em foto de campo,

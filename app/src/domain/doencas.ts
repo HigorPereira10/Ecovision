@@ -41,9 +41,39 @@ interface CondicaoFitossanitaria {
   ativa: boolean;
   /** true apenas para a ausência de doença, que a tela pinta de verde. */
   saudavel?: boolean;
+  /** true quando NÃO houve diagnóstico. Não é saudável nem doente: é
+   * ausência de resposta, e a tela trata em cinza. */
+  semDiagnostico?: boolean;
 }
 
+/** Classe devolvida pela API quando a foto foi reprovada na guarda de
+ * qualidade (cloud/app/core/inference.py), por estar escura demais ou
+ * sem detalhe. */
+export const CLASSE_IMAGEM_INADEQUADA = 'imagem_inadequada';
+
+/** Classe devolvida quando nenhum modelo está carregado no servidor. */
+export const CLASSE_INDISPONIVEL = 'indisponivel';
+
 const CATALOGO: Record<string, CondicaoFitossanitaria> = {
+  // --- ausência de diagnóstico, não é resultado ---
+  //
+  // O modelo tem três saídas e nenhuma delas é "isto não é uma folha":
+  // ele distribui qualquer entrada entre as três, e no escuro escolhe
+  // "saudável" com confiança altíssima. O servidor passou a recusar
+  // classificar foto escura ou sem detalhe, e devolve esta classe no
+  // lugar. A foto continua guardada e visível, para o produtor ver com
+  // os próprios olhos o que aconteceu.
+  [CLASSE_IMAGEM_INADEQUADA]: {
+    rotulo: 'Sem análise',
+    ativa: true,
+    semDiagnostico: true,
+  },
+  [CLASSE_INDISPONIVEL]: {
+    rotulo: 'Análise indisponível',
+    ativa: true,
+    semDiagnostico: true,
+  },
+
   // --- reconhecidas pelo modelo em produção ---
   saudavel: { rotulo: 'Saudável', ativa: true, saudavel: true },
   septoriose: { rotulo: 'Septoriose (Septoria lycopersici)', ativa: true },
@@ -64,8 +94,20 @@ const CATALOGO: Record<string, CondicaoFitossanitaria> = {
  * da tela de Diagnóstico, para o produtor saber o que o aparelho sabe
  * ver e, principalmente, o que ele NÃO sabe ver. */
 export const CLASSES_ATIVAS: string[] = Object.entries(CATALOGO)
-  .filter(([, condicao]) => condicao.ativa)
+  .filter(([, condicao]) => condicao.ativa && condicao.semDiagnostico !== true)
   .map(([classe]) => classe);
+
+/** True quando a API não afirmou diagnóstico nenhum: foto reprovada na
+ * guarda de qualidade, ou servidor sem modelo.
+ *
+ * As telas precisam disso porque o contrário de "saudável" NÃO é
+ * "doente" neste sistema: existe um terceiro estado, que é "não dá para
+ * dizer". Tratar ausência de resposta como doença encheria o painel de
+ * alarme falso; tratar como saudável seria a mentira perigosa que a
+ * guarda existe justamente para impedir. */
+export function semDiagnostico(classe: ClasseDiagnostico): boolean {
+  return CATALOGO[classe]?.semDiagnostico === true;
+}
 
 /** Converte 'nome_tecnico' em 'Nome tecnico' para uma classe que não
  * está no catálogo. Acontece se o modelo for retreinado e esta tabela
@@ -92,6 +134,8 @@ export function rotuloDaClasse(classe: ClasseDiagnostico): string {
 export function ehSaudavel(classe: ClasseDiagnostico): boolean {
   const condicao = CATALOGO[classe];
   if (condicao !== undefined) return condicao.saudavel === true;
+  // Atenção: devolver false aqui significa "não é sadia", e não
+  // "está doente". Quem precisa da distinção usa semDiagnostico().
 
   return classe
     .toLowerCase()

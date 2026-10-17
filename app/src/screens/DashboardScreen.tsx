@@ -56,9 +56,15 @@ async function buscarDadosDashboard(): Promise<DadosDashboard> {
   // inteiro, e isso é proposital: o card responde "como está a estufa
   // agora", e uma doença resolvida há seis dias continuaria pesando no
   // número se a janela fosse maior.
+  // Diagnóstico ausente NÃO entra em nenhuma das duas contagens. O
+  // contrário de "saudável" não é "doente" neste sistema: foto
+  // reprovada na guarda de qualidade não diz nada sobre a planta, e
+  // contá-la como doença encheria o card de alarme falso toda vez que
+  // o LED falhasse.
+  const analisados = diagnosticos.filter((d) => !d.semDiagnostico);
   const situacao: DiagnosticoResumo = {
-    saudaveis: diagnosticos.filter((d) => d.saudavel).length,
-    comDoenca: diagnosticos.filter((d) => !d.saudavel).length,
+    saudaveis: analisados.filter((d) => d.saudavel).length,
+    comDoenca: analisados.filter((d) => !d.saudavel).length,
   };
 
   return { leitura, historico, situacao };

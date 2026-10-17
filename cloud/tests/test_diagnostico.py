@@ -66,10 +66,38 @@ async def _salvar_imagem_falso(device_id: str, timestamp: str, bytes_imagem: byt
 
 
 def _imagem_falsa() -> bytes:
-    """Um JPEG minúsculo, mas de verdade: a etapa de pré-processamento
-    (app/core/inference.py) precisa conseguir abrir a imagem."""
+    """Um JPEG pequeno, mas de verdade, e com TEXTURA.
+
+    Era um quadrado de cor única até 2026-10-17. Isso deixou de servir
+    quando a guarda de qualidade entrou em app/core/inference.py: uma
+    imagem lisa é exatamente o que ela reprova (lente tampada, parede,
+    fora de foco total), então todo teste de envio bem-sucedido passou a
+    receber "imagem_inadequada" em vez do diagnóstico esperado.
+
+    A falha foi útil: provou que a guarda pega o caso para o qual foi
+    escrita. O padrão quadriculado abaixo tem brilho e desvio padrão
+    acima dos limiares, imitando uma foto com conteúdo."""
+    import numpy as np
+
+    # Xadrez de 16x16 com ruído leve: textura alta o suficiente para
+    # passar, sem depender de nenhum arquivo externo.
+    lado = 64
+    base = np.indices((lado, lado)).sum(axis=0) // 8 % 2
+    cinza = np.where(base == 0, 70, 190).astype(np.uint8)
+    rng = np.random.default_rng(42)
+    cinza = np.clip(cinza.astype(np.int16) + rng.integers(-15, 16, cinza.shape), 0, 255)
+    rgb = np.stack([cinza, cinza, cinza], axis=-1).astype(np.uint8)
+
     buffer = BytesIO()
-    Image.new("RGB", (10, 10), color=(80, 140, 60)).save(buffer, format="JPEG")
+    Image.fromarray(rgb).save(buffer, format="JPEG", quality=95)
+    return buffer.getvalue()
+
+
+def _imagem_escura() -> bytes:
+    """Foto que a guarda de qualidade REPROVA, para os testes do caminho
+    de imagem inadequada."""
+    buffer = BytesIO()
+    Image.new("RGB", (64, 64), color=(8, 8, 10)).save(buffer, format="JPEG")
     return buffer.getvalue()
 
 
@@ -455,3 +483,56 @@ async def test_corrida_de_idempotency_key_no_commit_nao_quebra(monkeypatch, tmp_
             )
         ).scalars().all()
     assert len(registros) == 1, "nao deveria ter criado uma segunda linha para a mesma chave"
+
+
+async def test_foto_reprovada_guarda_a_imagem_mas_nao_afirma_diagnostico(monkeypatch):
+    """O comportamento decidido pelo grupo em 2026-10-17.
+
+    A captura com foto ruim NÃO é descartada: a imagem é guardada e as
+    leituras também, porque é olhando a própria foto que o produtor
+    descobre o que aconteceu (LED apagado, lente suja, captura à noite)
+    e confere se o aviso estava certo.
+
+    O que NÃO acontece é afirmar um diagnóstico. Sem esta guarda, uma
+    foto preta recebia "saudavel" com 0,93 de confiança, que é a
+    afirmação mais perigosa que este sistema pode fazer: diz ao produtor
+    que a planta está bem, com alta confiança, sobre uma imagem onde não
+    se vê nada."""
+    monkeypatch.setattr("app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso)
+
+    with TestClient(app) as client:
+        resposta = client.post(
+            "/diagnostico",
+            headers={"Authorization": "chave-de-teste-dispositivo"},
+            data=_payload_valido(idempotency_key="foto-escura"),
+            files={"imagem": ("foto.jpg", BytesIO(_imagem_escura()), "image/jpeg")},
+        )
+
+    assert resposta.status_code == 200
+    corpo = resposta.json()
+    assert corpo["classe_prevista"] == "imagem_inadequada"
+    assert corpo["confianca"] == 0.0
+    assert "escura" in corpo["recomendacao"].lower()
+
+    async with AsyncSession(engine) as sessao:
+        registro = await sessao.scalar(
+            select(RegistroImagem).where(RegistroImagem.idempotency_key == "foto-escura")
+        )
+        assert registro is not None, "a foto tem que ser guardada mesmo reprovada"
+        assert registro.caminho_arquivo
+
+        alertas = (await sessao.execute(
+            select(Alerta).join(Diagnostico, Alerta.diagnostico_id == Diagnostico.id)
+            .where(Diagnostico.registro_imagem_id == registro.id)
+        )).scalars().all()
+
+        assert len(alertas) == 1
+        assert "analisar a foto" in alertas[0].titulo.lower()
+        assert alertas[0].severidade == "media", "pede conferir a camera, nao agir no cultivo"
+        # E nenhum alerta de doença: o sistema não acusa doença nenhuma
+        # a partir de uma foto que ele mesmo recusou analisar. O alerta
+        # de doença tem o formato "Possível <classe> detectado", então
+        # é "detectado" que o distingue, e não "possível": o título
+        # desta guarda é "Não foi possível analisar a foto", que contém
+        # a palavra sem ser acusação de doença nenhuma.
+        assert "detectado" not in alertas[0].titulo.lower()

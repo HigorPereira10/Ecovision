@@ -6,7 +6,7 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 
 **Documento técnico de referência:** [**Blueprint v4.0**](docs/architecture/blueprint-v4.md), que consolida o estado real do sistema implantado e é o documento a ler primeiro. Ele substitui o *Tech Stack - Ecovision (revisado)* v3.0 como referência de consulta; o v3.0 continua válido como registro histórico do que foi planejado, e o índice por seção dele está em [`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md). Onde os dois divergem, vale o v4.0, e a divergência está explicada lá.
 
-**Estado atual:** API no ar em `https://ecovision-production.up.railway.app`, aplicativo Android instalável com atualização por EAS Update, modelo de IA de 3 classes em produção, 123 testes automatizados no backend.
+**Estado atual:** API no ar em `https://ecovision-production.up.railway.app`, aplicativo Android instalável com atualização por EAS Update, modelo de IA de 3 classes em produção, 128 testes automatizados no backend.
 
 > ⚠️ O hardware de borda usado na prática é o **Raspberry Pi 3 Model B+ (Anatel)**, não o Pi Zero 2 W especificado no Blueprint; ver [ADR 0004](docs/decisions/0004-raspberry-pi-3b-plus.md).
 

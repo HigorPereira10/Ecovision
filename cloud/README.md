@@ -139,7 +139,7 @@ cloud/
 │   ├── provisionar_dispositivo.py  # credencial + código de pareamento
 │   ├── seed_usuario_teste.py       # conta de teste
 │   └── seed_dispositivo_teste.py   # vínculo de dispositivo em teste
-├── tests/                   # 123 testes (ver cloud/tests/README.md)
+├── tests/                   # 128 testes (ver cloud/tests/README.md)
 └── requirements.txt
 ```
 

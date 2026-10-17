@@ -30,7 +30,7 @@
  */
 
 import { get } from './api';
-import { ehSaudavel, rotuloDaClasse } from '../domain/doencas';
+import { ehSaudavel, rotuloDaClasse, semDiagnostico } from '../domain/doencas';
 
 /** Janela padrão: 7 dias. Mesma de services/leituras.ts, para o
  * Histórico mostrar leitura e diagnóstico do mesmo período. Sem filtro
@@ -70,6 +70,11 @@ export interface Diagnostico {
   /** Signed URL pronta para exibir, ou null se não houver imagem. */
   urlImagem: string | null;
   saudavel: boolean;
+  /** true quando a API não afirmou diagnóstico: foto reprovada na
+   * guarda de qualidade, ou servidor sem modelo. Nesse caso
+   * `recomendacao` traz o motivo em linguagem de produtor, e a tela
+   * mostra a foto SEM dizer nada sobre a planta. */
+  semDiagnostico: boolean;
   timestamp: string;
 }
 
@@ -83,6 +88,7 @@ function traduzir(bruto: DiagnosticoDaApi): Diagnostico {
     recomendacao: bruto.recomendacao,
     urlImagem: bruto.url_imagem,
     saudavel: ehSaudavel(bruto.classe_prevista),
+    semDiagnostico: semDiagnostico(bruto.classe_prevista),
     timestamp: bruto.criado_em,
   };
 }

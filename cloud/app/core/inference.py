@@ -32,6 +32,7 @@ Relação com o resto do sistema:
 - O modelo consumido aqui é o artefato exportado por ml/src/export/convert_tflite.py.
 """
 
+import io
 import logging
 from pathlib import Path
 from typing import Any
@@ -49,6 +50,100 @@ RESULTADO_INDISPONIVEL = {
     "recomendacao": None,
     "severidade": None,
 }
+
+# --- Guarda de qualidade de imagem ---
+
+CLASSE_IMAGEM_INADEQUADA = "imagem_inadequada"
+
+# POR QUE ESTA GUARDA EXISTE, com os números que a motivaram.
+#
+# O modelo tem três saídas e nenhuma delas é "isto não é uma folha".
+# Toda entrada é distribuída entre as três classes, e medindo em
+# 2026-10-17 descobrimos para onde ele empurra o que não entende:
+#
+#   imagem preta      -> saudavel  0.93
+#   quase preta       -> saudavel  0.97
+#   ruído aleatório   -> saudavel  0.94
+#   verde liso        -> saudavel  0.90
+#
+# E, pior, a confiança CRESCE conforme a foto escurece. A mesma imagem
+# de folha sadia, escurecida artificialmente:
+#
+#   100% de luz -> saudavel 0.69
+#    50% de luz -> saudavel 0.91
+#    25% de luz -> saudavel 0.97
+#
+# A consequência prática é grave: numa estufa à noite, ou com o Ring LED
+# fraco, o sistema afirmaria "saudável" com 95% de confiança mesmo com a
+# planta doente. É falso negativo sistemático, o pior erro possível para
+# o propósito do projeto, porque o produtor não tem como desconfiar.
+#
+# Por isso a imagem é avaliada ANTES de classificar. Reprovada, a
+# captura é gravada normalmente (foto, leituras, alerta ambiental), mas
+# NENHUM diagnóstico de doença é afirmado: o produtor vê a própria foto
+# e o motivo, e decide o que fazer. Decisão do grupo em 2026-10-17:
+# guardar a foto é o que permite conferir se o aviso estava certo e
+# identificar o problema (lente suja, LED queimado, captura noturna)
+# olhando a imagem.
+
+# Limiares medidos, não arbitrados. Sobre as 6 fotos reais de
+# ml/validacao_externa/, que o modelo classifica de forma utilizável:
+#
+#   brilho médio:  74,6 a 207,1
+#   textura (desvio padrão): 35,2 a 71,4
+#
+# Contra a mesma foto escurecida e contra imagens sem conteúdo:
+#
+#   25% de luz          -> brilho  51,4   textura 17,8
+#   15% de luz          -> brilho  30,6   textura 10,7
+#   parede/lente tampada-> brilho qualquer textura  0,0
+#
+# A textura separa melhor que o brilho: ela cai junto com a luz e vai a
+# zero em imagem lisa. O piso de 25 mantém margem sobre a pior foto boa
+# (35,2) sem deixar passar a de 25% de luz.
+BRILHO_MINIMO = 40.0
+TEXTURA_MINIMA = 25.0
+
+# LIMITAÇÃO CONHECIDA: ruído aleatório puro passa nos dois testes
+# (brilho 127, textura 49). Não é um modo de falha de câmera real (uma
+# câmera com defeito produz foto escura, borrada ou lisa, não ruído
+# uniforme), e inventar um terceiro teste para cobrir um caso que não
+# acontece custaria mais do que entrega.
+
+
+def avaliar_qualidade_imagem(bytes_imagem: bytes) -> str | None:
+    """Devolve o motivo pelo qual a imagem não serve para diagnóstico,
+    ou None quando ela serve.
+
+    O texto devolvido vai direto para o produtor, então ele diz o que
+    fazer, não o que mediu."""
+    imagem = Image.open(io.BytesIO(bytes_imagem)).convert("L")
+    cinza = np.asarray(imagem, dtype=np.float32)
+    brilho = float(cinza.mean())
+    textura = float(cinza.std())
+
+    if brilho < BRILHO_MINIMO:
+        logger.warning(
+            "Imagem reprovada por escuridão: brilho=%.1f (mínimo %.1f)",
+            brilho, BRILHO_MINIMO,
+        )
+        return (
+            "A foto está escura demais para análise. Verifique se a "
+            "iluminação do dispositivo acendeu no momento da captura."
+        )
+
+    if textura < TEXTURA_MINIMA:
+        logger.warning(
+            "Imagem reprovada por falta de detalhe: textura=%.1f (mínimo %.1f)",
+            textura, TEXTURA_MINIMA,
+        )
+        return (
+            "A foto não tem detalhe suficiente para análise. Verifique se "
+            "a lente está limpa e desobstruída e se a câmera está apontada "
+            "para a folha."
+        )
+
+    return None
 
 # Frase fixa que entra no final de toda recomendação de doença/praga.
 # O sistema dá apenas orientação agronômica GERAL (pesquisada, com fonte,
