@@ -6,7 +6,7 @@ Este é o repositório centralizado do projeto EcoVision, um sistema inteligente
 
 **Documento técnico de referência:** [**Blueprint v4.0**](docs/architecture/blueprint-v4.md), que consolida o estado real do sistema implantado e é o documento a ler primeiro. Ele substitui o *Tech Stack - Ecovision (revisado)* v3.0 como referência de consulta; o v3.0 continua válido como registro histórico do que foi planejado, e o índice por seção dele está em [`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md). Onde os dois divergem, vale o v4.0, e a divergência está explicada lá.
 
-**Estado atual:** API no ar em `https://ecovision-production.up.railway.app`, aplicativo Android instalável com atualização por EAS Update, modelo de IA de 3 classes em produção, 128 testes automatizados no backend.
+**Estado atual:** API no ar em `https://ecovision-production.up.railway.app`, aplicativo Android instalável com atualização por EAS Update, modelo de IA de 3 classes em produção (95,3% em laboratório e 74,0% em foto de campo, validação cruzada de 5 dobras), 128 testes automatizados no backend.
 
 > ⚠️ O hardware de borda usado na prática é o **Raspberry Pi 3 Model B+ (Anatel)**, não o Pi Zero 2 W especificado no Blueprint; ver [ADR 0004](docs/decisions/0004-raspberry-pi-3b-plus.md).
 
@@ -142,8 +142,9 @@ Detalhes e cronograma passo a passo em
   aparecem vazias, que é o comportamento correto.
 - **Limiar de umidade do solo** é convenção prática, não fonte
   agronômica, e precisa de recalibração com o sensor físico ([ADR 0005](docs/decisions/0005-limiares-ambientais.md)).
-- **Gap entre o F1 do dataset e o desempenho em foto de campo** ainda
-  não medido nem documentado ([ADR 0011](docs/decisions/0011-escopo-de-tres-classes.md)).
+- **O desempenho em foto tirada pelo próprio Pi** ainda não existe: os
+  números atuais vêm de datasets públicos, e a captura real fica entre
+  os dois ([ADR 0011](docs/decisions/0011-escopo-de-tres-classes.md)).
 - **Notificação só funciona com o app aberto**, por decisão registrada ([ADR 0012](docs/decisions/0012-notificacao-local-sem-push.md)).
 - **Calendário de sincronização** entre coleta de campo e data da banca: [`infra/calendar/sincronizacao.md`](infra/calendar/sincronizacao.md), ainda com datas "A DEFINIR".
 - **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver [`docs/planejamento/lista-compras-hardware.md`](docs/planejamento/lista-compras-hardware.md).

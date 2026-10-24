@@ -36,15 +36,36 @@ três perguntas difíceis da banca com as respostas.
   ([`blueprint-reference.md`](../architecture/blueprint-reference.md#diagrama-de-arquitetura)),
   com as fontes da AWS conferidas.
 
-### Resultados que faltam medir
+### Resultados já medidos, prontos para o texto
 
-- **Gap entre o F1 do dataset sintético e o desempenho em foto de
-  campo.** É a dupla métrica que `ml/README.md` exige e ainda não foi
-  medida. Depende do João.
-- **Matriz de confusão e F1 por classe** do modelo de 3 classes.
+Todos em [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) e
+`ml/models/README.md`.
+
+- **Desempenho nos dois domínios**, por validação cruzada de 5 dobras
+  sobre 3577 imagens, com comparação pareada: 95,3% em laboratório e
+  74,0% em foto de campo, contra 90,7% e 57,0% do modelo anterior.
+  Venceu em 10 de 10 comparações.
+- **Matriz de confusão e F1 por classe** nos dois domínios.
+- **O delta entre domínios**: 21,3 pontos, com a referência da
+  literatura que mostra quedas muito piores
+  ([TinyCNN](https://arxiv.org/pdf/2609.20290) reporta MobileNetV2
+  caindo para 28,6% no PlantDoc).
+- **Uma tentativa que não funcionou**, e por quê: ajustar só com foto de
+  campo trocava um domínio pelo outro. Vale mais na escrita que um
+  resultado limpo, porque mostra método.
+- **Uma lição de amostragem**: numa amostra de 6 imagens a conclusão
+  sobre interpolação foi errada, e só com 277 ficou clara.
+
+### O que ainda falta medir
+
+- **Desempenho em foto tirada pelo Raspberry Pi**, na estufa. Nenhum
+  conjunto usado até aqui é isso: PlantVillage é folha arrancada em
+  fundo uniforme, PlantDoc é foto de web, e a captura real fica entre os
+  dois. Depende da coleta de campo.
 - Grad-CAM antes e depois já existe em `ml/validacao_externa/gradcam/` e
-  `gradcam_depois/`: vale ir para o texto como evidência de que o modelo
-  olha a lesão, e não o fundo da imagem.
+  `gradcam_depois/`, mas foi gerado para o modelo **anterior**. Vale
+  regerar para o atual antes de usar como evidência de que o modelo olha
+  a lesão e não o fundo.
 
 ### Correções de contradição entre o TC1 e o que foi construído
 
@@ -54,6 +75,7 @@ Todas as quatro já têm decisão registrada. Falta levar para o texto:
 |---|---|---|
 | Câmera V2 | Camera Module 3 | [ADR 0001](../decisions/0001-camera-module-3.md) |
 | 11 classes | 10 no catálogo agronômico, **3 no modelo em produção** | [ADR 0006](../decisions/0006-recomendacoes-por-diagnostico.md), [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) |
+| Métricas de desempenho do TC1 | Medidas de novo em 2026-10-24, com validação cruzada | [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) |
 | Hospedagem em AWS ECS / Cloud Run | Railway, plano Hobby | [ADR 0014](../decisions/0014-deploy-railway-e-gate-de-ci.md) |
 | Autenticação por API Key única | Credencial por dispositivo + JWT com RBAC por posse | [ADR 0009](../decisions/0009-credencial-por-dispositivo.md), [ADR 0010](../decisions/0010-cadastro-aberto-e-rbac.md) |
 | Pi Zero 2 W | Raspberry Pi 3 Model B+ | [ADR 0004](../decisions/0004-raspberry-pi-3b-plus.md) |

@@ -332,11 +332,12 @@ ou `ERROR`, nunca `INFO`.
 
 | | |
 |---|---|
-| Arquitetura | MobileNetV2, transfer learning |
-| Artefato | `ml/models/modelo.tflite`, 8,9 MB, float32 |
+| Arquitetura | MobileNetV2, **ajuste fino de dois domínios** |
+| Artefato | `ml/models/modelo.tflite`, 8,5 MB, float32 |
 | Classes | 3: `septoriose`, `pinta_preta`, `saudavel` (nesta ordem) |
 | Quantização | **Nenhuma**, de propósito |
-| Validação externa | Conjunto próprio em `ml/validacao_externa/`, com Grad-CAM antes e depois |
+| Gerado por | `ml/src/training/ajuste_dois_dominios.py` |
+| Em produção desde | 2026-10-24 |
 | Validação agronômica | Carlos validou a classe de septoriose |
 
 Estratégia de dataset: **"Frankenstein Cirúrgico"**, fusão seletiva de
@@ -344,6 +345,55 @@ PlantVillage (sintético, com `rembg` aplicado só nas classes de baixo
 risco de corrosão de segmentação) com o Mendeley Tomato Disease Dataset
 (ambiente real). É um argumento de originalidade acadêmica defensável, e
 a justificativa completa está em [`ml/README.md`](../../ml/README.md).
+
+A esse treino somou-se, em 2026-10-24, um **ajuste fino com imagem de
+campo** (PlantDoc), porque o modelo ia bem no domínio em que aprendeu e
+mal no domínio em que o sistema opera.
+
+### 5.1.1. Desempenho medido
+
+Validação cruzada de 5 dobras sobre 3577 imagens, cada uma testada
+exatamente uma vez por um modelo que nunca a viu. Comparação **pareada**
+contra o modelo anterior, nas mesmas imagens de cada dobra:
+
+| Domínio | Modelo anterior | **Em produção** | Ganho |
+|---|---|---|---|
+| Laboratório (PlantVillage, 3300) | 90,7% ± 0,2 | **95,3% ± 0,8** | +4,5 p.p. |
+| Campo (PlantDoc, 277) | 57,0% ± 4,7 | **74,0% ± 2,3** | +17,0 p.p. |
+
+**Dez comparações pareadas, dez vitórias.** Em campo o desvio caiu pela
+metade: o modelo não é só melhor, é mais consistente entre amostras.
+
+Nas 6 imagens de `ml/validacao_externa/`, independentes de todo treino:
+**6 de 6**, contra 4 de 6 do anterior.
+
+**Nenhum desses conjuntos é foto do Raspberry Pi.** PlantVillage é folha
+arrancada em fundo uniforme; PlantDoc é foto de campo achada na web; a
+captura do Pi fica entre os dois, de perto e com iluminação controlada.
+Os números acima comparam modelos de forma justa, mas o desempenho em
+produção só será conhecido depois da coleta na estufa.
+
+### 5.1.2. O caminho até aqui, incluindo o que não funcionou
+
+Vale para a banca, porque mostra método e não sorte.
+
+A primeira tentativa ajustou o modelo **só com foto de campo**. Subiu
+campo de 50,3% para 69,3%, vencendo em 5 de 5 dobras. Parecia resolvido.
+
+Medido depois em laboratório, porém, aquele modelo **caía de 90,7% para
+78,2%** e passava a chamar 495 das 1100 pinta pretas de laboratório de
+septoriose, porque herdava o desequilíbrio do PlantDoc. Era troca de um
+domínio pelo outro, não melhora.
+
+A correção foi treinar com os dois domínios ao mesmo tempo, pesando cada
+foto de campo por cerca de 12 para compensar os 249 contra 3000. O ganho
+final veio de implementar duas coisas que faltavam no treino original: o
+`class_weight` que o `ml/README.md` já prometia, e uma etapa de ajuste
+fino, já que a base ficava congelada do começo ao fim.
+
+Detalhe de método que vale citar: numa amostra de 6 imagens, a conclusão
+sobre interpolação foi **errada**, e só com 277 ficou claro. Amostra
+pequena leva a decisão errada com confiança alta.
 
 ### 5.2. Três decisões medidas, não opinadas
 
@@ -370,14 +420,22 @@ real. É o que permite afirmar algo sobre desempenho em campo.
 
 ### 5.4. Dupla métrica
 
-| Métrica | Mínimo para a banca | Ideal |
-|---|---|---|
-| Weighted F1 (validação sintética) | >= 75% | >= 82% |
-| Weighted F1 (imagens reais do Pi) | >= 65% | >= 72% |
-| Delta sintético contra real | documentar e explicar | < 10 p.p. |
+| Métrica | Mínimo | Ideal | Medido |
+|---|---|---|---|
+| Weighted F1, validação sintética | >= 75% | >= 82% | **95,3%** |
+| Weighted F1, imagens reais do Pi | >= 65% | >= 72% | **não existe ainda** |
+| Delta sintético contra real | documentar | < 10 p.p. | **21,3 p.p.** |
 
-O delta ainda **não foi medido**. É a principal pendência de IA, e
-depende do João entregar os números.
+**Cuidado ao ler esta tabela.** A segunda linha fala de fotos tiradas
+pelo hardware do EcoVision, na estufa, e essas fotos ainda não existem.
+O que foi medido é um terceiro conjunto, o PlantDoc (foto de campo de
+outro grupo): **74,0%**, um intermediário pessimista.
+
+O delta de 21,3 pontos está acima dos 10 desejados, e isso é esperado:
+a queda entre datasets é severa neste problema. Um MobileNetV2 treinado
+em PlantVillage chega a cair para 28,6% no PlantDoc
+([TinyCNN, arXiv 2609.20290](https://arxiv.org/pdf/2609.20290)). O
+ajuste de dois domínios reduziu o delta de **33,7 para 21,3 pontos**.
 
 ---
 
@@ -494,6 +552,7 @@ errado. São as mais caras de encontrar e as mais fáceis de reintroduzir.
 
 | # | Armadilha | Sintoma | Guarda |
 |---|---|---|---|
+| 0 | O modelo confunde **escuro com saudável**, e a confiança cresce conforme a foto escurece | Foto preta vira "saudável 97%", e numa estufa à noite isso esconderia doença | Guarda de qualidade antes da inferência ([ADR 0016](../decisions/0016-guarda-de-qualidade-de-imagem.md)) |
 | 1 | O modelo normaliza por dentro: espera pixels **crus de 0 a 255** | Dividir por 255 antes faz tudo virar "saudavel" com ~90% de confiança | Comentário em `inference.py` e no conversor, mais [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) |
 | 2 | Redimensionar com BILINEAR/BICUBIC | 0 de 6 predições batem com o Keras, duas classes mudam | Medido e documentado |
 | 3 | `_CLASSES_DO_MODELO` fora de ordem após retreino | Cada predição sai com o nome e a recomendação de **outra doença** | Comentário no código e checklist de reativação no ADR 0011 |
@@ -588,8 +647,7 @@ como pendência.
   evitar isso, e reflexo branco pode ser confundido com lesão pelo
   modelo.
 
-**Depende do grupo:** o João medir e documentar o gap entre F1 no
-dataset e desempenho em foto de campo; o Igor consolidar as atas (hoje
+**Depende do grupo:** o Igor consolidar as atas (hoje
 `docs/atas/` está vazio) e corrigir as contradições do TC1 listadas em
 [`docs/tcc/README.md`](../tcc/README.md); a Amanda aceitar o convite da
 organização no Expo.
@@ -654,6 +712,8 @@ que seria necessário, e isso é trabalho futuro do TCC.
 | [0012](../decisions/0012-notificacao-local-sem-push.md) | Notificação local, sem push de servidor |
 | [0013](../decisions/0013-email-transacional-brevo.md) | E-mail pela API HTTP do Brevo |
 | [0014](../decisions/0014-deploy-railway-e-gate-de-ci.md) | Deploy no Railway com gate de CI |
+| [0015](../decisions/0015-ads1115-por-smbus2.md) | Leitura do ADS1115 por smbus2 |
+| [0016](../decisions/0016-guarda-de-qualidade-de-imagem.md) | Foto ruim não vira diagnóstico |
 | [0015](../decisions/0015-ads1115-por-smbus2.md) | Leitura do ADS1115 por smbus2, fora da pilha Adafruit |
 
 ## 12. Referências

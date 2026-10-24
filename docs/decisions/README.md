@@ -31,6 +31,8 @@ de ele ter caducado é em si um bom argumento de banca.
 - [0005: Limiares de risco ambiental (temperatura, umidade do ar, umidade do solo)](0005-limiares-ambientais.md)
 - [0006: Recomendações de manejo por classe de diagnóstico](0006-recomendacoes-por-diagnostico.md)
 - [0011: Escopo do modelo reduzido a três classes](0011-escopo-de-tres-classes.md)
+  — inclui o ajuste de dois domínios que está em produção
+- [0016: Foto ruim não vira diagnóstico](0016-guarda-de-qualidade-de-imagem.md)
 
 ## Comportamento do sistema
 
