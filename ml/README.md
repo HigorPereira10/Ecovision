@@ -4,9 +4,13 @@ Referência arquitetural: [**Blueprint v4.0**](../docs/architecture/blueprint-v4
 seção 5. O Blueprint v3.0, Fase 3, segue valendo para o planejamento do
 pipeline.
 
-> **ESTADO EM PRODUÇÃO (2026-10-11):** `ml/models/modelo.tflite`,
-> MobileNetV2, float32, 8,9 MB, **3 classes** na ordem `septoriose`,
-> `pinta_preta`, `saudavel`. O recorte de três classes é uma decisão
+> **ESTADO EM PRODUÇÃO (2026-10-24):** `ml/models/modelo.tflite`,
+> MobileNetV2 com **ajuste fino de dois domínios**, float32, 8,5 MB,
+> **3 classes** na ordem `septoriose`, `pinta_preta`, `saudavel`.
+> Medido por validação cruzada de 5 dobras em 3577 imagens: **95,3% em
+> laboratório e 74,0% em foto de campo**, contra 90,7% e 57,0% do
+> baseline anterior, vencendo em 10 de 10 comparações pareadas. Gerado
+> por `src/training/ajuste_dois_dominios.py`, ver `models/README.md`. O recorte de três classes é uma decisão
 > registrada, com o motivo e o procedimento para reativar as outras, em
 > [ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md). O
 > aplicativo declara esse limite ao produtor na tela de Diagnóstico, em
@@ -28,14 +32,42 @@ revisão como abordagem recomendada):
 
 ## Metas de desempenho (dupla métrica, Blueprint Seção 3)
 
-| Métrica | Meta mínima (banca) | Meta ideal |
-|---|---|---|
-| Weighted F1 (validação sintética) | ≥ 75% | ≥ 82% |
-| Weighted F1 (imagens reais do Pi, campo) | ≥ 65% | ≥ 72% |
-| Delta sintético vs. real | Documentar e explicar | < 10 p.p. |
+| Métrica | Meta mínima | Meta ideal | Medido |
+|---|---|---|---|
+| Weighted F1, validação sintética (laboratório) | >= 75% | >= 82% | **95,3%** |
+| Weighted F1, imagens reais do Pi (estufa) | >= 65% | >= 72% | **ainda não existe** |
+| Delta sintético contra real | documentar | < 10 p.p. | **ver abaixo** |
+
+**Atenção ao ler a tabela acima.** A segunda linha fala de fotos tiradas
+pelo hardware do EcoVision, na estufa, e essas fotos ainda não existem.
+O que foi medido é um terceiro conjunto, o **PlantDoc** (foto de campo de
+outro grupo): **74,0%**. Ele é um intermediário pessimista, porque é foto
+de web com enquadramento aleatório, enquanto a captura do Pi é de perto e
+com iluminação controlada.
+
+O delta entre laboratório e PlantDoc é de **21,3 pontos**, acima dos 10
+desejados. Isso é esperado e tem respaldo na literatura: a queda entre
+datasets é severa nesse problema, e um MobileNetV2 treinado em
+PlantVillage chega a cair para 28,6% no PlantDoc
+([TinyCNN, arXiv 2609.20290](https://arxiv.org/pdf/2609.20290)). O
+ajuste de dois domínios reduziu esse delta de 33,7 para 21,3 pontos.
 
 **As imagens reais coletadas com o hardware do EcoVision NUNCA entram no
 treino**: são exclusivamente o conjunto de validação do mundo real.
+
+## Como o modelo em produção é gerado
+
+`src/training/ajuste_dois_dominios.py`, a partir de
+`training/baseline_pinta_preta.keras`, treinando com imagem de
+laboratório e de campo ao mesmo tempo. O cabeçalho do arquivo registra as
+três decisões que fazem o ajuste funcionar (descongelamento parcial, taxa
+de aprendizado baixa, peso por classe e por domínio) e o que acontece
+quando cada uma falta.
+
+A tentativa anterior, que ajustou só com foto de campo, está documentada
+no [ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md): ela
+ganhava 19 pontos em campo e perdia 12 em laboratório, ou seja, trocava
+um domínio pelo outro em vez de melhorar.
 
 ## Risco estatístico do split 70/15/15 (Blueprint Seção 3)
 

@@ -338,13 +338,29 @@ def preprocessar_imagem(bytes_imagem: bytes) -> np.ndarray:
     para "saudavel" com cerca de 90% de confiança em qualquer foto,
     inclusive em folha visivelmente doente.
 
-    O método de redimensionamento também não é detalhe. O treino usou
-    tf.keras.utils.load_img, cujo padrão é vizinho mais próximo
-    (NEAREST). Medido nas 6 imagens de ml/validacao_externa/: com
-    NEAREST a saída bate com o Keras original nas 6, casa decimal por
-    casa decimal; com BILINEAR ou BICUBIC (este último é o padrão do
-    Pillow, o que estava em uso aqui) nenhuma das 6 bate, e DUAS
-    trocam de classe. Ou seja, trocar a interpolação muda diagnóstico.
+    O método de redimensionamento também não é detalhe: trocar a
+    interpolação MUDA DIAGNÓSTICO. Medido nas 6 imagens de
+    ml/validacao_externa/, com NEAREST a saída bate com o script de
+    comparação em Keras nas 6, casa decimal por casa decimal; com
+    BILINEAR ou BICUBIC (este último é o padrão do Pillow, o que estava
+    em uso aqui) nenhuma das 6 bate, e DUAS trocam de classe.
+
+    QUESTÃO RESOLVIDA EM 2026-10-24, e a resposta não era a esperada.
+    Havia um descasamento: o treino usou image_dataset_from_directory
+    (padrão BILINEAR) e a produção usa NEAREST, então parecia que
+    alinhar os dois melhoraria o resultado. Medido nos conjuntos de
+    teste intocados, a preferência depende do DOMÍNIO da foto, não do
+    modelo:
+
+        laboratório (300 imagens): BILINEAR ganha de 1 ponto
+        campo (28 imagens):        NEAREST  ganha de 7 pontos
+
+    Como o sistema opera sobre foto de estufa, NEAREST é o certo, e
+    continua. Ver docs/decisions/0011-escopo-de-tres-classes.md.
+
+    Uma lição de método, que vale registrar: numa amostra de 6 imagens
+    BILINEAR parecia melhor, e só com 277 ficou claro que não era. Seis
+    imagens levaram à conclusão errada.
     """
     import io
 
