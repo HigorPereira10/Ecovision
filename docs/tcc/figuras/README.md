@@ -21,6 +21,8 @@ em tabela para o texto corrido.
 | `07-pipeline-captura-ao-diagnostico` | Material e Métodos | Fluxo real, da captura no Pi até a tela do aplicativo |
 | `08-mer-banco-de-dados` | Material e Métodos | As 8 tabelas, com chaves, cardinalidades e a cadeia de posse |
 | `09-diagrama-de-classes` | Material e Métodos | Entidades e serviços implementados, e o que caiu em relação ao TC1 |
+| **`16-app-telas-conjunto`** | Resultados ou Material e Métodos | **As seis telas do aplicativo em grade 3x2, já montada e rotulada de (a) a (f). É este arquivo que vai no TCC** |
+| `10` a `15` | (avulsos) | As mesmas seis telas, uma por arquivo, para quem precisar usar só uma |
 
 ## Três figuras que substituem material desatualizado
 
@@ -39,6 +41,21 @@ Storage, e a guarda de qualidade acontece antes de tudo.
 descreviam 6 tabelas com chaves UUID, uma tabela `produtores` e uma
 `resultados_classificacao`. O sistema tem 8 tabelas, chaves inteiras
 autoincremento, `usuarios` e `diagnosticos`.
+
+## As telas do aplicativo
+
+São seis capturas reais do aparelho, já tratadas: a barra de status do
+Android e a barra de gestos foram removidas, e os endereços de e-mail
+pessoais foram substituídos por `produtor@ecovision.app`, porque o
+trabalho é público.
+
+**Para o TCC, use `16-app-telas-conjunto.png`.** A grade de 3 por 2 com
+os rótulos já está dentro da imagem, então basta inserir uma figura. Os
+arquivos `10` a `15` existem para o caso de uma tela precisar aparecer
+sozinha.
+
+Faltam quatro telas (Início, Diagnóstico, Histórico e Alertas), porque
+só fazem sentido com dados reais. Elas entram depois da coleta de campo.
 
 ## Como regerar
 
