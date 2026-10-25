@@ -33,6 +33,8 @@ de ele ter caducado é em si um bom argumento de banca.
 - [0011: Escopo do modelo reduzido a três classes](0011-escopo-de-tres-classes.md)
   — inclui o ajuste de dois domínios que está em produção
 - [0016: Foto ruim não vira diagnóstico](0016-guarda-de-qualidade-de-imagem.md)
+- [0017: Metas de desempenho revistas por domínio](0017-metas-revistas-por-dominio.md)
+  — medidas pela primeira vez, duas reformuladas e duas removidas
 
 ## Comportamento do sistema
 
