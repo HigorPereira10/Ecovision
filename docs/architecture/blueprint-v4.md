@@ -433,7 +433,7 @@ outro grupo): **74,0%**, um intermediário pessimista.
 
 O delta de 21,3 pontos está acima dos 10 desejados, e isso é esperado:
 a queda entre datasets é severa neste problema. Um MobileNetV2 treinado
-em PlantVillage chega a cair para 28,6% no PlantDoc
+em PlantVillage cai de 99,77% para 28,57% no PlantDoc, sem ajuste de domínio,
 ([TinyCNN, arXiv 2609.20290](https://arxiv.org/pdf/2609.20290)). O
 ajuste de dois domínios reduziu o delta de **33,7 para 21,3 pontos**.
 

@@ -57,7 +57,13 @@ TRES DECISOES QUE FAZEM ESTE AJUSTE FUNCIONAR
 
 DADOS
 -----
-- Campo: ml/data/plantdoc_tomate/ (PlantDoc, versionado no repositorio).
+- Campo: ml/data/plantdoc_tomate/ (PlantDoc, recorte de tomate em 3
+  classes). ATENCAO: NAO esta versionado. O .gitignore ignora ml/data/
+  inteiro por peso, entao este conjunto vive apenas na maquina de quem
+  treina. Vale tanto para as imagens quanto para a DIVISAO entre train/
+  e test/, que e a parte insubstituivel: o PlantDoc e publico, a nossa
+  divisao nao. Enquanto o deposito no Zenodo nao sair, perder o disco
+  significa nao conseguir reproduzir nenhuma metrica de campo.
 - Laboratorio: PlantVillage tomate, 3 classes, 1100 imagens cada. NAO
   esta versionado aqui por tamanho (cerca de 400 MB). Foi obtido do
   recorte publico em

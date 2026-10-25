@@ -363,11 +363,46 @@ classe prevista em parte dos casos. Não é defeito da compressão do
 `edge/`: é sintoma de decisões tomadas perto do limiar, que qualquer
 perturbação de pixel desloca.
 
+## Adendo de 2026-10-25: avaliação do artefato em produção
+
+As medições acima avaliam o **método** (validação cruzada de 5 dobras).
+Em 2026-10-25 o `.tflite` que está servindo foi avaliado diretamente
+sobre as partições `test/`, que o ajuste nunca viu:
+
+| Domínio | Imagens | Acurácia | F1 pond. | Falso neg. | Falso pos. |
+|---|---|---|---|---|---|
+| Laboratório | 300 | 94,3% | 0,943 | 2,5% | 0,0% |
+| Campo | 27 | 74,1% | 0,744 | 5,3% | indeterminado |
+
+Os dois métodos concordam, o que reforça ambos.
+
+**Falso positivo em campo não reprovou nem passou.** São 2 erros em 8
+imagens, com intervalo de Wilson de 7,1% a 59,1%, e a meta de 15% cai
+dentro dele. Ver [ADR 0017](0017-metas-revistas-por-dominio.md).
+
+**O erro dominante em campo não é o que se esperava.** Dos 7 erros, 4
+são doença trocada por doença e só 1 é falso negativo. O modelo percebe
+que há doença com mais confiabilidade do que acerta qual delas. Como
+septoriose e pinta-preta são fúngicas e as recomendações convergem, o
+produtor é levado à ação certa mesmo quando o nome sai errado.
+
+**Teste de memorização.** Para cada imagem de teste foi medida a
+distância de Hamming do dHash até a imagem de treino mais parecida.
+Removendo as 26 de laboratório a 10 bits ou menos (8,7% da partição), a
+acurácia foi de 94,3% para **94,2%**. O acerto não vem do que daria para
+decorar. Grad-CAM e curva de treino confirmam pelo mesmo lado, e estão
+em [`docs/tcc/resultados-medidos.md`](../tcc/resultados-medidos.md),
+seção 7.
+
 ## Pendências
 
-- Documentar o gap entre F1 no dataset e desempenho em foto de campo,
-  que é a dupla métrica que `ml/README.md` já exige. Depende do João
-  entregar os números.
+- ~~Documentar o gap entre F1 no dataset e desempenho em foto de campo.~~
+  **Feito** no adendo acima e em `docs/tcc/resultados-medidos.md`.
+- **Reproduzibilidade em risco:** `ml/data/` está no `.gitignore`, então
+  o PlantDoc e, principalmente, a divisão entre `train/` e `test/`
+  existem só na máquina de quem treinou. O conjunto é público, a nossa
+  divisão não. Resolver pelo depósito no Zenodo, que o Manual do
+  Conjunto Prototipado exige de qualquer forma.
 - Corrigir as contradições do TC1 citadas em `docs/tcc/README.md`
   (câmera V2 contra V3, contagem de classes), agora que o número de
   classes em produção está decidido e registrado aqui.

@@ -48,7 +48,7 @@ com iluminação controlada.
 O delta entre laboratório e PlantDoc é de **21,3 pontos**, acima dos 10
 desejados. Isso é esperado e tem respaldo na literatura: a queda entre
 datasets é severa nesse problema, e um MobileNetV2 treinado em
-PlantVillage chega a cair para 28,6% no PlantDoc
+PlantVillage cai de 99,77% para 28,57% no PlantDoc, sem ajuste de domínio,
 ([TinyCNN, arXiv 2609.20290](https://arxiv.org/pdf/2609.20290)). O
 ajuste de dois domínios reduziu esse delta de 33,7 para 21,3 pontos.
 
