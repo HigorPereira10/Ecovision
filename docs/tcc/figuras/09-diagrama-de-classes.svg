@@ -1,0 +1,202 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1120" font-family="'IBM Plex Sans','Segoe UI',sans-serif">
+  <defs>
+    <marker id="assoc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <polygon points="0,0 10,5 0,10" fill="#5B6B82"/>
+    </marker>
+    <marker id="usa" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <polygon points="0,0 10,5 0,10" fill="#0E7C86"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1120" fill="#EEF1F5"/>
+
+  <text x="40" y="50" font-size="25" font-weight="700" fill="#14213D">Diagrama de classes</text>
+  <text x="40" y="78" font-size="14" fill="#5B6B82">Entidades de domínio e os serviços que atuam sobre elas. Reflete o código implementado, não a proposta inicial.</text>
+
+  <rect x="1120" y="34" width="440" height="52" rx="8" fill="#FFFFFF" stroke="#A7B4C6"/>
+  <line x1="1138" y1="52" x2="1178" y2="52" stroke="#5B6B82" stroke-width="2" marker-end="url(#assoc)"/>
+  <text x="1188" y="56" font-size="12" fill="#5B6B82">associação</text>
+  <line x1="1290" y1="52" x2="1330" y2="52" stroke="#0E7C86" stroke-width="2" stroke-dasharray="5 3" marker-end="url(#usa)"/>
+  <text x="1340" y="56" font-size="12" fill="#5B6B82">usa (dependência)</text>
+  <text x="1138" y="76" font-size="11.5" fill="#5B6B82">Entidades em índigo, serviços em verde. Métodos privados e utilitários foram omitidos.</text>
+
+  <!-- ===================== ENTIDADES ===================== -->
+  <text x="40" y="120" font-size="14" font-weight="700" fill="#4C51BF">ENTIDADES DE DOMÍNIO</text>
+
+  <!-- Usuario -->
+  <rect x="40" y="134" width="268" height="158" rx="8" fill="#FFFFFF" stroke="#4C51BF" stroke-width="1.5"/>
+  <rect x="40" y="134" width="268" height="30" rx="8" fill="#4C51BF"/>
+  <rect x="40" y="154" width="268" height="10" fill="#4C51BF"/>
+  <text x="174" y="155" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Usuario</text>
+  <text x="56" y="184" font-size="12" fill="#14213D">- id: int</text>
+  <text x="56" y="203" font-size="12" fill="#14213D">- email: str</text>
+  <text x="56" y="222" font-size="12" fill="#14213D">- senha_hash: str</text>
+  <text x="56" y="241" font-size="12" fill="#14213D">- papel: str</text>
+  <text x="56" y="260" font-size="12" fill="#14213D">- email_verificado: bool</text>
+  <line x1="40" y1="270" x2="308" y2="270" stroke="#A7B4C6"/>
+  <text x="56" y="286" font-size="11.5" fill="#5B6B82" font-style="italic">não recebe alerta: ele consulta</text>
+
+  <!-- Dispositivo -->
+  <rect x="40" y="316" width="268" height="196" rx="8" fill="#FFFFFF" stroke="#4C51BF" stroke-width="1.5"/>
+  <rect x="40" y="316" width="268" height="30" rx="8" fill="#4C51BF"/>
+  <rect x="40" y="336" width="268" height="10" fill="#4C51BF"/>
+  <text x="174" y="337" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Dispositivo</text>
+  <text x="56" y="366" font-size="12" fill="#14213D">- device_id: str</text>
+  <text x="56" y="385" font-size="12" fill="#14213D">- usuario_id: int?</text>
+  <text x="56" y="404" font-size="12" fill="#14213D">- chave_hash: str?</text>
+  <text x="56" y="423" font-size="12" fill="#14213D">- codigo_pareamento: str?</text>
+  <text x="56" y="442" font-size="12" fill="#14213D">- pareado_em: datetime?</text>
+  <text x="56" y="461" font-size="12" fill="#14213D">- campo, setor: str?</text>
+  <text x="56" y="480" font-size="12" fill="#14213D">- intervalo_captura_min: int?</text>
+  <line x1="40" y1="490" x2="308" y2="490" stroke="#A7B4C6"/>
+  <text x="56" y="506" font-size="11.5" fill="#5B6B82" font-style="italic">o código só vale com usuario_id nulo</text>
+
+  <text x="174" y="309" font-size="11.5" font-weight="600" fill="#5B6B82" text-anchor="middle">1 possui 0..N</text>
+  <line x1="174" y1="292" x2="174" y2="310" stroke="#5B6B82" stroke-width="1.6" marker-end="url(#assoc)"/>
+
+  <!-- RegistroImagem -->
+  <rect x="368" y="134" width="268" height="176" rx="8" fill="#FFFFFF" stroke="#4C51BF" stroke-width="2"/>
+  <rect x="368" y="134" width="268" height="30" rx="8" fill="#4C51BF"/>
+  <rect x="368" y="154" width="268" height="10" fill="#4C51BF"/>
+  <text x="502" y="155" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">RegistroImagem</text>
+  <text x="384" y="184" font-size="12" fill="#14213D">- id: int</text>
+  <text x="384" y="203" font-size="12" fill="#14213D">- device_id: str</text>
+  <text x="384" y="222" font-size="12" fill="#14213D">- idempotency_key: str</text>
+  <text x="384" y="241" font-size="12" fill="#14213D">- caminho_arquivo: str</text>
+  <text x="384" y="260" font-size="12" fill="#14213D">- capturado_em: datetime</text>
+  <line x1="368" y1="270" x2="636" y2="270" stroke="#A7B4C6"/>
+  <text x="384" y="286" font-size="11.5" fill="#5B6B82" font-style="italic">a captura é a raiz: leitura e</text>
+  <text x="384" y="302" font-size="11.5" fill="#5B6B82" font-style="italic">diagnóstico pendem dela</text>
+
+  <!-- vinculo logico Dispositivo -> RegistroImagem -->
+  <path d="M 316 366 L 342 366 L 342 220 L 360 220" fill="none" stroke="#B4453F" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#assoc)"/>
+  <text x="314" y="392" font-size="10" font-weight="600" fill="#B4453F">device_id</text>
+
+  <!-- LeituraAmbiental -->
+  <rect x="368" y="340" width="268" height="150" rx="8" fill="#FFFFFF" stroke="#4C51BF" stroke-width="1.5"/>
+  <rect x="368" y="340" width="268" height="30" rx="8" fill="#4C51BF"/>
+  <rect x="368" y="360" width="268" height="10" fill="#4C51BF"/>
+  <text x="502" y="361" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">LeituraAmbiental</text>
+  <text x="384" y="390" font-size="12" fill="#14213D">- temperatura_c: float?</text>
+  <text x="384" y="409" font-size="12" fill="#14213D">- umidade_ar_pct: float?</text>
+  <text x="384" y="428" font-size="12" fill="#14213D">- umidade_solo_pct: float?</text>
+  <line x1="368" y1="440" x2="636" y2="440" stroke="#A7B4C6"/>
+  <text x="384" y="458" font-size="11.5" fill="#5B6B82" font-style="italic">todos nulos: falha de um sensor</text>
+  <text x="384" y="474" font-size="11.5" fill="#5B6B82" font-style="italic">não aborta a captura da foto</text>
+
+  <line x1="470" y1="310" x2="470" y2="334" stroke="#5B6B82" stroke-width="1.6" marker-end="url(#assoc)"/>
+  <text x="430" y="328" font-size="11" font-weight="600" fill="#5B6B82">1 : 0..1</text>
+
+  <!-- Diagnostico -->
+  <rect x="696" y="340" width="268" height="150" rx="8" fill="#FFFFFF" stroke="#4C51BF" stroke-width="1.5"/>
+  <rect x="696" y="340" width="268" height="30" rx="8" fill="#4C51BF"/>
+  <rect x="696" y="360" width="268" height="10" fill="#4C51BF"/>
+  <text x="830" y="361" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Diagnostico</text>
+  <text x="712" y="390" font-size="12" fill="#14213D">- classe_prevista: str</text>
+  <text x="712" y="409" font-size="12" fill="#14213D">- confianca: float</text>
+  <text x="712" y="428" font-size="12" fill="#14213D">- recomendacao: str?</text>
+  <line x1="696" y1="440" x2="964" y2="440" stroke="#A7B4C6"/>
+  <text x="712" y="458" font-size="11.5" fill="#5B6B82" font-style="italic">classe_prevista: septoriose,</text>
+  <text x="712" y="474" font-size="11.5" fill="#5B6B82" font-style="italic">pinta_preta, saudavel, imagem_inadequada</text>
+
+  <path d="M 600 310 L 600 322 L 830 322 L 830 334" fill="none" stroke="#5B6B82" stroke-width="1.6" marker-end="url(#assoc)"/>
+  <text x="846" y="328" font-size="11" font-weight="600" fill="#5B6B82">1 : 0..1</text>
+
+  <!-- Alerta -->
+  <rect x="1024" y="340" width="268" height="170" rx="8" fill="#FFFFFF" stroke="#4C51BF" stroke-width="1.5"/>
+  <rect x="1024" y="340" width="268" height="30" rx="8" fill="#4C51BF"/>
+  <rect x="1024" y="360" width="268" height="10" fill="#4C51BF"/>
+  <text x="1158" y="361" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Alerta</text>
+  <text x="1040" y="390" font-size="12" fill="#14213D">- diagnostico_id: int?</text>
+  <text x="1040" y="409" font-size="12" fill="#14213D">- leitura_id: int?</text>
+  <text x="1040" y="428" font-size="12" fill="#14213D">- titulo, descricao: str</text>
+  <text x="1040" y="447" font-size="12" fill="#14213D">- severidade: str</text>
+  <text x="1040" y="466" font-size="12" fill="#14213D">- lido: bool</text>
+  <line x1="1024" y1="478" x2="1292" y2="478" stroke="#A7B4C6"/>
+  <text x="1040" y="496" font-size="11.5" fill="#5B6B82" font-style="italic">severidade: alta | media | baixa</text>
+
+  <line x1="972" y1="412" x2="1016" y2="412" stroke="#5B6B82" stroke-width="1.6" marker-end="url(#assoc)"/>
+  <text x="978" y="402" font-size="11" font-weight="600" fill="#5B6B82">1 : 0..N</text>
+  <path d="M 644 404 L 668 404 L 668 530 L 1158 530 L 1158 518" fill="none" stroke="#5B6B82" stroke-width="1.6" marker-end="url(#assoc)"/>
+  <text x="900" y="548" font-size="11" font-weight="600" fill="#5B6B82">1 : 0..N</text>
+
+  <!-- ===================== SERVICOS ===================== -->
+  <text x="40" y="596" font-size="14" font-weight="700" fill="#0E7C86">SERVIÇOS DA NUVEM</text>
+
+  <rect x="40" y="610" width="300" height="206" rx="8" fill="#FFFFFF" stroke="#0E7C86" stroke-width="2"/>
+  <rect x="40" y="610" width="300" height="30" rx="8" fill="#0E7C86"/>
+  <rect x="40" y="630" width="300" height="10" fill="#0E7C86"/>
+  <text x="190" y="631" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Inferencia</text>
+  <text x="56" y="660" font-size="12" fill="#14213D">+ carregar_modelo_tflite(caminho)</text>
+  <text x="56" y="681" font-size="12" font-weight="700" fill="#B4453F">+ avaliar_qualidade_imagem(bytes)</text>
+  <text x="56" y="702" font-size="12" fill="#14213D">+ preprocessar_imagem(bytes)</text>
+  <text x="56" y="723" font-size="12" fill="#14213D">+ rodar_inferencia(interp, img)</text>
+  <line x1="40" y1="736" x2="340" y2="736" stroke="#A7B4C6"/>
+  <text x="56" y="754" font-size="11.5" fill="#5B6B82" font-style="italic">BRILHO_MINIMO = 40,0</text>
+  <text x="56" y="770" font-size="11.5" fill="#5B6B82" font-style="italic">TEXTURA_MINIMA = 25,0</text>
+  <text x="56" y="790" font-size="11.5" fill="#5B6B82" font-style="italic">Não existe classificarMultimodal: imagem</text>
+  <text x="56" y="806" font-size="11.5" fill="#5B6B82" font-style="italic">e sensores nunca são cruzados.</text>
+
+  <rect x="368" y="610" width="300" height="152" rx="8" fill="#FFFFFF" stroke="#0E7C86" stroke-width="1.5"/>
+  <rect x="368" y="610" width="300" height="30" rx="8" fill="#0E7C86"/>
+  <rect x="368" y="630" width="300" height="10" fill="#0E7C86"/>
+  <text x="518" y="631" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">AlertasAmbientais</text>
+  <text x="384" y="660" font-size="12" fill="#14213D">+ avaliar(leitura) -&gt; list[Alerta]</text>
+  <line x1="368" y1="674" x2="668" y2="674" stroke="#A7B4C6"/>
+  <text x="384" y="692" font-size="11.5" fill="#5B6B82" font-style="italic">Decide a partir das LEITURAS apenas,</text>
+  <text x="384" y="708" font-size="11.5" fill="#5B6B82" font-style="italic">de forma independente da imagem.</text>
+  <text x="384" y="730" font-size="11.5" fill="#5B6B82" font-style="italic">Solo exatamente em 0,0% vira suspeita</text>
+  <text x="384" y="746" font-size="11.5" fill="#5B6B82" font-style="italic">de sensor, não seca crítica.</text>
+
+  <rect x="696" y="610" width="300" height="152" rx="8" fill="#FFFFFF" stroke="#0E7C86" stroke-width="1.5"/>
+  <rect x="696" y="610" width="300" height="30" rx="8" fill="#0E7C86"/>
+  <rect x="696" y="630" width="300" height="10" fill="#0E7C86"/>
+  <text x="846" y="631" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">DispositivoAuth</text>
+  <text x="712" y="660" font-size="12" fill="#14213D">+ autenticar_dispositivo(</text>
+  <text x="724" y="679" font-size="12" fill="#14213D">sessao, device_id, credencial)</text>
+  <line x1="696" y1="692" x2="996" y2="692" stroke="#A7B4C6"/>
+  <text x="712" y="710" font-size="11.5" fill="#5B6B82" font-style="italic">Confere o bcrypt de chave_hash daquele</text>
+  <text x="712" y="726" font-size="11.5" fill="#5B6B82" font-style="italic">dispositivo. Mesma resposta de erro para</text>
+  <text x="712" y="742" font-size="11.5" fill="#5B6B82" font-style="italic">device_id inexistente e segredo errado.</text>
+
+  <rect x="1024" y="610" width="300" height="152" rx="8" fill="#FFFFFF" stroke="#0E7C86" stroke-width="1.5"/>
+  <rect x="1024" y="610" width="300" height="30" rx="8" fill="#0E7C86"/>
+  <rect x="1024" y="630" width="300" height="10" fill="#0E7C86"/>
+  <text x="1174" y="631" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">Escopo</text>
+  <text x="1040" y="660" font-size="12" fill="#14213D">+ device_ids_visiveis(</text>
+  <text x="1052" y="679" font-size="12" fill="#14213D">sessao, produtor) -&gt; list[str]?</text>
+  <line x1="1024" y1="692" x2="1324" y2="692" stroke="#A7B4C6"/>
+  <text x="1040" y="710" font-size="11.5" fill="#5B6B82" font-style="italic">Controle de acesso por posse. Devolve</text>
+  <text x="1040" y="726" font-size="11.5" fill="#5B6B82" font-style="italic">nulo para administrador, que vê tudo.</text>
+  <text x="1040" y="742" font-size="11.5" fill="#5B6B82" font-style="italic">Lista vazia difere de nulo.</text>
+
+  <rect x="1024" y="782" width="300" height="130" rx="8" fill="#FFFFFF" stroke="#0E7C86" stroke-width="1.5"/>
+  <rect x="1024" y="782" width="300" height="30" rx="8" fill="#0E7C86"/>
+  <rect x="1024" y="802" width="300" height="10" fill="#0E7C86"/>
+  <text x="1174" y="803" font-size="13.5" font-weight="700" fill="#FFFFFF" text-anchor="middle">SupabaseStorage</text>
+  <text x="1040" y="832" font-size="12" fill="#14213D">+ salvar_imagem(device, ts, bytes)</text>
+  <text x="1040" y="853" font-size="12" fill="#14213D">+ url_assinada(caminho)</text>
+  <line x1="1024" y1="866" x2="1324" y2="866" stroke="#A7B4C6"/>
+  <text x="1040" y="884" font-size="11.5" fill="#5B6B82" font-style="italic">Bucket privado. A URL assinada vale</text>
+  <text x="1040" y="900" font-size="11.5" fill="#5B6B82" font-style="italic">1 hora e é gerada sob demanda.</text>
+
+  <!-- dependencias -->
+  <path d="M 190 602 L 190 500" fill="none" stroke="#0E7C86" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#usa)"/>
+  <path d="M 518 602 L 518 500" fill="none" stroke="#0E7C86" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#usa)"/>
+  <path d="M 846 602 L 846 500" fill="none" stroke="#0E7C86" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#usa)"/>
+  <path d="M 1174 602 L 1174 520" fill="none" stroke="#0E7C86" stroke-width="1.8" stroke-dasharray="5 3" marker-end="url(#usa)"/>
+
+  <!-- ===================== NOTA ===================== -->
+  <rect x="40" y="840" width="956" height="100" rx="10" fill="#FBEFEE" stroke="#B4453F"/>
+  <text x="62" y="868" font-size="13" font-weight="700" fill="#B4453F">O que foi removido em relação à proposta do TC1, e por quê</text>
+  <text x="62" y="892" font-size="12.5" fill="#14213D"><tspan font-weight="600">classificarMultimodal():</tspan> nunca foi implementado. A imagem é classificada sozinha, e os dados ambientais geram alertas por caminho separado.</text>
+  <text x="62" y="912" font-size="12.5" fill="#14213D"><tspan font-weight="600">Produtor.receberAlerta() e notificacao_ativa:</tspan> não existe push de servidor. O aplicativo consulta e gera notificação local, só com ele aberto.</text>
+  <text x="62" y="932" font-size="12.5" fill="#14213D"><tspan font-weight="600">Em compensação, entraram:</tspan> a guarda de qualidade, o pareamento por código, a verificação de e-mail e o controle de acesso por posse.</text>
+
+  <rect x="40" y="960" width="1284" height="128" rx="10" fill="#FFFFFF" stroke="#A7B4C6"/>
+  <text x="62" y="988" font-size="13" font-weight="700" fill="#14213D">Fora do escopo deste diagrama</text>
+  <text x="62" y="1014" font-size="12.5" fill="#14213D"><tspan font-weight="600">Camada de borda:</tspan> Camera, DHT22, SoilMoisture, LedFlash, OfflineQueue e Uploader rodam no Raspberry Pi, em processo separado, e só</text>
+  <text x="62" y="1034" font-size="12.5" fill="#14213D">se comunicam com a nuvem por HTTP. Ver a figura do pipeline.</text>
+  <text x="62" y="1058" font-size="12.5" fill="#14213D"><tspan font-weight="600">Aplicativo:</tspan> as telas em React Native consomem a API por HTTP e não compartilham classes com o servidor. O vocabulário de doenças é</text>
+  <text x="62" y="1078" font-size="12.5" fill="#14213D">duplicado de propósito em <tspan font-style="italic">app/src/domain/doencas.ts</tspan>, para o aplicativo declarar o escopo do modelo na própria tela.</text>
+</svg>

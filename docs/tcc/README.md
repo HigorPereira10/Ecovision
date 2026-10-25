@@ -11,6 +11,18 @@ resultados de avaliação do modelo).
 Ele descreve o sistema como ele é hoje, e a seção 10.3 dele já traz as
 três perguntas difíceis da banca com as respostas.
 
+## Comece por aqui
+
+| Arquivo | Para que serve |
+|---|---|
+| [`material-pronto-para-o-tcc.docx`](material-pronto-para-o-tcc.docx) | **Material pronto para inserir no TCC**: figuras, quadros, textos e referências, com a indicação de onde cada um entra. É o ponto de partida de quem está escrevendo |
+| [`resultados-medidos.md`](resultados-medidos.md) | Todas as métricas em tabela, com o método de medição de cada uma |
+| [`figuras/`](figuras/) | As 9 figuras em PNG de 300 dpi e SVG, com o índice dizendo em que capítulo cada uma entra |
+| [`zenodo-deposito.md`](zenodo-deposito.md) | Metadados e passo a passo do depósito do conjunto de dados, exigido pelo Manual do Conjunto Prototipado |
+
+O `.docx` é o documento de passagem para quem escreve; os outros dois
+são a fonte dos números e das imagens que ele manda usar.
+
 ## O que precisa virar texto de TCC
 
 ### Pontos de argumentação (valem nota)
@@ -48,8 +60,9 @@ Todos em [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) e
 - **Matriz de confusão e F1 por classe** nos dois domínios.
 - **O delta entre domínios**: 21,3 pontos, com a referência da
   literatura que mostra quedas muito piores
-  ([TinyCNN](https://arxiv.org/pdf/2609.20290) reporta MobileNetV2
-  caindo para 28,6% no PlantDoc).
+  (HO-LAM; NGUYEN, 2026 reportam MobileNetV2 caindo de 99,77% para 28,57%
+  no PlantDoc, **sem ajuste de domínio**, então a comparação é indicativa,
+  não direta).
 - **Uma tentativa que não funcionou**, e por quê: ajustar só com foto de
   campo trocava um domínio pelo outro. Vale mais na escrita que um
   resultado limpo, porque mostra método.
@@ -62,10 +75,31 @@ Todos em [ADR 0011](../decisions/0011-escopo-de-tres-classes.md) e
   conjunto usado até aqui é isso: PlantVillage é folha arrancada em
   fundo uniforme, PlantDoc é foto de web, e a captura real fica entre os
   dois. Depende da coleta de campo.
-- Grad-CAM antes e depois já existe em `ml/validacao_externa/gradcam/` e
-  `gradcam_depois/`, mas foi gerado para o modelo **anterior**. Vale
-  regerar para o atual antes de usar como evidência de que o modelo olha
-  a lesão e não o fundo.
+- **Falso positivo em campo com amostra suficiente.** Hoje são 2 erros
+  em 8 imagens, com intervalo de confiança de 7,1% a 59,1%. A meta de
+  15% está dentro do intervalo, então o resultado é indeterminado, não
+  reprovado. A coleta de 48 horas com planta sadia é exatamente a
+  amostra que falta.
+- **Tempo de carregamento das telas** com volume real de dados. A tela
+  de Histórico gera uma URL assinada por imagem, e essa é a única
+  latência que o produtor sente de fato.
+
+### Medições concluídas em 2026-10-25
+
+Todas em [`resultados-medidos.md`](resultados-medidos.md), com figura
+correspondente em [`figuras/`](figuras/).
+
+- Latência: 33,7 ms de inferência no p95 e 1,58 s ponta a ponta no
+  Railway, contra meta de 500 ms e timeout de 30 s do dispositivo.
+- Falso positivo e falso negativo, por domínio, com intervalo de
+  confiança de Wilson.
+- Matrizes de confusão nos dois domínios, sobre os testes retidos.
+- **Grad-CAM regerado para o modelo atual.** Os mapas antigos continuam
+  em `ml/validacao_externa/gradcam/` e `gradcam_depois/` como
+  comparação histórica, mas a evidência válida hoje é a figura 06.
+- Teste de memorização por quase-duplicata: a acurácia de laboratório
+  fica em 94,2% mesmo removendo as 26 imagens mais parecidas com o
+  treino.
 
 ### Correções de contradição entre o TC1 e o que foi construído
 

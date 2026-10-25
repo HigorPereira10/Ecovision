@@ -40,3 +40,6 @@ ml/data/
 # Saidas locais de analise do modelo (mapas de calor Grad-CAM)
 ml/validacao_externa/gradcam/
 ml/validacao_externa/gradcam_depois/
+# Arquivos temporarios do Word (aparecem enquanto um .docx esta aberto)
+~$*
+~WRL*.tmp
