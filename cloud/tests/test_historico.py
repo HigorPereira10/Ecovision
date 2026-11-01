@@ -10,9 +10,10 @@ GET /diagnosticos):
    (leituras: mais antiga primeiro, para o gráfico; diagnósticos: mais
    recente primeiro, para o feed de histórico).
 3. O filtro `?horas=N` exclui itens mais antigos que o período pedido.
-4. GET /diagnosticos inclui a signed URL da imagem (gerar_url_assinada_imagem,
-   ver infra/supabase/storage_policies.md), e não quebra a lista
-   inteira se a geração da URL falhar para um item específico.
+4. GET /diagnosticos inclui a signed URL da imagem
+   (gerar_urls_assinadas_imagens, em lote, ver
+   infra/supabase/storage_policies.md), e não quebra a lista inteira se
+   a geração da URL falhar.
 5. GET /diagnosticos informa de QUAL dispositivo veio cada diagnóstico.
    Sem isso, o filtro por estufa da tela de Histórico não tem como
    funcionar, e o app chegou a contornar a falta assumindo que todo
@@ -31,10 +32,14 @@ from app.main import app
 AGORA = datetime.now(timezone.utc)
 
 
-async def _url_assinada_falsa(caminho: str) -> str:
-    """Substitui app.storage.supabase_storage.gerar_url_assinada_imagem
-    nos testes: não existe Supabase real disponível."""
-    return f"https://storage.teste/{caminho}?signed=1"
+async def _urls_assinadas_falsas(caminhos: list[str]) -> dict[str, str]:
+    """Substitui app.storage.supabase_storage.gerar_urls_assinadas_imagens
+    nos testes: não existe Supabase real disponível.
+
+    A rota assina em LOTE (uma ida à rede para todos os caminhos), então
+    o dublê recebe a lista e devolve o mapa caminho -> URL, igual à
+    função real."""
+    return {caminho: f"https://storage.teste/{caminho}?signed=1" for caminho in caminhos}
 
 
 async def _criar_registro_com_leitura_e_diagnostico(
@@ -104,7 +109,9 @@ async def test_leituras_vem_em_ordem_cronologica(token_produtor: str):
 
 
 async def test_diagnosticos_vem_em_ordem_do_mais_recente(token_produtor: str, monkeypatch):
-    monkeypatch.setattr("app.api.routes.historico.gerar_url_assinada_imagem", _url_assinada_falsa)
+    monkeypatch.setattr(
+        "app.api.routes.historico.gerar_urls_assinadas_imagens", _urls_assinadas_falsas
+    )
 
     async with AsyncSession(engine) as sessao:
         await _criar_registro_com_leitura_e_diagnostico(
@@ -129,10 +136,12 @@ async def test_diagnosticos_vem_em_ordem_do_mais_recente(token_produtor: str, mo
 
 
 async def test_diagnosticos_nao_quebra_se_signed_url_falhar(token_produtor: str, monkeypatch):
-    async def _sempre_falha(caminho: str) -> None:
-        return None
+    async def _sempre_falha(caminhos: list[str]) -> dict[str, None]:
+        return {caminho: None for caminho in caminhos}
 
-    monkeypatch.setattr("app.api.routes.historico.gerar_url_assinada_imagem", _sempre_falha)
+    monkeypatch.setattr(
+        "app.api.routes.historico.gerar_urls_assinadas_imagens", _sempre_falha
+    )
 
     async with AsyncSession(engine) as sessao:
         await _criar_registro_com_leitura_e_diagnostico(
@@ -177,7 +186,9 @@ async def test_diagnosticos_informam_o_dispositivo_de_origem(
     é teste de isolamento, isso está em test_escopo.py), cada um com seu
     próprio device_id. Antes, o app não tinha como separá-los e tratava
     tudo como se fosse do dispositivo de id 1."""
-    monkeypatch.setattr("app.api.routes.historico.gerar_url_assinada_imagem", _url_assinada_falsa)
+    monkeypatch.setattr(
+        "app.api.routes.historico.gerar_urls_assinadas_imagens", _urls_assinadas_falsas
+    )
 
     async with AsyncSession(engine) as sessao:
         sessao.add(
@@ -206,18 +217,20 @@ async def test_diagnosticos_informam_o_dispositivo_de_origem(
 
 
 async def test_limite_controla_quantos_diagnosticos_voltam(token_produtor: str, monkeypatch):
-    """A rota gera uma signed URL por imagem, e cada uma é uma chamada de
-    rede ao Supabase. Com captura a cada 2h, 7 dias dão cerca de 84
-    itens, ou seja, 84 idas ao Supabase para montar uma tela que mostra
-    um diagnóstico e uma fileira de miniaturas. `limite` é o que a tela
-    de Diagnóstico usa para não pagar esse preço."""
-    chamadas: list[str] = []
+    """`limite` corta a consulta no banco e o tamanho do lote de
+    assinatura. Desde que a assinatura passou a ser em lote, ele já não
+    é o que separa uma tela rápida de uma lenta, mas continua sendo o
+    que impede a tela de Diagnóstico de carregar a janela inteira só
+    para mostrar um diagnóstico e uma fileira de miniaturas."""
+    assinados: list[str] = []
 
-    async def _contando(caminho: str) -> str:
-        chamadas.append(caminho)
-        return f"https://storage.teste/{caminho}?signed=1"
+    async def _contando(caminhos: list[str]) -> dict[str, str]:
+        assinados.extend(caminhos)
+        return {caminho: f"https://storage.teste/{caminho}?signed=1" for caminho in caminhos}
 
-    monkeypatch.setattr("app.api.routes.historico.gerar_url_assinada_imagem", _contando)
+    monkeypatch.setattr(
+        "app.api.routes.historico.gerar_urls_assinadas_imagens", _contando
+    )
 
     async with AsyncSession(engine) as sessao:
         for n in range(5):
@@ -243,8 +256,8 @@ async def test_limite_controla_quantos_diagnosticos_voltam(token_produtor: str, 
         "pi-teste/item-0.jpg",
         "pi-teste/item-1.jpg",
     ]
-    # E o Supabase foi chamado só para esses dois, que é o ponto.
-    assert len(chamadas) == 2
+    # E só esses dois foram mandados para assinar, que é o ponto.
+    assert len(assinados) == 2
 
 
 async def test_limite_acima_do_maximo_e_recusado(token_produtor: str):

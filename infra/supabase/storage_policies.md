@@ -24,12 +24,16 @@ prever o campo `caminho_arquivo`.
   esforço extra real. Reconfirmado com o grupo em 2026-09-11 (a mesma
   decisão de já estava aqui não tinha chegado até o código, que ainda
   dizia "em aberto" em alguns comentários).
-- **Implementado**: `gerar_url_assinada_imagem()` em
+- **Implementado**: `gerar_url_assinada_imagem()` (uma imagem) e
+  `gerar_urls_assinadas_imagens()` (lote) em
   `cloud/app/storage/supabase_storage.py` (validade de 1h, ver
-  `_EXPIRACAO_URL_ASSINADA_SEGUNDOS`), consumida por `GET /diagnosticos`
-  em `cloud/app/api/routes/historico.py`. Retorna `None` (não levanta
-  erro) se a geração da URL falhar para uma imagem específica, para não
-  derrubar a lista inteira por causa de um item.
+  `_EXPIRACAO_URL_ASSINADA_SEGUNDOS`). `GET /diagnosticos`, em
+  `cloud/app/api/routes/historico.py`, consome a versão em lote: a
+  unitária, chamada em laço, custava uma requisição HTTP por imagem e
+  em 2026-11-01 fez a tela de Histórico estourar o timeout do app
+  quando o banco passou de 2 para 124 registros. As duas retornam
+  `None` (não levantam erro) se a geração falhar para uma imagem
+  específica, para não derrubar a lista inteira por causa de um item.
 
 ## Relação com o resto do sistema
 

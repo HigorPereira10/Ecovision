@@ -44,7 +44,7 @@ from app.core.security import obter_produtor_atual
 from app.db.models import Diagnostico, LeituraAmbiental, RegistroImagem
 from app.db.schemas import DiagnosticoHistoricoOut, LeituraOut
 from app.db.session import get_session
-from app.storage.supabase_storage import gerar_url_assinada_imagem
+from app.storage.supabase_storage import gerar_urls_assinadas_imagens
 
 router = APIRouter()
 
@@ -151,10 +151,14 @@ async def listar_diagnosticos(
     resultado = await sessao.execute(consulta)
     linhas = resultado.all()
 
-    # Uma chamada de rede ao Supabase por imagem (gera a signed URL sob
-    # demanda, ver storage_policies.md: nao faz sentido persistir algo
-    # que expira). É o gargalo desta rota, e chega antes do banco: é o
-    # que o parâmetro `limite` existe para conter.
+    # As signed URLs saem numa única ida ao Supabase, não uma por
+    # imagem (ver gerar_urls_assinadas_imagens: era este laço, em
+    # sequência, que fazia a tela de Histórico estourar o timeout do
+    # app quando o banco passou de 2 para 124 registros).
+    urls = await gerar_urls_assinadas_imagens(
+        [caminho_arquivo for _, caminho_arquivo, _ in linhas]
+    )
+
     return [
         {
             "id": diagnostico.id,
@@ -163,7 +167,7 @@ async def listar_diagnosticos(
             "confianca": diagnostico.confianca,
             "recomendacao": diagnostico.recomendacao,
             "caminho_arquivo": caminho_arquivo,
-            "url_imagem": await gerar_url_assinada_imagem(caminho_arquivo),
+            "url_imagem": urls.get(caminho_arquivo),
             "criado_em": diagnostico.criado_em,
         }
         for diagnostico, caminho_arquivo, device_id in linhas

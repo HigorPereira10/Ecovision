@@ -20,11 +20,15 @@ Relação com o resto do sistema:
 - salvar_imagem() é chamado por app/api/routes/diagnostico.py logo
   após a inferência, ANTES de a imagem ser descartada da memória
   (regra 4, Blueprint Seção 4.4).
-- gerar_url_assinada_imagem() é chamado por
+- gerar_urls_assinadas_imagens() é chamado por
   app/api/routes/historico.py (GET /diagnosticos) para resolver
-  registros_imagem.caminho_arquivo numa URL temporária exibível.
+  registros_imagem.caminho_arquivo numa URL temporária exibível. É a
+  versão em lote; gerar_url_assinada_imagem() continua sendo a
+  primitiva de uma imagem só, e não deve ser usada em laço (ver o
+  docstring da versão em lote).
 """
 
+import asyncio
 import logging
 
 from supabase import Client, create_client
@@ -80,3 +84,61 @@ async def gerar_url_assinada_imagem(caminho: str) -> str | None:
         return None
 
     return resposta.get("signedUrl")
+
+
+async def gerar_urls_assinadas_imagens(caminhos: list[str]) -> dict[str, str | None]:
+    """Gera as signed URLs de vários caminhos de uma vez e devolve um
+    mapa caminho -> URL (None quando o Supabase não resolveu aquele
+    item).
+
+    POR QUE ISTO EXISTE: chamar gerar_url_assinada_imagem() dentro de um
+    laço custa uma requisição HTTP por imagem, em sequência. Em
+    2026-11-01 isso derrubou a tela de Histórico: o banco tinha 2
+    registros até a coleta noturna e passou a 124, e GET /diagnosticos
+    foi de meio segundo para 12 a 14 segundos, acima do
+    EXPO_PUBLIC_API_TIMEOUT de 10 s do app. As rotas /leituras e
+    /alertas, que não assinam nada, continuaram em 0,5 s. O gargalo não
+    era o banco.
+
+    Trocar o laço por asyncio.gather NÃO resolveria: apesar de
+    gerar_url_assinada_imagem ser `async def`, o corpo é o cliente
+    síncrono do supabase-py e não tem ponto de suspensão, então as
+    chamadas continuariam sequenciais e ainda bloqueariam o event loop.
+    A API do Storage aceita uma lista de caminhos (`create_signed_urls`),
+    o que resolve as N imagens numa única ida à rede.
+
+    O to_thread existe porque essa chamada é bloqueante: sem ele, uma
+    requisição de histórico travaria o event loop inteiro, incluindo o
+    POST /diagnostico que o Pi faz a cada ciclo.
+    """
+    if not caminhos:
+        return {}
+
+    unicos = list(dict.fromkeys(caminhos))
+    cliente = _obter_cliente()
+
+    def _assinar() -> list[dict]:
+        return cliente.storage.from_(settings.SUPABASE_STORAGE_BUCKET).create_signed_urls(
+            unicos, _EXPIRACAO_URL_ASSINADA_SEGUNDOS
+        )
+
+    try:
+        respostas = await asyncio.to_thread(_assinar)
+    except Exception:
+        # Mesma política do caso unitário: imagem que não carrega não
+        # deve derrubar a lista inteira de diagnósticos.
+        logger.warning(
+            "Falha ao gerar signed URLs em lote para %d caminhos.", len(unicos),
+            exc_info=True,
+        )
+        return {caminho: None for caminho in unicos}
+
+    # A resposta vem na ordem dos caminhos enviados, mas cada item traz
+    # o próprio `path`, então o mapa é montado por ele e não por índice:
+    # um item com erro não desloca os demais.
+    mapa: dict[str, str | None] = {caminho: None for caminho in unicos}
+    for indice, resposta in enumerate(respostas or []):
+        caminho = resposta.get("path") or (unicos[indice] if indice < len(unicos) else None)
+        if caminho in mapa:
+            mapa[caminho] = resposta.get("signedUrl") or resposta.get("signedURL")
+    return mapa
