@@ -61,13 +61,22 @@ DHT22_PIN = _inteira("DHT22_PIN", 4)
 # CUIDADO COM O NOME: isto NÃO é quanto tempo o LED fica aceso. É só a
 # espera, com o LED já ligado, antes de disparar a câmera, para o brilho
 # estabilizar (ver main.py). O LED permanece aceso durante a captura
-# inteira, e quem domina esse tempo é o autofoco: medido no dispositivo,
-# o ciclo levou de 5,6s a 27s conforme a luz ambiente.
+# INTEIRA, e é o tempo total que dimensiona a potência do resistor em
+# série do LED, não estes 0,5s.
+#
+# Quanto tempo é, de fato, medido no ecovision-pi-01:
+#
+#     foco travado (CAMERA_FOCUS_CM) ..... ~2,4s por ciclo
+#     autofoco, com boa luz .............. ~4,3s
+#     autofoco, no escuro ................ até 27s
+#
+# Era o autofoco que dominava, e quanto mais escura a cena, mais ele
+# demorava a convergir. Travar o foco em 2026-11-01 tirou essa cauda
+# longa: o pior caso deixou de depender da luz ambiente.
 #
 # O nome enganoso já se propagou para a documentação, que afirmava um
 # "flash de 0,5s" (corrigido em docs/planejamento/lista-compras-hardware.md
-# e no Blueprint v4, seção 3.2). Importa porque é esse tempo que dimensiona
-# a potência do resistor em série do LED.
+# e no Blueprint v4, seção 3.2).
 LED_FLASH_DURATION_SECONDS = _flutuante("LED_FLASH_DURATION_SECONDS", 0.5)
 
 # --- ADS1115 (sensor de umidade do solo, I2C) ---
@@ -93,6 +102,22 @@ SOIL_ADS1115_CHANNEL = _inteira("SOIL_ADS1115_CHANNEL", 0)
 # o que o solo real entrega, e é o solo que o ADR 0005 usa como limiar.
 SOIL_DRY_RAW = _inteira("SOIL_DRY_RAW", 18000)
 SOIL_WET_RAW = _inteira("SOIL_WET_RAW", 8000)
+
+# --- Câmera ---
+# Distância de foco FIXO, em centímetros, convertida para dioptrias em
+# capture.py. Zero volta ao autofoco.
+#
+# Isto existe porque a montagem real não estava na distância de projeto.
+# Medido em 2026-11-01: o autofoco convergia em 34 cm, cinco ciclos
+# seguidos, contra os ~15 cm que motivaram a escolha da Camera Module 3
+# (ver ADR 0001). A 34 cm o campo de visão tem 44 cm de largura e o
+# folíolo chega ao modelo com 25 px, dentro da faixa do acaso. O vaso
+# foi aproximado para 19,9 cm, onde o folíolo ocupa 889 px no sensor e
+# chega com 222 px pela janela deslizante, que é o regime de treino.
+#
+# O valor é de cada dispositivo, igual à calibração do solo: depende de
+# onde a câmera foi presa, não do projeto.
+CAMERA_FOCUS_CM = _flutuante("CAMERA_FOCUS_CM", 0.0)
 
 # --- Compressão de imagem (Blueprint, Fase 2) ---
 JPEG_QUALITY = _inteira("JPEG_QUALITY", 70)
