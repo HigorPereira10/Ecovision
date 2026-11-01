@@ -83,7 +83,6 @@ para a banca (ver `docs/decisions/`).
 
 ```
 ml/
-├── notebooks/            # notebooks Colab (ver notebooks/README.md para a lista planejada)
 ├── src/
 │   ├── dataset/
 │   │   ├── download.py              # download PlantVillage + Mendeley (Kaggle)

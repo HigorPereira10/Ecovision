@@ -11,9 +11,8 @@ docs/
 │   ├── blueprint-v4.md          # DOCUMENTO PRINCIPAL: o sistema como ele é
 │   ├── blueprint-reference.md   # índice do Blueprint v3.0 (histórico) + diagrama
 │   └── diagramas/               # arquitetura em camadas (png + svg editável)
-├── decisions/                   # ADRs, 14 decisões (ver decisions/README.md)
+├── decisions/                   # ADRs, 17 decisões (ver decisions/README.md)
 ├── planejamento/                # divisão de equipe, roadmap, lista de compras
-├── atas/                        # atas de reunião do grupo
 └── tcc/                         # capítulos da escrita acadêmica do TCC
 ```
 

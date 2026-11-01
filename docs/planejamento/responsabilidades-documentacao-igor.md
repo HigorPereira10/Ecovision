@@ -51,9 +51,9 @@ para que fique claro o que fazer sem precisar perguntar toda vez.
     Seção 1).
   - Status de cada camada (`ml/`, `app/`, `cloud/`/`infra/`/`edge/`).
   - Bloqueios que alguém esteja enfrentando.
-- **Ata (durante/depois da reunião):** registrar em
-  [`docs/atas/`](../atas/README.md), seguindo a convenção de nome já
-  definida (`AAAA-MM-DD-assunto-principal.md`). Uma ata mínima deve
+- **Ata (durante/depois da reunião):** registrar em `docs/atas/`,
+  criando a pasta na primeira ata, com a convenção de nome
+  `AAAA-MM-DD-assunto-principal.md`. Uma ata mínima deve
   conter: data, presentes, decisões tomadas, e próximos passos por
   pessoa.
 
