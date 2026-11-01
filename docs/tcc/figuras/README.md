@@ -23,8 +23,12 @@ em tabela para o texto corrido.
 | `09-diagrama-de-classes` | Material e Métodos | Entidades e serviços implementados, e o que caiu em relação ao TC1 |
 | **`16-app-telas-conjunto`** | Resultados ou Material e Métodos | **As seis telas do aplicativo em grade 3x2, já montada e rotulada de (a) a (f). É este arquivo que vai no TCC** |
 | `10` a `15` | (avulsos) | As mesmas seis telas, uma por arquivo, para quem precisar usar só uma |
+| `17-esquematico-eletronico` | Material e Métodos | Ligações reais da placa: DHT22 no GPIO4, ADS1115 por I2C, LED por MOSFET no GPIO26 |
+| `18-arquitetura-cinco-camadas` | Material e Métodos | As cinco camadas do sistema, da percepção à aplicação |
+| `19-diagrama-casos-de-uso` | Material e Métodos | Os 11 casos de uso implementados e os 3 atores |
+| `20-placa-montada-recorte` | Material e Métodos | Foto da placa soldada, recortada no quadro da placa. O original sem recorte é `20-placa-montada.jpeg` |
 
-## Três figuras que substituem material desatualizado
+## Quatro figuras que substituem material desatualizado
 
 **`09-diagrama-de-classes`** substitui a Figura 2 antiga. Aquela trazia
 `classificarMultimodal()`, `Produtor.receberAlerta()` e
@@ -41,6 +45,11 @@ Storage, e a guarda de qualidade acontece antes de tudo.
 descreviam 6 tabelas com chaves UUID, uma tabela `produtores` e uma
 `resultados_classificacao`. O sistema tem 8 tabelas, chaves inteiras
 autoincremento, `usuarios` e `diagnosticos`.
+
+**`19-diagrama-casos-de-uso`** substitui a Figura 1 antiga, que era uma
+imagem rasterizada (`image3.jpg`) com casos de uso que não existem no
+sistema. A nova traz os 11 casos implementados e os 3 atores, em SVG
+editável e na paleta do trabalho.
 
 ## As telas do aplicativo
 

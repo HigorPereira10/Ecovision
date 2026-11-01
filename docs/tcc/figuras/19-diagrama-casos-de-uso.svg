@@ -1,0 +1,135 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 1120" font-family="'IBM Plex Sans','Segoe UI',sans-serif">
+  <defs>
+    <marker id="inc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10" fill="none" stroke="#5B6B82" stroke-width="1.6"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1600" height="1120" fill="#FFFFFF"/>
+
+  <!-- fronteira do sistema -->
+  <rect x="372" y="96" width="856" height="940" rx="22" fill="#FAFBFC" stroke="#14213D" stroke-width="2"/>
+  <text x="800" y="132" font-size="17" font-weight="700" fill="#14213D" text-anchor="middle">Sistema EcoVision</text>
+
+  <!-- ================= ATOR: DISPOSITIVO ================= -->
+  <g stroke="#A8631E" stroke-width="2.4" fill="none">
+    <circle cx="168" cy="252" r="26"/>
+    <line x1="168" y1="278" x2="168" y2="356"/>
+    <line x1="120" y1="304" x2="216" y2="304"/>
+    <line x1="168" y1="356" x2="130" y2="416"/>
+    <line x1="168" y1="356" x2="206" y2="416"/>
+  </g>
+  <text x="168" y="444" font-size="15" font-weight="700" fill="#14213D" text-anchor="middle">Dispositivo IoT</text>
+  <text x="168" y="464" font-size="12" fill="#5B6B82" text-anchor="middle">ciclo automatizado</text>
+
+  <!-- ================= ATOR: PRODUTOR ================= -->
+  <g stroke="#4C51BF" stroke-width="2.4" fill="none">
+    <circle cx="1432" cy="430" r="26"/>
+    <line x1="1432" y1="456" x2="1432" y2="534"/>
+    <line x1="1384" y1="482" x2="1480" y2="482"/>
+    <line x1="1432" y1="534" x2="1394" y2="594"/>
+    <line x1="1432" y1="534" x2="1470" y2="594"/>
+  </g>
+  <text x="1432" y="622" font-size="15" font-weight="700" fill="#14213D" text-anchor="middle">Produtor Rural</text>
+  <text x="1432" y="642" font-size="12" fill="#5B6B82" text-anchor="middle">usuário primário</text>
+
+  <!-- ================= ATOR: ADMINISTRADOR ================= -->
+  <g stroke="#5B6B82" stroke-width="2.4" fill="none">
+    <circle cx="1432" cy="830" r="24"/>
+    <line x1="1432" y1="854" x2="1432" y2="922"/>
+    <line x1="1390" y1="878" x2="1474" y2="878"/>
+    <line x1="1432" y1="922" x2="1398" y2="974"/>
+    <line x1="1432" y1="922" x2="1466" y2="974"/>
+  </g>
+  <text x="1432" y="1000" font-size="15" font-weight="700" fill="#14213D" text-anchor="middle">Administrador</text>
+  <text x="1432" y="1020" font-size="12" fill="#5B6B82" text-anchor="middle">suporte</text>
+
+  <!-- ================= CASOS: AQUISICAO ================= -->
+  <ellipse cx="566" cy="208" rx="166" ry="38" fill="#FDF4EA" stroke="#A8631E" stroke-width="1.8"/>
+  <text x="566" y="202" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC01</text>
+  <text x="566" y="221" font-size="12.5" fill="#14213D" text-anchor="middle">Capturar imagem e dados</text>
+
+  <ellipse cx="566" cy="330" rx="166" ry="38" fill="#FDF4EA" stroke="#A8631E" stroke-width="1.8"/>
+  <text x="566" y="324" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC02</text>
+  <text x="566" y="343" font-size="12.5" fill="#14213D" text-anchor="middle">Transmitir para a nuvem</text>
+
+  <ellipse cx="566" cy="452" rx="166" ry="38" fill="#E8F3F4" stroke="#0E7C86" stroke-width="1.8"/>
+  <text x="566" y="446" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC03</text>
+  <text x="566" y="465" font-size="12.5" fill="#14213D" text-anchor="middle">Classificar imagem foliar</text>
+
+  <ellipse cx="566" cy="574" rx="166" ry="38" fill="#E8F3F4" stroke="#0E7C86" stroke-width="1.8"/>
+  <text x="566" y="568" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC04</text>
+  <text x="566" y="587" font-size="12.5" fill="#14213D" text-anchor="middle">Registrar captura e diagnóstico</text>
+
+  <!-- include em cadeia -->
+  <line x1="566" y1="246" x2="566" y2="286" stroke="#5B6B82" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#inc)"/>
+  <text x="578" y="272" font-size="11.5" fill="#5B6B82">&#171;include&#187;</text>
+  <line x1="566" y1="368" x2="566" y2="408" stroke="#5B6B82" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#inc)"/>
+  <text x="578" y="394" font-size="11.5" fill="#5B6B82">&#171;include&#187;</text>
+  <line x1="566" y1="490" x2="566" y2="530" stroke="#5B6B82" stroke-width="1.6" stroke-dasharray="6 4" marker-end="url(#inc)"/>
+  <text x="578" y="516" font-size="11.5" fill="#5B6B82">&#171;include&#187;</text>
+
+  <!-- rotulo do grupo -->
+  <text x="566" y="650" font-size="12" font-style="italic" fill="#5B6B82" text-anchor="middle">sem intervenção humana</text>
+
+  <!-- ================= CASOS: CONSULTA ================= -->
+  <ellipse cx="1012" cy="208" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="202" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC05</text>
+  <text x="1012" y="221" font-size="12.5" fill="#14213D" text-anchor="middle">Consultar informações</text>
+
+  <ellipse cx="1012" cy="316" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="310" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC06</text>
+  <text x="1012" y="329" font-size="12.5" fill="#14213D" text-anchor="middle">Consultar e marcar alertas</text>
+
+  <ellipse cx="1012" cy="424" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="418" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC07</text>
+  <text x="1012" y="437" font-size="12.5" fill="#14213D" text-anchor="middle">Consultar histórico</text>
+
+  <ellipse cx="1012" cy="532" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="526" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC08</text>
+  <text x="1012" y="545" font-size="12.5" fill="#14213D" text-anchor="middle">Visualizar configuração</text>
+
+  <!-- ================= CASOS: CONTA ================= -->
+  <ellipse cx="1012" cy="684" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="678" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC09</text>
+  <text x="1012" y="697" font-size="12.5" fill="#14213D" text-anchor="middle">Cadastrar e confirmar conta</text>
+
+  <ellipse cx="1012" cy="792" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="786" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC10</text>
+  <text x="1012" y="805" font-size="12.5" fill="#14213D" text-anchor="middle">Recuperar senha</text>
+
+  <ellipse cx="1012" cy="900" rx="170" ry="38" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.8"/>
+  <text x="1012" y="894" font-size="13" font-weight="700" fill="#14213D" text-anchor="middle">UC11</text>
+  <text x="1012" y="913" font-size="12.5" fill="#14213D" text-anchor="middle">Vincular dispositivo</text>
+
+  <text x="1012" y="972" font-size="12" font-style="italic" fill="#5B6B82" text-anchor="middle">UC09 a UC11: conta e dispositivo. UC11 precede UC05 a UC08</text>
+
+  <!-- ================= ASSOCIACOES ================= -->
+  <line x1="222" y1="282" x2="404" y2="216" stroke="#A8631E" stroke-width="1.8"/>
+  <line x1="222" y1="318" x2="404" y2="330" stroke="#A8631E" stroke-width="1.8"/>
+
+  <line x1="1182" y1="226" x2="1392" y2="440" stroke="#4C51BF" stroke-width="1.6"/>
+  <line x1="1182" y1="322" x2="1392" y2="458" stroke="#4C51BF" stroke-width="1.6"/>
+  <line x1="1182" y1="424" x2="1392" y2="474" stroke="#4C51BF" stroke-width="1.6"/>
+  <line x1="1182" y1="528" x2="1392" y2="490" stroke="#4C51BF" stroke-width="1.6"/>
+  <line x1="1182" y1="684" x2="1392" y2="530" stroke="#4C51BF" stroke-width="1.6"/>
+  <line x1="1182" y1="792" x2="1392" y2="552" stroke="#4C51BF" stroke-width="1.6"/>
+  <line x1="1182" y1="898" x2="1392" y2="574" stroke="#4C51BF" stroke-width="1.6"/>
+
+  <!-- administrador: mesmas consultas, sem filtro -->
+  <path d="M 1182 240 L 1266 240 L 1266 836 L 1386 836" fill="none" stroke="#5B6B82" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <path d="M 1182 338 L 1266 338" fill="none" stroke="#5B6B82" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <path d="M 1182 440 L 1266 440" fill="none" stroke="#5B6B82" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="1276" y="866" font-size="11.5" fill="#5B6B82">mesmas consultas,</text>
+  <text x="1276" y="882" font-size="11.5" fill="#5B6B82">sem filtro de posse</text>
+
+  <!-- ================= LEGENDA ================= -->
+  <rect x="40" y="908" width="300" height="128" rx="10" fill="#F5F6F9" stroke="#A7B4C6"/>
+  <text x="58" y="936" font-size="13" font-weight="700" fill="#14213D">Agrupamento por cor</text>
+  <circle cx="68" cy="964" r="8" fill="#FDF4EA" stroke="#A8631E" stroke-width="1.6"/>
+  <text x="86" y="969" font-size="12" fill="#14213D">Aquisição no dispositivo</text>
+  <circle cx="68" cy="994" r="8" fill="#E8F3F4" stroke="#0E7C86" stroke-width="1.6"/>
+  <text x="86" y="999" font-size="12" fill="#14213D">Processamento na nuvem</text>
+  <circle cx="68" cy="1024" r="8" fill="#ECEDFA" stroke="#4C51BF" stroke-width="1.6"/>
+  <text x="86" y="1029" font-size="12" fill="#14213D">Uso pelo produtor no aplicativo</text>
+</svg>
