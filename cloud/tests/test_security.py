@@ -53,8 +53,12 @@ def test_chave_ausente_levanta_401():
 
 
 def test_hash_de_senha_verifica_corretamente():
-    hash_gerado = gerar_hash_senha("tomate123")
-    assert verificar_senha("tomate123", hash_gerado) is True
+    # String neutra de proposito. Antes aqui estava a senha real da conta
+    # de produtor em producao, e este repositorio vai se tornar publico:
+    # literal de teste nao deve coincidir com credencial de verdade.
+    senha = "senha-de-teste-123"
+    hash_gerado = gerar_hash_senha(senha)
+    assert verificar_senha(senha, hash_gerado) is True
     assert verificar_senha("senha-errada", hash_gerado) is False
 
 
