@@ -115,6 +115,23 @@ class Settings(BaseSettings):
     # SILENCIO, dando a impressao de que a inferencia estava ativa.
     TFLITE_MODEL_PATH: str = "ml/models/modelo.tflite"
 
+    # Liga o diagnostico por JANELA DESLIZANTE (app/core/janelas.py) no
+    # lugar do quadro inteiro. DESLIGADO por padrao, de proposito.
+    #
+    # POR QUE EXISTE: o quadro inteiro reduz 4608x2592 para 224x224, e o
+    # foliolo chega ao modelo com cerca de 43 px, dentro da faixa do
+    # acaso. A janela de 896 px nativos chega com 222 px, que e o regime
+    # de treino. Medido em 2026-11-02 na mesma captura: o quadro inteiro
+    # TROCA de diagnostico so por mudar o filtro de redimensionamento,
+    # enquanto a janela e estavel.
+    #
+    # POR QUE DESLIGADO: o caminho por janela custa cerca de 500 ms por
+    # captura (36 inferencias contra 1) e muda o diagnostico que chega
+    # ao produtor. Ligar e decisao de operacao, nao de codigo, e deve
+    # ser feita por variavel de ambiente no Railway, uma vez, podendo
+    # voltar atras sem deploy novo.
+    DIAGNOSTICO_POR_JANELA: bool = False
+
     @property
     def caminho_do_modelo(self) -> str:
         """Caminho absoluto do .tflite, independente de onde o processo

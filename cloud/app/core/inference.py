@@ -171,6 +171,46 @@ _SUFIXO_RECOMENDACAO = " Consulte um engenheiro agrônomo para definir produto e
 # o produtor recebia instrução de pulverizar fungicida numa folha sã.
 _CATALOGO_AGRONOMICO: list[tuple[str, str | None, str | None]] = [
     ("saudavel", None, None),
+    # ESTA CLASSE NÃO É DO PlantVillage, é do domínio próprio (ADR 0018).
+    #
+    # O texto NÃO nomeia a causa, de propósito: afirmar "deficiência de
+    # potássio" a partir de uma foto exige saber a adubação, e isso o
+    # sistema não sabe. O que ele faz é devolver ao produtor o critério
+    # de localização que a Embrapa publica, para ele mesmo estreitar a
+    # hipótese olhando a planta.
+    #
+    # "Distúrbio fisiológico" é o termo da própria Embrapa para este
+    # quadro, e vem de um documento sobre tomate em AMBIENTE PROTEGIDO,
+    # que é a condição desta estufa:
+    #
+    #   LOPES, C.A.; REIS, A. Doenças do tomateiro cultivado em ambiente
+    #   protegido. Circular Técnica, 2. ed. Brasília: Embrapa Hortaliças,
+    #   dez. 2011. ISSN 1415-3033, p.1: "Podem ser também provocadas por
+    #   fatores abióticos, como deficiência ou excesso de nutrientes,
+    #   fitotoxicidez por agrotóxicos e luminosidade inadequada, entre
+    #   outros; neste caso, são também conhecidas como distúrbios
+    #   fisiológicos ou doenças abióticas."
+    #
+    # É a 2a edição (2011), não a 1a (Circular Técnica 53, 2007), e é a
+    # que o TCC já referencia. A 2a acrescenta "ou doenças abióticas",
+    # que é justamente o que esta classe representa.
+    #
+    # A localização de cada sintoma vem de EMBRAPA HORTALIÇAS, Cultivo
+    # de Tomate para Industrialização, Sistemas de Produção 1, 2a ed.,
+    # dez. 2006, seção "Deficiências nutricionais".
+    (
+        "estresse_foliar",
+        "Alteração na folha que não corresponde às doenças que o sistema "
+        "reconhece. A Embrapa chama esse quadro de distúrbio fisiológico: "
+        "pode vir de falta ou excesso de nutriente, de fitotoxicidez por "
+        "agrotóxico ou de luz inadequada. Confira a planta de perto e "
+        "verifique também a irrigação."
+        # O sufixo padrão fala em "produto e dosagem", e aqui não se
+        # recomenda produto nenhum. O que falta ao produtor é a CAUSA,
+        # não a dose, então a frase muda para pedir isso.
+        " Consulte um engenheiro agrônomo para confirmar a causa.",
+        "media",
+    ),
     (
         "requeima",
         "Favorecida por umidade acima de 90% e temperaturas amenas (11-23°C). "

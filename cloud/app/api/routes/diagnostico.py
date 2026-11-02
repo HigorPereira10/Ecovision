@@ -61,7 +61,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core import inference
+from app.config import get_settings
+from app.core import inference, janelas
 from app.core.alertas_ambientais import avaliar_risco_ambiental
 from app.core.pressao_infecciosa import (
     CLASSES_FUNGICAS,
@@ -294,7 +295,22 @@ async def receber_diagnostico(
         )
     else:
         interpretador = getattr(request.app.state, "modelo_tflite", None)
-        resultado = inference.rodar_inferencia(interpretador, imagem_preprocessada)
+        if interpretador is not None and get_settings().DIAGNOSTICO_POR_JANELA:
+            # Caminho por janela deslizante. Cai no quadro inteiro se
+            # algo der errado: uma melhoria de precisão não pode ser
+            # motivo para a captura não ser diagnosticada. Mesmo
+            # princípio de app/core/inference.py, que mantém a API de pé
+            # sem modelo.
+            try:
+                resultado = janelas.diagnosticar_por_janelas(interpretador, bytes_imagem)
+            except Exception:
+                logger.warning(
+                    "Falha no diagnóstico por janela para device_id=%s. "
+                    "Caindo no quadro inteiro.", device_id, exc_info=True,
+                )
+                resultado = inference.rodar_inferencia(interpretador, imagem_preprocessada)
+        else:
+            resultado = inference.rodar_inferencia(interpretador, imagem_preprocessada)
         logger.info(
             "Inferência concluída para device_id=%s: classe=%s confianca=%.2f",
             device_id, resultado["classe"], resultado["confianca"],
