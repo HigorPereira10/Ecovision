@@ -82,3 +82,19 @@ def test_multiplos_riscos_simultaneos():
 
 def test_leitura_ausente_nao_gera_alerta_por_conta_propria():
     assert avaliar_risco_ambiental(None, None, None) == []
+
+
+def test_sensor_fora_da_terra_nao_vira_alerta_de_seca():
+    """Em 2026-11-02 a haste foi retirada da terra e o ADS1115 passou a
+    ler 1,7% a 2,1%, nao 0,0% exato. Com o piso antigo em zero exato,
+    isso caia em UMIDADE_SOLO_MIN_PCT e disparava "Solo seco" com
+    severidade ALTA a cada ciclo: o falso alarme que manda irrigar uma
+    planta que nao precisa, e que ensina o grupo a ignorar o alerta de
+    seca."""
+    for leitura in (1.7, 2.1, 3.9):
+        alertas = avaliar_risco_ambiental(24.0, 65.0, leitura)
+        assert len(alertas) == 1, f"{leitura}% gerou {len(alertas)} alertas"
+        titulo, descricao, severidade = alertas[0]
+        assert "verifique o sensor" in titulo.lower(), f"{leitura}% virou {titulo!r}"
+        assert severidade == "media", "suspeita de sensor pede conferencia, nao acao"
+        assert f"{leitura:.1f}%" in descricao, "a descricao mostra a leitura real"

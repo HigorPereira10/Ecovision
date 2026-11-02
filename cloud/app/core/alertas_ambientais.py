@@ -45,11 +45,27 @@ UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: risco de solo encharcado (convençã
 # está pendurado no ar manda o produtor irrigar sem motivo, e ensina o
 # grupo a ignorar o alerta de seca justamente antes da banca.
 #
-# A margem é zero por enquanto, de propósito: só o valor exato 0,0
-# dispara. Depois da calibração com terra de verdade, dá para subir
-# isso para um piso medido (por exemplo, abaixo de 2%), quando houver
-# dado suficiente para escolher o número.
-SOLO_PISO_SUSPEITO_PCT = 0.0
+# O NÚMERO AGORA É MEDIDO, não mais zero exato.
+#
+# Em 2026-11-02 a haste foi retirada da terra (para os fios saírem do
+# enquadramento da câmera) e o ADS1115 passou a ler 17239 a 17307 em
+# bruto, que na calibração do ecovision-pi-01 dá 1,7% a 2,1%. Ou seja:
+# sensor fora da terra NÃO devolve 0,0 exato, devolve a vizinhança do
+# extremo seco. Com o piso em zero, essas leituras passavam direto e
+# caíam em UMIDADE_SOLO_MIN_PCT, disparando "Solo seco" com severidade
+# ALTA a cada ciclo. É o falso alarme que a nota acima existia para
+# evitar, e ele aconteceu.
+#
+# POR QUE 4 E NÃO 5: o grupo já decidiu, e está fixado em
+# test_solo_baixo_mas_acima_de_zero_continua_sendo_seca, que 5% é
+# leitura PLAUSÍVEL de solo seco de verdade e tem que continuar gerando
+# alerta alto. O piso fica logo abaixo disso para não engolir seca real.
+#
+# A margem acima do sensor solto é estreita (2,1% medido contra 4,0% de
+# piso) porque as duas faixas são vizinhas mesmo. Se um dia um sensor
+# fora da terra ler acima de 4%, suba este número E o do teste juntos,
+# nunca só um.
+SOLO_PISO_SUSPEITO_PCT = 4.0
 
 
 def avaliar_risco_ambiental(
@@ -91,7 +107,8 @@ def avaliar_risco_ambiental(
             # em SOLO_PISO_SUSPEITO_PCT para o porquê.
             alertas.append((
                 "Verifique o sensor de umidade do solo",
-                "A leitura de umidade do solo voltou em 0%, o piso da escala. "
+                f"A leitura de umidade do solo voltou em {umidade_solo_pct:.1f}%, "
+                f"no piso da escala (abaixo de {SOLO_PISO_SUSPEITO_PCT:.0f}%). "
                 "Isso costuma indicar sensor fora da terra, haste solta, "
                 "conector frouxo ou calibração pendente, e não solo seco. "
                 "Confira a instalação antes de irrigar.",
