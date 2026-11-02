@@ -110,6 +110,22 @@ def carregar_referencia():
     )
 
 
+def _ultima_densa(modelo):
+    """Acha a camada de classificação pelo TIPO, não pelo nome.
+
+    O nome importa menos do que parece e muda sozinho: ao acrescentar a
+    quarta classe, ml/src/training/ajuste_quatro_classes.py liga uma
+    densa nova ao grafo, e ela não pode se chamar "dense" porque a
+    antiga continua registrada ali. Procurar pelo tipo faz este módulo
+    servir aos dois modelos sem edição."""
+    import keras
+
+    densas = [c for c in modelo.layers if isinstance(c, keras.layers.Dense)]
+    if not densas:
+        raise SystemExit(f"Nenhuma camada Dense em {MODELO_KERAS}.")
+    return densas[-1]
+
+
 def carregar_modelo():
     import keras
 
@@ -118,7 +134,7 @@ def carregar_modelo():
         modelo.get_layer("mobilenetv2_1.00_224"),
         modelo.get_layer("global_average_pooling2d"),
         modelo.get_layer("dropout"),
-        modelo.get_layer("dense"),
+        _ultima_densa(modelo),
     )
 
 
