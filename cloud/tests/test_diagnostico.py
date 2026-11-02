@@ -44,7 +44,7 @@ por API Key. Sem precisar de Supabase real nem de rede, confere:
     tinha sido criado pela primeira.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta
 from io import BytesIO
 
 from fastapi.testclient import TestClient
@@ -536,3 +536,90 @@ async def test_foto_reprovada_guarda_a_imagem_mas_nao_afirma_diagnostico(monkeyp
         # desta guarda é "Não foi possível analisar a foto", que contém
         # a palavra sem ser acusação de doença nenhuma.
         assert "detectado" not in alertas[0].titulo.lower()
+
+
+# --- 11. ressalva de plausibilidade ambiental ---------------------------
+#
+# O modelo de imagem nao duvida de si mesmo: medido em 2026-11-01, os
+# logits de uma planta com amarelamento nutricional ficam no mesmo
+# patamar dos das classes conhecidas (mediana 1,70 contra 1,89), entao
+# ele acusa doenca com confianca alta e nada na visao o contradiz. Quem
+# contradiz e o historico da estufa, via app/core/pressao_infecciosa.py.
+#
+# O que os testes abaixo fixam: a ressalva so aparece quando ha medicao
+# suficiente E o ambiente de fato nao sustentou infeccao, e ela nunca
+# substitui a recomendacao agronomica, so se soma a ela.
+
+
+def _inferencia_fungica(_interpretador, _imagem):
+    return {
+        "classe": "pinta_preta",
+        "confianca": 0.9,
+        "recomendacao": "Aplique fungicida registrado.",
+        "severidade": "media",
+    }
+
+
+async def _semear_historico(device_id: str, dias: int, umidade_pct: float) -> None:
+    """Cria `dias` de leituras de hora em hora terminando pouco antes do
+    timestamp usado por _payload_valido()."""
+    fim = datetime.fromisoformat("2026-08-22T10:00:00+00:00") - timedelta(hours=1)
+    async with AsyncSession(engine) as sessao:
+        for i in range(dias * 24):
+            momento = fim - timedelta(hours=i)
+            registro = RegistroImagem(
+                device_id=device_id,
+                idempotency_key=f"historico-{i}",
+                caminho_arquivo=f"{device_id}/historico-{i}.jpg",
+                capturado_em=momento,
+            )
+            sessao.add(registro)
+            await sessao.flush()
+            sessao.add(LeituraAmbiental(
+                registro_imagem_id=registro.id,
+                temperatura_c=27.0,
+                umidade_ar_pct=umidade_pct,
+                umidade_solo_pct=45.0,
+            ))
+        await sessao.commit()
+
+
+async def _recomendacao_do_envio(monkeypatch) -> str:
+    monkeypatch.setattr("app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso)
+    monkeypatch.setattr(inference_module, "rodar_inferencia", _inferencia_fungica)
+    monkeypatch.setattr(diagnostico_module.inference, "rodar_inferencia", _inferencia_fungica)
+    with TestClient(app) as client:
+        resposta = client.post(
+            "/diagnostico",
+            data=_payload_valido(),
+            files={"imagem": ("foto.jpg", BytesIO(_imagem_falsa()), "image/jpeg")},
+            headers={"Authorization": "chave-de-teste-dispositivo"},
+        )
+    assert resposta.status_code == 200
+    return resposta.json()["recomendacao"] or ""
+
+
+async def test_estufa_seca_acrescenta_ressalva_sem_apagar_a_recomendacao(monkeypatch):
+    await _semear_historico("pi-teste", dias=10, umidade_pct=65.0)
+    recomendacao = await _recomendacao_do_envio(monkeypatch)
+
+    assert "Aplique fungicida registrado." in recomendacao, (
+        "a ressalva SOMA-SE a recomendacao agronomica, nunca a substitui"
+    )
+    assert "conferir" in recomendacao.lower() or "confira" in recomendacao.lower()
+    assert "irrigação" in recomendacao.lower(), "o ponto cego tem que estar declarado"
+
+
+async def test_estufa_umida_nao_acrescenta_ressalva(monkeypatch):
+    """Ambiente favoravel mais diagnostico de fungo e concordancia, e
+    concordancia nao precisa de ressalva."""
+    await _semear_historico("pi-teste", dias=10, umidade_pct=95.0)
+    recomendacao = await _recomendacao_do_envio(monkeypatch)
+    assert recomendacao == "Aplique fungicida registrado."
+
+
+async def test_sem_historico_nao_acrescenta_ressalva(monkeypatch):
+    """Dispositivo recem-instalado: nao ha medicao para afirmar ausencia
+    de molhamento, entao o sistema cala. Ausencia de dado nao e dado."""
+    recomendacao = await _recomendacao_do_envio(monkeypatch)
+    assert recomendacao == "Aplique fungicida registrado."

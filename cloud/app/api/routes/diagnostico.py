@@ -63,6 +63,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core import inference
 from app.core.alertas_ambientais import avaliar_risco_ambiental
+from app.core.pressao_infecciosa import (
+    CLASSES_FUNGICAS,
+    avaliar_plausibilidade,
+    calcular_pressao,
+)
 from app.api.dispositivo_auth import autenticar_dispositivo
 from app.core.security import obter_credencial_dispositivo
 from app.db.models import Alerta, Diagnostico, LeituraAmbiental, RegistroImagem
@@ -82,6 +87,12 @@ router = APIRouter()
 # simplesmente não avisar. A imagem inadequada tem alerta PRÓPRIO, de
 # câmera, gerado mais abaixo.
 _CLASSES_SEM_ALERTA = {"saudavel", "indisponivel", inference.CLASSE_IMAGEM_INADEQUADA}
+
+# Teto de leituras lidas para a janela de pressão infecciosa. Com
+# captura a cada 2h, 14 dias são 168 leituras, então 500 dá folga larga
+# para intervalos menores sem virar consulta pesada a cada diagnóstico.
+# O teto existe para o custo não crescer com a idade do dispositivo.
+_LIMITE_LEITURAS_HISTORICO = 500
 
 # ALERTA DE SEGURANÇA (proteção contra negação de serviço): edge/src/
 # compress.py mira 150-250KB por foto, então 5MB já é uma margem bem
@@ -116,6 +127,64 @@ async def _buscar_diagnostico_por_idempotency_key(
         .where(RegistroImagem.idempotency_key == idempotency_key)
     )
     return resultado.scalar_one_or_none()
+
+
+async def _recomendacao_com_ressalva(
+    sessao: AsyncSession,
+    device_id: str,
+    resultado: dict,
+    capturado_em: datetime,
+    temperatura_c: float | None,
+    umidade_ar_pct: float | None,
+) -> str | None:
+    """Acrescenta à recomendação a ressalva de plausibilidade ambiental,
+    quando houver. Devolve a recomendação original se não houver.
+
+    NUNCA DERRUBA A ROTA: se a consulta ao histórico falhar, o
+    diagnóstico segue sem a ressalva. Vale aqui o mesmo princípio de
+    app/core/inference.py, que mantém a API de pé mesmo sem modelo:
+    uma camada acessória não pode impedir a captura de ser gravada.
+    """
+    recomendacao = resultado.get("recomendacao")
+    try:
+        linhas = (await sessao.execute(
+            select(
+                RegistroImagem.capturado_em,
+                LeituraAmbiental.temperatura_c,
+                LeituraAmbiental.umidade_ar_pct,
+            )
+            .join(LeituraAmbiental, LeituraAmbiental.registro_imagem_id == RegistroImagem.id)
+            .where(RegistroImagem.device_id == device_id)
+            .order_by(RegistroImagem.capturado_em.desc())
+            .limit(_LIMITE_LEITURAS_HISTORICO)
+        )).all()
+
+        # A leitura desta captura ainda não está no banco (a gravação
+        # vem depois), então entra aqui à mão. Sem isso a janela perde
+        # justamente a amostra mais recente, que é a que mais pesa.
+        leituras = [(m, t, u) for m, t, u in linhas]
+        leituras.append((capturado_em, temperatura_c, umidade_ar_pct))
+
+        pressao = calcular_pressao(leituras, ate=capturado_em)
+        ressalva = avaliar_plausibilidade(resultado["classe"], pressao)
+    except Exception:
+        logger.warning(
+            "Falha ao cruzar o diagnóstico com o histórico ambiental "
+            "(device_id=%s). Seguindo sem a ressalva.",
+            device_id, exc_info=True,
+        )
+        return recomendacao
+
+    if ressalva is None:
+        return recomendacao
+
+    _titulo, descricao = ressalva
+    logger.info(
+        "Ressalva ambiental anexada ao diagnóstico de device_id=%s "
+        "(classe=%s, DSV acumulado=%d, cobertura=%.0f%%)",
+        device_id, resultado["classe"], pressao.dsv_acumulado, pressao.cobertura * 100,
+    )
+    return f"{recomendacao}\n\n{descricao}" if recomendacao else descricao
 
 
 @router.post("/diagnostico", response_model=DiagnosticoOut)
@@ -246,6 +315,25 @@ async def receber_diagnostico(
     riscos_ambientais = avaliar_risco_ambiental(
         temperatura_c_valor, umidade_ar_pct_valor, umidade_solo_pct_valor
     )
+
+    # CRUZAMENTO COM O HISTÓRICO DA ESTUFA. O modelo de imagem não sabe
+    # duvidar de si mesmo: medido em 2026-11-01, os logits de uma planta
+    # com amarelamento nutricional ficam no mesmo patamar dos das
+    # classes conhecidas (mediana 1,70 contra 1,89), então ele acusa
+    # doença com confiança alta e nada na visão o contradiz.
+    #
+    # Fungo foliar precisa de molhamento prolongado para infectar. Se o
+    # histórico mostra que isso não houve, a suspeita merece uma
+    # ressalva. Ver app/core/pressao_infecciosa.py para os três pontos
+    # cegos que limitam o que essa ressalva pode afirmar.
+    #
+    # A ressalva vai junto da RECOMENDAÇÃO, não como alerta separado: é
+    # uma qualificação do diagnóstico e só faz sentido grudada nele.
+    if resultado["classe"] in CLASSES_FUNGICAS:
+        resultado["recomendacao"] = await _recomendacao_com_ressalva(
+            sessao, device_id, resultado,
+            capturado_em, temperatura_c_valor, umidade_ar_pct_valor,
+        )
 
     # ATENÇÃO, BUG JÁ CORRIGIDO AQUI (condição de corrida): a checagem de
     # idempotency_key no início da função e a gravação abaixo não são
