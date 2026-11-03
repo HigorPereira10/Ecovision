@@ -11,12 +11,36 @@ limiar na banca: nenhum valor abaixo foi inventado.
 Resumo das fontes (ver o ADR para o texto completo):
 - Temperatura e umidade do ar: Embrapa Hortaliças, "Clima"
   (https://www.embrapa.br/web/hortalicas/tomate-de-mesa/clima).
-- Umidade do solo: ATENÇÃO, esta é a parte mais frágil. Não existe um
-  número único e amplamente aceito na literatura agronômica para
-  sensores capacitivos relativos (0-100% calibrados entre
-  SOIL_DRY_RAW/SOIL_WET_RAW, ver edge/src/config.py). Os limiares
-  abaixo são uma CONVENÇÃO PRÁTICA, só um ponto de partida, e devem ser
-  recalibrados assim que o sensor físico for calibrado de verdade.
+- Umidade do solo: o critério agronômico EXISTE e está citado, mas não
+  é expresso em porcentagem. Para tomate de mesa tutorado, a Embrapa
+  recomenda irrigar quando a TENSÃO da água no solo chega a 15-25 kPa,
+  medida com tensiômetro (15 kPa nos 10 a 20 dias após o transplante,
+  25 kPa depois disso):
+
+    BRAGA, M.B.; FELTRIM, A.L.; BORGES, L.C. Irrigação. In: ZAMBOLIM,
+    L.; QUEZADO-DUVAL, A.M. (org.). Produção integrada do tomateiro
+    tutorado. Viçosa, MG: UFV, CEAD, 2022. cap. 7, p. 102-116. Na
+    p. 105: "Normalmente, em cultivos de tomate de mesa, as tensões
+    críticas de irrigação variam de 15 a 25kPa."
+
+  O sensor deste projeto não mede tensão. Ele devolve porcentagem
+  RELATIVA aos seus dois pontos de calibração (SOIL_DRY_RAW e
+  SOIL_WET_RAW, ver edge/src/config.py), e converter uma escala na
+  outra exige a curva de retenção de água DESTE substrato, que não foi
+  determinada.
+
+  A diferença de escala é grande e dá para medir: o próprio capítulo,
+  no exemplo trabalhado da p. 106 (raiz a 400 mm), converte 25 kPa em
+  41,83% de umidade VOLUMÉTRICA, com capacidade de campo em 44,65%. A
+  faixa útil toda tem menos de 3 pontos percentuais. Se os 20% abaixo
+  fossem a mesma grandeza, o vaso estaria em murcha permanente quase
+  sempre, e não está.
+
+  Portanto UMIDADE_SOLO_MIN_PCT e MAX continuam sendo LIMITE
+  OPERACIONAL do projeto, não recomendação publicada, e o alvo da
+  calibração pendente é o critério acima. Para calibrar: leituras do
+  sensor pareadas com tensiômetro no mesmo vaso, ou a curva de
+  retenção do substrato. Ver docs/decisions/0005-limiares-ambientais.md.
 
 Relação com o resto do sistema:
 - Usado por app/api/routes/diagnostico.py logo após gravar a leitura
@@ -28,8 +52,16 @@ TEMPERATURA_MAX_C = 34.0
 
 UMIDADE_AR_MAX_PCT = 90.0
 
-UMIDADE_SOLO_MIN_PCT = 20.0  # abaixo disso: risco de seca (convenção prática)
-UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: risco de solo encharcado (convenção prática)
+# Limite OPERACIONAL, não recomendação publicada. O critério agronômico
+# e a razão pela qual ele não pode ser colado aqui estão no cabeçalho.
+UMIDADE_SOLO_MIN_PCT = 20.0  # abaixo disso: risco de seca
+UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: risco de solo encharcado
+
+# Tensão crítica de irrigação para tomate de mesa (Braga, Feltrim e
+# Borges, 2022, p. 105). NÃO é usada em comparação nenhuma: o sensor não
+# mede kPa. Está aqui para o texto do alerta e da documentação poderem
+# citar o critério sem repetir o número solto em três arquivos.
+TENSAO_CRITICA_IRRIGACAO_KPA = (15.0, 25.0)
 
 # Leitura de solo em exatamente 0,0% quase nunca é solo seco de verdade.
 # O percentual vem de _clamp(0, 100) sobre o valor bruto do ADS1115
