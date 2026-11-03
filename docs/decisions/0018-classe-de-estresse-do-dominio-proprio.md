@@ -166,6 +166,43 @@ enquadramentos, subiu para 86% e a perda de validação caiu de 0,80 para
 travamento e sobe junto com a de treino.** Enquanto não sair, o caminho
 é mais enquadramento, não mais ajuste de hiperparâmetro.
 
+## Fonte do texto que vai ao produtor
+
+A recomendação de `estresse_foliar` não nomeia a causa: ela devolve o
+enquadramento que a Embrapa publica, e usa o termo da própria Embrapa.
+
+> "Podem ser também provocadas por fatores abióticos, como deficiência
+> ou excesso de nutrientes, fitotoxicidez por agrotóxicos e luminosidade
+> inadequada, entre outros; neste caso, são também conhecidas como
+> **distúrbios fisiológicos ou doenças abióticas**."
+
+LOPES, C.A.; REIS, A. **Doenças do tomateiro cultivado em ambiente
+protegido.** Circular Técnica, 2. ed. Brasília: Embrapa Hortaliças, dez.
+2011. ISSN 1415-3033, p.1. (1a edição: Circular Técnica 53, nov. 2007.)
+
+É a 2a edição que o TCC já referencia, e ela é a certa: acrescenta "ou
+doenças abióticas", que é exatamente o que esta classe representa. O
+documento trata de tomate em AMBIENTE PROTEGIDO, a condição desta estufa.
+
+**Material para a documentação final, que NÃO cabe no aplicativo.** A
+localização do sintoma estreita a causa, e isso rende um quadro no texto:
+
+| onde está o amarelecimento | sugere |
+|---|---|
+| folhas mais velhas, de forma geral | nitrogênio |
+| bordas das folhas velhas, avançando para o centro, depois marrom | potássio |
+| entre as nervuras das folhas velhas, nervuras ainda verdes | magnésio |
+| folhas novas primeiro | enxofre |
+
+EMBRAPA HORTALIÇAS. **Cultivo de Tomate para Industrialização.**
+Sistemas de Produção 1, 2. ed. Brasília: Embrapa Hortaliças, dez. 2006,
+seção "Deficiências nutricionais".
+
+O quadro ficou FORA do texto do aplicativo de propósito: o cartão de
+diagnóstico passaria de 900 caracteres, contra 244 a 287 das outras
+classes. O lugar dele é a dissertação, e eventualmente uma seção
+expansível no aplicativo.
+
 ## Referências
 
 - [ECHO]: https://www.echocommunity.org/en/resources/b5cad3ac-e9e6-42bb-be50-ce43689b87ed
