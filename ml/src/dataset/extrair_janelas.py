@@ -99,7 +99,11 @@ CLASSES = [
 
 # Qualidade minima para valer o tempo de rotular. Janela sem quase nada
 # de verde nao e folha, e a porta ja recusa a maioria delas.
-COBERTURA_VERDE_MINIMA = 0.08
+# Mesmo limiar de cloud/app/core/janelas.py, e pelo mesmo motivo: com
+# 0,08 um pote plastico verde-azulado passou por folha em producao
+# (2026-11-03). O numero vem do percentil 5 das janelas ja rotuladas
+# como folha, que e 20,5%.
+COBERTURA_VERDE_MINIMA = 0.18
 
 # Sessão = um ENQUADRAMENTO. Muda quando o vaso ou a câmera muda de
 # lugar. Entra no nome do arquivo porque é metade da identidade de uma

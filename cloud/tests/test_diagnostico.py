@@ -45,6 +45,7 @@ por API Key. Sem precisar de Supabase real nem de rede, confere:
 """
 
 from datetime import datetime, timedelta
+from functools import lru_cache
 from io import BytesIO
 
 from fastapi.testclient import TestClient
@@ -65,6 +66,7 @@ async def _salvar_imagem_falso(device_id: str, timestamp: str, bytes_imagem: byt
     return f"{device_id}/{timestamp}.jpg"
 
 
+@lru_cache(maxsize=1)
 def _imagem_falsa() -> bytes:
     """Um JPEG pequeno, mas de verdade, e com TEXTURA.
 
@@ -95,12 +97,20 @@ def _imagem_falsa() -> bytes:
     import numpy as np
 
     # Xadrez VERDE de 16x16 com ruído leve. Verde porque a guarda por
-    # janela mede cobertura de folha; 1024 px porque abaixo disso não
-    # sobra janela depois do recorte.
-    lado = 1024
-    base = np.indices((lado, lado)).sum(axis=0) // 8 % 2
+    # janela mede cobertura de folha.
+    #
+    # O TAMANHO TEM QUE RENDER PELO MENOS JANELAS_MINIMAS JANELAS. Com
+    # 1024x1024 saía UMA só: recortar() decodifica em metade, sobram
+    # 512 px, e uma janela de 448 com passo 224 só cabe uma vez. Em
+    # 2026-11-03, quando o mínimo de janelas entrou, isso derrubou três
+    # testes com "imagem_inadequada".
+    #
+    # 2688x1512 (16:9, como a câmera) vira 1344x756 e rende 5 por 2,
+    # ou seja 10 janelas: margem confortável sobre o mínimo de 6.
+    largura, altura = 2688, 1512
+    base = np.indices((altura, largura)).sum(axis=0) // 8 % 2
     rng = np.random.default_rng(42)
-    ruido = rng.integers(-15, 16, (lado, lado))
+    ruido = rng.integers(-15, 16, (altura, largura))
     canais = []
     for claro, escuro in ((70, 30), (190, 90), (80, 40)):  # R, G, B: verde domina
         canal = np.where(base == 0, escuro, claro).astype(np.int16) + ruido

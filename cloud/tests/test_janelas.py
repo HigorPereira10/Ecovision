@@ -297,3 +297,82 @@ def test_planta_sadia_nao_ganha_frase_de_incidencia(monkeypatch):
 
     assert resultado["classe"] == "saudavel"
     assert resultado["recomendacao"] is None
+
+
+# --- 7. o caso do pote verde (falha real de 2026-11-03) ---
+
+
+def test_superficie_verde_lisa_nao_e_folha(monkeypatch):
+    """FALHA REAL EM PRODUCAO. Com a planta fora da estufa, a camera
+    enquadrou um pote plastico verde-azulado. As 11:00 e 13:00 todas as
+    janelas foram recusadas, correto. As 15:00, com luz mais forte, o
+    plastico rendeu 9% a 12% de "verde", cinco janelas passaram do
+    limiar antigo de 8%, e o sistema afirmou "saudavel 93%" sobre uma
+    cena SEM PLANTA.
+
+    O limiar novo vem das 135 janelas rotuladas a mao: nenhuma janela
+    de folha real fica abaixo de 20,5% de cobertura verde.
+    """
+    _classes(monkeypatch, ["septoriose", "pinta_preta", "saudavel"])
+
+    # A janela real NAO era verde por inteiro: era pote, plastico
+    # branco, fios e madeira, e so 9% a 12% dos pixels passavam no
+    # teste de verde. Um quadrado uniforme de verde-azulado daria 96% e
+    # mediria outra coisa.
+    janela = _janela((150, 150, 148))  # cinza texturizado: fundo
+    lado = int(224 * (0.11 ** 0.5))  # mancha que cobre ~11% da area
+    janela[:lado, :lado] = _janela((60, 140, 120))[:lado, :lado]
+
+    cobertura = janelas._cobertura_verde(janela)
+    assert 0.08 < cobertura < 0.18, (
+        f"o dubles precisa cair na faixa que passava antes: {cobertura:.3f}"
+    )
+    assert janelas._janela_aproveitavel(janela) == "sem folha", (
+        "11% de verde era o que o pote plastico produzia, e passava no "
+        "limiar antigo de 8%"
+    )
+
+
+def test_o_limiar_de_verde_nao_corta_folha_real():
+    """O outro lado do mesmo numero: subir demais perderia diagnostico.
+    O percentil 5 das janelas rotuladas como folha e 20,5%."""
+    assert janelas.COBERTURA_VERDE_MINIMA < 0.20
+
+
+def test_poucas_janelas_nao_viram_diagnostico(monkeypatch):
+    """A captura das 15:00 diagnosticou com CINCO janelas de 36. Mesmo
+    que as cinco fossem folha, 14% do quadro e base fraca, e a regra de
+    incidencia perde o sentido: com 5 janelas, uma vira 20% sozinha."""
+    _classes(monkeypatch, ["septoriose", "pinta_preta", "saudavel"])
+    interp = _InterpretadorFalso([[0.05, 0.05, 0.90]] * 36)
+
+    # imagem em que so uma faixa estreita tem folha
+    import io
+
+    import numpy as np
+    from PIL import Image
+
+    rng = np.random.default_rng(5)
+    base = np.zeros((2592, 4608, 3), np.int16)
+    base[:, :] = (150, 150, 150)  # cinza: sem folha
+    ruido = np.kron(
+        rng.integers(-70, 70, (2592 // 16 + 1, 4608 // 16 + 1)),
+        np.ones((16, 16), np.int16),
+    )[:2592, :4608]
+    for canal in range(3):
+        base[..., canal] += ruido
+    # uma faixa verde estreita, que rende menos de 6 janelas
+    base[:300, :900] = np.stack([
+        np.clip(60 + ruido[:300, :900], 0, 255),
+        np.clip(160 + ruido[:300, :900], 0, 255),
+        np.clip(70 + ruido[:300, :900], 0, 255),
+    ], axis=-1)
+    arquivo = io.BytesIO()
+    Image.fromarray(np.clip(base, 0, 255).astype(np.uint8)).save(
+        arquivo, format="JPEG", quality=92
+    )
+
+    resultado = janelas.diagnosticar_por_janelas(interp, arquivo.getvalue())
+
+    assert resultado["classe"] == CLASSE_IMAGEM_INADEQUADA
+    assert resultado["janelas"] < janelas.JANELAS_MINIMAS

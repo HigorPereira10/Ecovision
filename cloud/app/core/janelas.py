@@ -72,10 +72,36 @@ JANELA_NATIVA = 896
 PASSO_NATIVO = 448
 ESCALA = 2  # decodifica em metade: economiza memória sem mudar o resultado
 
-# Cobertura mínima de verde para a janela valer diagnóstico. Abaixo
-# disso é caule, fundo, vaso ou fruto, e um diagnóstico ali não
-# significa nada. Mesmo limiar de ml/src/dataset/extrair_janelas.py.
-COBERTURA_VERDE_MINIMA = 0.08
+# Cobertura mínima de verde para a janela valer diagnóstico.
+#
+# ERA 0,08 E ISSO FALHOU EM PRODUÇÃO, em 2026-11-03. Com a planta fora
+# da estufa, a câmera enquadrou um pote plástico verde-azulado. Às
+# 11:00 e 13:00 todas as 36 janelas foram recusadas, correto. Às 15:00,
+# com luz mais forte, o plástico rendeu 9% a 12% de "verde", cinco
+# janelas passaram e o sistema afirmou "saudavel 93%" sobre uma cena
+# SEM PLANTA. É a afirmação mais perigosa que este sistema pode fazer,
+# e é a que a guarda existe para impedir.
+#
+# O número novo vem das 135 janelas rotuladas à mão, não de chute:
+#
+#     folha saudável, percentil 5 ...... 20,5%
+#     folha com estresse, percentil 5 .. 25,7%
+#     pote plástico que passou .........  9% a 12%
+#
+# 18% fica abaixo de toda janela de folha real e bem acima do plástico.
+COBERTURA_VERDE_MINIMA = 0.18
+
+# Mínimo de janelas aproveitáveis para o sistema afirmar qualquer
+# coisa.
+#
+# A captura das 15:00 diagnosticou com CINCO janelas de 36. Mesmo que
+# as cinco fossem folha de verdade, 14% do quadro é base fraca demais
+# para um diagnóstico, e a regra de incidência perde o sentido: com 5
+# janelas, uma única vira 20% e cruza o limiar sozinha.
+#
+# Seis é um quarto da grade útil típica (30 a 34 janelas nas capturas
+# com planta) e faz cada voto valer no máximo 17%.
+JANELAS_MINIMAS = 6
 
 # AGREGAÇÃO POR INCIDÊNCIA, NÃO POR MAIORIA NEM POR MÉDIA
 # --------------------------------------------------------
@@ -201,15 +227,16 @@ def diagnosticar_por_janelas(interpretador: Any, bytes_imagem: bytes) -> dict:
         return _sem_janela("A foto não pôde ser dividida para análise.")
 
     aproveitaveis = [r for r in recortes if _janela_aproveitavel(r) is None]
-    if not aproveitaveis:
+    if len(aproveitaveis) < JANELAS_MINIMAS:
         logger.warning(
-            "Nenhuma das %d janelas serve para diagnóstico (escuras, sem "
-            "detalhe ou sem folha).", len(recortes),
+            "Só %d das %d janelas servem para diagnóstico (mínimo %d). "
+            "Nada é afirmado sobre a planta.",
+            len(aproveitaveis), len(recortes), JANELAS_MINIMAS,
         )
         return _sem_janela(
-            "Não foi possível encontrar folha analisável na foto. Verifique "
-            "se a câmera está apontada para a planta e se a iluminação "
-            "acendeu na captura."
+            "Não foi possível encontrar folha suficiente na foto para "
+            "analisar. Verifique se a câmera está apontada para a planta e "
+            "se a iluminação acendeu na captura."
         )
 
     entrada = interpretador.get_input_details()[0]["index"]
