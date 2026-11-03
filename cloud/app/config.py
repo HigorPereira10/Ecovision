@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     # derruba a API quando o arquivo falta (de proposito), entao o
     # resultado era a API subir sem modelo e devolver placeholder EM
     # SILENCIO, dando a impressao de que a inferencia estava ativa.
-    TFLITE_MODEL_PATH: str = "ml/models/modelo.tflite"
+    TFLITE_MODEL_PATH: str = "ml/models/modelo_dominio.tflite"
 
     # Liga o diagnostico por JANELA DESLIZANTE (app/core/janelas.py) no
     # lugar do quadro inteiro. DESLIGADO por padrao, de proposito.
@@ -130,7 +130,7 @@ class Settings(BaseSettings):
     # ao produtor. Ligar e decisao de operacao, nao de codigo, e deve
     # ser feita por variavel de ambiente no Railway, uma vez, podendo
     # voltar atras sem deploy novo.
-    DIAGNOSTICO_POR_JANELA: bool = False
+    DIAGNOSTICO_POR_JANELA: bool = True
 
     @property
     def caminho_do_modelo(self) -> str:
