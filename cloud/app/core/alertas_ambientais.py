@@ -23,11 +23,26 @@ Resumo das fontes (ver o ADR para o texto completo):
     p. 105: "Normalmente, em cultivos de tomate de mesa, as tensões
     críticas de irrigação variam de 15 a 25kPa."
 
-  O sensor deste projeto não mede tensão. Ele devolve porcentagem
-  RELATIVA aos seus dois pontos de calibração (SOIL_DRY_RAW e
-  SOIL_WET_RAW, ver edge/src/config.py), e converter uma escala na
-  outra exige a curva de retenção de água DESTE substrato, que não foi
-  determinada.
+  Existe também um critério em PORCENTAGEM, e ele é o que dá o alvo da
+  calibração:
+
+    ALLEN, R.G.; PEREIRA, L.S.; RAES, D.; SMITH, M. Crop
+    evapotranspiration: guidelines for computing crop water
+    requirements. Roma: FAO, 1998. (FAO Irrigation and Drainage Paper,
+    56). Tabela 22, linha do tomate: Zr 0,7-1,5 m, p 0,40, onde p é
+    "average fraction of Total Available Soil Water (TAW) that can be
+    depleted from the root zone before moisture stress (reduction in
+    ET) occurs".
+
+  Ou seja: irrigar quando 40% da água disponível foi consumida, o que é
+  manter o solo acima de 60% dela.
+
+  O SENSOR DESTE PROJETO NÃO MEDE NENHUMA DAS DUAS GRANDEZAS. Ele foi
+  calibrado suspenso no AR (17468 bruto) e submerso em ÁGUA PURA (7179),
+  ver edge/src/config.py, onde isso já está marcado como pendência.
+  Então os 0-100% significam "umidade relativa entre ar seco e
+  submerso", que não é tensão, não é umidade volumétrica e não é fração
+  de água disponível.
 
   A diferença de escala é grande e dá para medir: o próprio capítulo,
   no exemplo trabalhado da p. 106 (raiz a 400 mm), converte 25 kPa em
@@ -36,11 +51,17 @@ Resumo das fontes (ver o ADR para o texto completo):
   fossem a mesma grandeza, o vaso estaria em murcha permanente quase
   sempre, e não está.
 
-  Portanto UMIDADE_SOLO_MIN_PCT e MAX continuam sendo LIMITE
-  OPERACIONAL do projeto, não recomendação publicada, e o alvo da
-  calibração pendente é o critério acima. Para calibrar: leituras do
-  sensor pareadas com tensiômetro no mesmo vaso, ou a curva de
-  retenção do substrato. Ver docs/decisions/0005-limiares-ambientais.md.
+  Portanto UMIDADE_SOLO_MIN_PCT e MAX são LIMITE DE ALERTA deste
+  sistema, não recomendação publicada, e é assim que o app os
+  apresenta: a série de solo tem traço pontilhado, em vez do tracejado
+  das outras duas, e a legenda diz que a linha marca onde o alerta
+  dispara.
+
+  O CAMINHO PARA VIRAR RECOMENDAÇÃO: recalibrar SOIL_DRY_RAW no PONTO
+  DE MURCHA PERMANENTE e SOIL_WET_RAW na CAPACIDADE DE CAMPO, em vez de
+  ar e água. Feito isso, os 0-100% passam a aproximar "porcentagem de
+  água disponível" e o piso passa a ser 60%, citável direto da FAO-56.
+  Ver docs/decisions/0005-limiares-ambientais.md, seção de calibração.
 
 Relação com o resto do sistema:
 - Usado por app/api/routes/diagnostico.py logo após gravar a leitura
@@ -52,16 +73,17 @@ TEMPERATURA_MAX_C = 34.0
 
 UMIDADE_AR_MAX_PCT = 90.0
 
-# Limite OPERACIONAL, não recomendação publicada. O critério agronômico
-# e a razão pela qual ele não pode ser colado aqui estão no cabeçalho.
+# Limite de ALERTA deste sistema, não recomendação publicada. Os dois
+# critérios publicados e a razão pela qual nenhum dos dois pode ser
+# colado aqui estão no cabeçalho.
 UMIDADE_SOLO_MIN_PCT = 20.0  # abaixo disso: risco de seca
 UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: risco de solo encharcado
 
-# Tensão crítica de irrigação para tomate de mesa (Braga, Feltrim e
-# Borges, 2022, p. 105). NÃO é usada em comparação nenhuma: o sensor não
-# mede kPa. Está aqui para o texto do alerta e da documentação poderem
-# citar o critério sem repetir o número solto em três arquivos.
-TENSAO_CRITICA_IRRIGACAO_KPA = (15.0, 25.0)
+# Os dois critérios publicados, para o texto da documentação e das telas
+# citarem sem repetir o número solto em três arquivos. NENHUM dos dois
+# entra em comparação: o sensor não mede kPa nem água disponível.
+TENSAO_CRITICA_IRRIGACAO_KPA = (15.0, 25.0)  # Braga et al., 2022, p. 105
+AGUA_DISPONIVEL_MINIMA_PCT = 60.0  # FAO-56, Tabela 22 (p = 0,40 para tomate)
 
 # Leitura de solo em exatamente 0,0% quase nunca é solo seco de verdade.
 # O percentual vem de _clamp(0, 100) sobre o valor bruto do ADS1115

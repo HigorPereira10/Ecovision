@@ -29,12 +29,22 @@ import { LeituraAmbiental } from '../services/leituras';
  * linha de cards imediatamente acima dele, na mesma tela. Trocar a cor
  * de significado no meio da rolagem é pior do que não ter cor.
  *
- * CADA GRÁFICO MOSTRA O SEU LIMIAR
- * --------------------------------
+ * CADA GRÁFICO MOSTRA O SEU LIMIAR, E CITA DE ONDE ELE VEIO
+ * ---------------------------------------------------------
  * É o que transforma o cartão de decorativo em informativo: a linha de
  * referência responde "isto está bom?" sem o produtor precisar decorar
- * número nenhum. Os limiares e as frases vêm da Embrapa Hortaliças (ver
- * LIMIAR_UMIDADE_PCT e FAIXA_TEMPERATURA_C).
+ * número nenhum.
+ *
+ * Temperatura e umidade do ar vêm da Embrapa Hortaliças (ver
+ * LIMIAR_UMIDADE_PCT e FAIXA_TEMPERATURA_C), na mesma unidade que o
+ * sensor mede, então a linha tracejada É a recomendação.
+ *
+ * O solo é o caso difícil, e está explicado por inteiro em
+ * FAIXA_SOLO_PCT: o sensor foi calibrado entre ar seco e água pura, e os
+ * dois critérios publicados estão em unidades diferentes dessa (kPa de
+ * tensão e fração de água disponível). Então a linha do solo tem traço
+ * PONTILHADO e a legenda diz que ela marca onde o nosso alerta dispara,
+ * não o que alguém recomenda. As duas fontes ficam citadas no pé.
  */
 
 interface SerieTemporalCardProps {
@@ -50,17 +60,73 @@ const LIMIAR_UMIDADE_PCT = 90;
  * rápida. */
 const FAIXA_TEMPERATURA_C = { min: 10, max: 34 };
 
-/** Faixa de conforto do solo. ATENÇÃO: diferente das duas acima, este
- * número NÃO vem da Embrapa. É a mesma convenção prática que o servidor
- * usa (UMIDADE_SOLO_MIN_PCT em cloud/app/core/alertas_ambientais.py),
- * registrada lá com a ressalva de que depende do substrato e da
- * calibração do sensor resistivo.
+/** Limite de alerta do solo, igual ao do servidor
+ * (UMIDADE_SOLO_MIN_PCT em cloud/app/core/alertas_ambientais.py).
  *
- * Por isso a nota de fonte no pé do cartão fala só de temperatura e
- * umidade do ar, e a ressalva do solo vai na legenda da própria série.
- * Pendurar um número nosso na credibilidade da Embrapa é o tipo de coisa
- * que a banca cobra e que não tem defesa. */
+ * ESTE NÚMERO NÃO É RECOMENDAÇÃO AGRONÔMICA, E A DIFERENÇA IMPORTA
+ * ----------------------------------------------------------------
+ * Nas duas séries acima, a linha tracejada É a recomendação: o limiar e
+ * a fonte estão na mesma unidade, graus e porcentagem de umidade
+ * relativa do ar. Aqui não, e colocar as três linhas com a mesma cara
+ * faria o olho ler a nossa invenção com o mesmo peso da Embrapa.
+ *
+ * O que esta linha marca é o ponto em que o SISTEMA dispara o alerta de
+ * solo seco. Ela fica visível porque o alerta existe de verdade e
+ * gatilho que dispara invisível é pior do que gatilho mal justificado,
+ * mas a legenda diz o que ela é.
+ *
+ * POR QUE NÃO DÁ PARA USAR O NÚMERO DE NINGUÉM AQUI
+ * -------------------------------------------------
+ * O sensor foi calibrado suspenso no AR (17468 bruto) e submerso em
+ * ÁGUA PURA (7179), ver edge/src/config.py, onde isso já está marcado
+ * como pendência. Então os 0-100% significam "umidade relativa entre ar
+ * seco e submerso", que não é nenhuma das grandezas em que a literatura
+ * agronômica mede água no solo: não é tensão, não é umidade volumétrica
+ * e não é fração de água disponível.
+ *
+ * Não é falta de fonte. São duas, e as duas estão citadas no pé do
+ * cartão:
+ *
+ *   TENSÃO. Para tomate de mesa tutorado, irrigar quando a tensão da
+ *   água no solo chega a 15-25 kPa, medida com tensiômetro (15 kPa nos
+ *   10 a 20 dias após o transplante, 25 kPa depois).
+ *     BRAGA, M.B.; FELTRIM, A.L.; BORGES, L.C. Irrigação. In: ZAMBOLIM,
+ *     L.; QUEZADO-DUVAL, A.M. (org.). Produção integrada do tomateiro
+ *     tutorado. Viçosa, MG: UFV, CEAD, 2022. cap. 7, p. 102-116.
+ *
+ *   FRAÇÃO DE ÁGUA DISPONÍVEL. Tomate tem p = 0,40, ou seja, irrigar
+ *   quando 40% da água disponível foi consumida, mantendo o solo acima
+ *   de 60% dela.
+ *     ALLEN, R.G. et al. Crop evapotranspiration: guidelines for
+ *     computing crop water requirements. Roma: FAO, 1998. (FAO
+ *     Irrigation and Drainage Paper, 56). Tabela 22.
+ *
+ * O CAMINHO PARA ESTA LINHA VIRAR RECOMENDAÇÃO DE VERDADE
+ * -------------------------------------------------------
+ * A segunda fonte é a que dá o alvo, porque está em porcentagem. Se
+ * SOIL_DRY_RAW for recalibrado no PONTO DE MURCHA PERMANENTE e
+ * SOIL_WET_RAW na CAPACIDADE DE CAMPO, em vez de ar e água, os 0-100%
+ * do sensor passam a aproximar "porcentagem de água disponível", e o
+ * limiar passa a ser 60%, citável direto da FAO-56. Ver
+ * docs/decisions/0005-limiares-ambientais.md, seção de calibração. */
 const FAIXA_SOLO_PCT = { min: 20, max: 80 };
+
+/** Tensão crítica de irrigação para tomate de mesa, em kPa (Braga,
+ * Feltrim e Borges, 2022, p. 105). Não entra em comparação nenhuma: o
+ * sensor não mede kPa. Está aqui para a legenda citar o critério. */
+const TENSAO_CRITICA_KPA = { min: 15, max: 25 };
+
+/** Fração de água disponível a manter no solo, da FAO-56 (p = 0,40 para
+ * tomate, logo 1 - 0,40). Também não entra em comparação: é o alvo da
+ * recalibração descrita acima.
+ *
+ * A FAO-56 ainda corrige p pela evapotranspiração,
+ * p = 0,40 + 0,04 (5 - ETc), limitado a 0,1 <= p <= 0,8. Numa estufa
+ * quente o ETc passa de 5 mm/dia, p cai e o piso sobe acima de 60%.
+ * Esse refinamento fica para depois da calibração: sem ela, aplicar a
+ * correção seria precisão decorativa sobre um número que ainda não
+ * mede a grandeza certa. */
+const AGUA_DISPONIVEL_MINIMA_PCT = 60;
 
 /** Abaixo disso a leitura do solo está no piso da escala, o que indica
  * sonda fora da terra ou calibração pendente, não solo seco. Espelha
@@ -69,7 +135,7 @@ const FAIXA_SOLO_PCT = { min: 20, max: 80 };
  * 1,7 a 2,1%. */
 const PISO_SUSPEITO_SOLO_PCT = 4;
 
-const FONTE = 'Embrapa Hortaliças, Tomate de mesa: Clima';
+const FONTE_CLIMA = 'Embrapa Hortaliças, Tomate de mesa: Clima';
 
 /**
  * Leitura em que temperatura E umidade vêm exatamente zero não é
@@ -155,6 +221,7 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
         largura={largura}
         referencia={{
           valor: LIMIAR_UMIDADE_PCT,
+          tipo: 'recomendacao',
           texto: `Acima de ${LIMIAR_UMIDADE_PCT}% a folha permanece úmida por mais tempo, o que favorece o surgimento de mofo.`,
         }}
       />
@@ -167,6 +234,7 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
         largura={largura}
         referencia={{
           valor: FAIXA_TEMPERATURA_C.max,
+          tipo: 'recomendacao',
           texto: `O tomateiro tolera de ${FAIXA_TEMPERATURA_C.min} a ${FAIXA_TEMPERATURA_C.max} °C. Fora dessa faixa há risco de perda rápida.`,
         }}
       />
@@ -179,11 +247,13 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
         largura={largura}
         referencia={{
           valor: FAIXA_SOLO_PCT.min,
+          tipo: 'alerta',
           texto:
-            `Abaixo de ${FAIXA_SOLO_PCT.min}% há risco de estresse hídrico e acima de ` +
-            `${FAIXA_SOLO_PCT.max}% de apodrecimento da raiz. Esta faixa é convenção ` +
-            'prática, não recomendação publicada: o sensor resistivo não foi calibrado ' +
-            'para este substrato, então leia a curva como tendência.',
+            `É onde o sistema avisa que o solo está seco, e acima de ` +
+            `${FAIXA_SOLO_PCT.max}% que está encharcado. Não é recomendação ` +
+            'agronômica: este sensor foi calibrado entre ar seco e água, então mede ' +
+            'umidade relativa, não a tensão nem a água disponível que a literatura ' +
+            'usa. Os critérios publicados estão citados abaixo.',
         }}
         aviso={
           soloNoPiso > 0
@@ -195,8 +265,17 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
       />
 
       <Text style={styles.fonte}>
-        Faixas recomendadas de temperatura e umidade do ar: {FONTE}. A faixa do
-        solo é convenção prática do projeto.
+        Temperatura e umidade do ar: {FONTE_CLIMA}, e a linha tracejada é a
+        própria recomendação.
+      </Text>
+      <Text style={styles.fonte}>
+        Solo: os critérios publicados são {TENSAO_CRITICA_KPA.min}-
+        {TENSAO_CRITICA_KPA.max} kPa de tensão (Braga, Feltrim e Borges,
+        Irrigação, cap. 7 de Produção integrada do tomateiro tutorado, UFV/CEAD,
+        2022, p. 105) e manter acima de {AGUA_DISPONIVEL_MINIMA_PCT}% da água
+        disponível (FAO-56, Tabela 22, p = 0,40 para tomate). A linha de{' '}
+        {FAIXA_SOLO_PCT.min}% é o limite de alerta deste sistema, pendente de
+        calibração contra esses critérios.
       </Text>
     </View>
   );
@@ -208,7 +287,17 @@ interface MiniSerieProps {
   dados: { x: Date; y: number }[];
   cor: string;
   largura: number;
-  referencia: { valor: number; texto: string };
+  referencia: {
+    valor: number;
+    texto: string;
+    /** 'recomendacao' = o limiar vem de fonte publicada, na mesma unidade
+     * que o sensor mede, e a linha É a recomendação (traço largo).
+     * 'alerta' = o limiar é deste sistema, a fonte publicada usa outra
+     * unidade, e a linha só marca onde o nosso alerta dispara (traço
+     * pontilhado). A diferença de traço existe para o olho não ler as
+     * duas com o mesmo peso. */
+    tipo: 'recomendacao' | 'alerta';
+  };
   /** Ressalva sobre medições que esta série descartou. Aparece abaixo da
    * legenda, para o produtor não achar que faltou dado sem motivo. */
   aviso?: string;
@@ -290,7 +379,8 @@ function MiniSerie({
             data: {
               stroke: colors.textMuted,
               strokeWidth: 1,
-              strokeDasharray: '4,4',
+              strokeDasharray:
+                referencia.tipo === 'recomendacao' ? '4,4' : '1,3',
             },
           }}
         />
@@ -298,7 +388,10 @@ function MiniSerie({
       </VictoryChart>
 
       <Text style={styles.serieLegenda}>
-        A linha tracejada marca {referencia.valor} {unidade}. {referencia.texto}
+        {referencia.tipo === 'recomendacao'
+          ? `A linha tracejada marca ${referencia.valor} ${unidade}, recomendado. `
+          : `A linha pontilhada marca ${referencia.valor} ${unidade}. `}
+        {referencia.texto}
       </Text>
 
       {aviso !== undefined && <Text style={styles.serieAviso}>{aviso}</Text>}

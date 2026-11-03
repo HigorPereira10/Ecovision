@@ -97,9 +97,24 @@ SOIL_ADS1115_CHANNEL = _inteira("SOIL_ADS1115_CHANNEL", 0)
 #     seco, suspenso no ar ..... 17468  (2,184 V)
 #     submerso ateh a linha .....  7179  (0,897 V)
 #
-# PENDENTE: refazer com o sensor em TERRA. Água pura é o extremo
-# absoluto de saturação, então a faixa acima provavelmente superestima
-# o que o solo real entrega, e é o solo que o ADR 0005 usa como limiar.
+# PENDENTE, E AGORA COM ALVO DEFINIDO. Água pura é o extremo absoluto
+# de saturação e ar é o extremo absoluto de secura, então esta faixa não
+# corresponde a nenhuma grandeza em que a literatura agronômica mede
+# água no solo: nem tensão (kPa), nem umidade volumétrica, nem fração de
+# água disponível.
+#
+# A recalibração que RESOLVE isso, e não só melhora:
+#   SOIL_DRY_RAW  -> medir no PONTO DE MURCHA PERMANENTE
+#   SOIL_WET_RAW  -> medir na CAPACIDADE DE CAMPO
+#
+# Com esses dois pontos, os 0-100% calculados em soil_moisture.py passam
+# a aproximar "porcentagem de água disponível", que é exatamente a
+# grandeza da Tabela 22 da FAO-56. Para tomate, p = 0,40, ou seja o piso
+# de alerta passa a ser 60% e deixa de ser invenção nossa.
+#
+# Enquanto isso não for feito, o limiar do ADR 0005 (20%) é limite de
+# ALERTA do sistema, não recomendação, e o app diz isso na legenda do
+# gráfico. Ver docs/decisions/0005-limiares-ambientais.md.
 SOIL_DRY_RAW = _inteira("SOIL_DRY_RAW", 18000)
 SOIL_WET_RAW = _inteira("SOIL_WET_RAW", 8000)
 
