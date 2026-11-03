@@ -351,6 +351,45 @@ async def test_diagnostico_ruim_gera_alerta_mas_indisponivel_nao(monkeypatch):
     assert alertas[0].severidade == "alta"
 
 
+async def test_titulo_do_alerta_nao_vaza_nome_tecnico_da_classe(monkeypatch):
+    """O titulo do alerta e texto GRAVADO, nao classe que a tela traduz.
+
+    O titulo era montado interpolando a chave crua da classe, e o
+    alerta do ciclo de 2026-11-03 chegou ao aplicativo escrito
+    "Possivel estresse_foliar detectado", com o sublinhado a vista. O
+    app tem a sua propria tabela de rotulos, mas ela nao alcanca este
+    caso: o que esta em alertas.titulo e o que o produtor le.
+
+    A classe escolhida aqui e justamente a de nome composto, que e a
+    unica em que o defeito aparecia.
+    """
+    monkeypatch.setattr(
+        "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
+    )
+    _forcar_diagnostico(monkeypatch, {
+        "classe": "estresse_foliar",
+        "confianca": 0.77,
+        "recomendacao": "Confira a planta de perto.",
+        "severidade": "media",
+    })
+
+    with TestClient(app) as client:
+        resposta = client.post(
+            "/diagnostico",
+            data=_payload_valido(idempotency_key="titulo-sem-nome-tecnico"),
+            files={"imagem": ("foto.jpg", BytesIO(_imagem_falsa()), "image/jpeg")},
+            headers={"Authorization": "chave-de-teste-dispositivo"},
+        )
+
+    assert resposta.status_code == 200
+    async with AsyncSession(engine) as sessao:
+        alertas = (await sessao.execute(select(Alerta))).scalars().all()
+
+    titulo = next(a.titulo for a in alertas if "estresse" in a.titulo.lower())
+    assert "_" not in titulo, f"nome tecnico vazou no titulo do alerta: {titulo!r}"
+    assert "estresse foliar" in titulo.lower()
+
+
 async def test_leitura_fora_da_faixa_gera_alerta_ambiental(monkeypatch):
     monkeypatch.setattr(
         "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
@@ -579,13 +618,15 @@ async def test_foto_reprovada_guarda_a_imagem_mas_nao_afirma_diagnostico(monkeyp
         assert len(alertas) == 1
         assert "analisar a foto" in alertas[0].titulo.lower()
         assert alertas[0].severidade == "media", "pede conferir a camera, nao agir no cultivo"
-        # E nenhum alerta de doença: o sistema não acusa doença nenhuma
+        # E nenhum alerta de doenca: o sistema nao acusa doenca nenhuma
         # a partir de uma foto que ele mesmo recusou analisar. O alerta
-        # de doença tem o formato "Possível <classe> detectado", então
-        # é "detectado" que o distingue, e não "possível": o título
-        # desta guarda é "Não foi possível analisar a foto", que contém
-        # a palavra sem ser acusação de doença nenhuma.
-        assert "detectado" not in alertas[0].titulo.lower()
+        # de doenca tem o formato "Sinal de <classe> na planta", e e
+        # esse prefixo que o distingue.
+        #
+        # A assercao era sobre a palavra "detectado", do titulo antigo.
+        # Depois que o titulo mudou ela continuava passando, mas sem
+        # provar nada: nenhum titulo tem mais essa palavra.
+        assert "sinal de" not in alertas[0].titulo.lower()
 
 
 # --- 11. ressalva de plausibilidade ambiental ---------------------------
@@ -626,6 +667,7 @@ async def _semear_historico(device_id: str, dias: int, umidade_pct: float) -> No
             sessao.add(registro)
             await sessao.flush()
             sessao.add(LeituraAmbiental(
+                device_id=device_id,
                 registro_imagem_id=registro.id,
                 temperatura_c=27.0,
                 umidade_ar_pct=umidade_pct,

@@ -63,6 +63,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.core import inference, janelas
+from app.api.alertas_de_leitura import montar_alertas_ambientais
 from app.core.alertas_ambientais import avaliar_risco_ambiental
 from app.core.pressao_infecciosa import (
     CLASSES_FUNGICAS,
@@ -372,7 +373,14 @@ async def receber_diagnostico(
         sessao.add(registro)
         await sessao.flush()  # garante registro.id antes das linhas filhas
 
+        # device_id tambem na leitura, e nao so no registro de imagem.
+        # Desde a migration 0008 ele e coluna propria, porque GET
+        # /leituras precisa filtrar por dispositivo sem depender de um
+        # JOIN que nao existe para leitura sem foto. Gravar nos dois
+        # lugares e redundancia de proposito: a alternativa seria a
+        # consulta ter dois caminhos, um com JOIN e um sem.
         leitura = LeituraAmbiental(
+            device_id=device_id,
             registro_imagem_id=registro.id,
             temperatura_c=temperatura_c_valor,
             umidade_ar_pct=umidade_ar_pct_valor,
@@ -405,7 +413,13 @@ async def receber_diagnostico(
             sessao.add(
                 Alerta(
                     diagnostico_id=diagnostico.id,
-                    titulo=f"Possível {resultado['classe']} detectado",
+                    # "Sinal de X na planta" e nao "Possivel X detectado"
+                    # por duas razoes: nao exige concordancia de genero
+                    # ("septoriose detectada" contra "estresse
+                    # detectado"), e descreve o que o sistema realmente
+                    # viu. A incidencia medida ("24 de 34 regioes") vem
+                    # na descricao, logo abaixo.
+                    titulo=f"Sinal de {inference.rotulo_para_produtor(resultado['classe'])} na planta",
                     descricao=descricao_doenca,
                     # resultado["severidade"] só é None no placeholder
                     # "indisponivel", mas esse caso nunca chega aqui
@@ -435,18 +449,11 @@ async def receber_diagnostico(
                 device_id, diagnostico.id,
             )
 
-        for titulo, descricao, severidade in riscos_ambientais:
-            sessao.add(
-                Alerta(
-                    leitura_id=leitura.id,
-                    titulo=titulo,
-                    descricao=descricao,
-                    severidade=severidade,
-                )
-            )
-            logger.info(
-                "Alerta ambiental gerado para device_id=%s: %s", device_id, titulo,
-            )
+        # Mesmo codigo que POST /leituras usa, para um limiar novo nao
+        # passar a valer em um caminho e nao no outro. Ver
+        # app/api/alertas_de_leitura.py.
+        for alerta_ambiental in montar_alertas_ambientais(leitura):
+            sessao.add(alerta_ambiental)
 
         await sessao.commit()
     except IntegrityError:

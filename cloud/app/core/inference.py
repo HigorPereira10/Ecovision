@@ -291,6 +291,52 @@ _INFO_POR_CLASSE: dict[str, tuple[str | None, str | None]] = {
     nome: (recomendacao, severidade) for nome, recomendacao, severidade in _CATALOGO_AGRONOMICO
 }
 
+
+# Nome de cada classe em linguagem de produtor, para o TÍTULO do alerta.
+#
+# Existe porque o título era montado com o nome técnico da classe, e o
+# alerta do ciclo de 2026-11-03 chegou ao aplicativo escrito
+# literalmente "Possível estresse_foliar detectado", com o sublinhado à
+# vista. A descrição do alerta sempre esteve correta, porque vem do
+# catálogo acima; só o título interpolava a chave crua.
+#
+# O app tem a sua própria tabela de rótulos (app/src/domain/doencas.ts),
+# mas ela não resolve este caso: o título do alerta é TEXTO GRAVADO na
+# coluna alertas.titulo, não uma classe que a tela traduz na hora. Quem
+# escreve o texto é quem precisa do rótulo.
+#
+# Sem nome científico de propósito. No corpo do diagnóstico ele cabe e
+# dá credibilidade; num título de alerta, "Possível Pinta preta
+# (Alternaria solani) detectada" quebra a linha no celular e enterra a
+# informação que importa.
+_ROTULO_PARA_PRODUTOR: dict[str, str] = {
+    "saudavel": "planta sadia",
+    "estresse_foliar": "estresse foliar",
+    "septoriose": "septoriose",
+    "pinta_preta": "pinta preta",
+    "requeima": "requeima",
+    "mancha_bacteriana": "mancha bacteriana",
+    "mofo_de_folha": "mofo de folha",
+    "acaro_rajado": "ácaro rajado",
+    "mancha_alvo": "mancha alvo",
+    "vira_cabeca": "vira-cabeça",
+    "mosaico": "mosaico",
+}
+
+
+def rotulo_para_produtor(classe: str) -> str:
+    """Nome da classe em linguagem de produtor, para texto exibido.
+
+    Classe fora da tabela cai no nome técnico com os sublinhados
+    trocados por espaço. Acontece se o modelo for retreinado e esta
+    tabela não acompanhar: rótulo imperfeito é melhor do que erro, e o
+    sublinhado some, que era o pior do defeito original.
+    """
+    rotulo = _ROTULO_PARA_PRODUTOR.get(classe)
+    if rotulo is not None:
+        return rotulo
+    return classe.replace("_", " ").strip() or "condição desconhecida"
+
 # Ordem EXATA das saídas do modelo em ml/models/modelo.tflite. Vem do
 # treino, onde tf.keras.utils.image_dataset_from_directory ordena os
 # diretórios de classe alfabeticamente. Tem que bater com a lista
