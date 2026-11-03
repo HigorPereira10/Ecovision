@@ -30,7 +30,13 @@
  */
 
 import { get } from './api';
-import { ehSaudavel, rotuloDaClasse, semDiagnostico } from '../domain/doencas';
+import {
+  ehDoenca,
+  ehEstresse,
+  ehSaudavel,
+  rotuloDaClasse,
+  semDiagnostico,
+} from '../domain/doencas';
 
 /** Janela padrão: 7 dias. Mesma de services/leituras.ts, para o
  * Histórico mostrar leitura e diagnóstico do mesmo período. Sem filtro
@@ -75,6 +81,11 @@ export interface Diagnostico {
    * `recomendacao` traz o motivo em linguagem de produtor, e a tela
    * mostra a foto SEM dizer nada sobre a planta. */
   semDiagnostico: boolean;
+  /** Alteração visível na folha sem doença identificada. Não é saudável
+   * nem doença: é o terceiro estado, e as telas pintam de âmbar. */
+  estresse: boolean;
+  /** Doença identificada pelo modelo (septoriose, pinta preta). */
+  doenca: boolean;
   timestamp: string;
 }
 
@@ -89,6 +100,8 @@ function traduzir(bruto: DiagnosticoDaApi): Diagnostico {
     urlImagem: bruto.url_imagem,
     saudavel: ehSaudavel(bruto.classe_prevista),
     semDiagnostico: semDiagnostico(bruto.classe_prevista),
+    estresse: ehEstresse(bruto.classe_prevista),
+    doenca: ehDoenca(bruto.classe_prevista),
     timestamp: bruto.criado_em,
   };
 }

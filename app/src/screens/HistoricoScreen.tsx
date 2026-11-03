@@ -39,7 +39,7 @@ import { colors } from '../theme/colors';
 import { getHistoricoLeituras, LeituraAmbiental } from '../services/leituras';
 import { getDiagnosticos, Diagnostico } from '../services/diagnosticos';
 import { FiltroDropdown } from '../components/FiltroDropdown';
-import { UmidadeBarChart } from '../components/UmidadeBarChart';
+import { DistribuicaoDiagnosticosCard } from '../components/DistribuicaoDiagnosticosCard';
 import { DiagnosticoHistoricoCard } from '../components/DiagnosticoHistoricoCard';
 import { EstadoCarregamento } from '../components/EstadoCarregamento';
 import { EstadoErro } from '../components/EstadoErro';
@@ -116,8 +116,9 @@ export default function HistoricoScreen() {
     return [OPCAO_TODOS_CAMPOS, ...idsUnicos.map((id) => ({ valor: id, rotulo: id }))];
   }, [leituras, diagnosticos]);
 
-  const horasSelecionadas =
-    OPCOES_PERIODO.find((o) => o.valor === periodoSelecionado)?.horas ?? null;
+  const opcaoPeriodo = OPCOES_PERIODO.find((o) => o.valor === periodoSelecionado);
+  const horasSelecionadas = opcaoPeriodo?.horas ?? null;
+  const rotuloPeriodo = opcaoPeriodo?.rotulo ?? 'Todo o período';
 
   const leiturasFiltradas = useMemo(() => {
     let resultado = filtrarPorPeriodo(leituras, (l) => l.timestamp, horasSelecionadas);
@@ -178,21 +179,18 @@ export default function HistoricoScreen() {
 
         {erro && dados && <AvisoErroInline mensagem={erro} aoTentarNovamente={atualizar} />}
 
-        <UmidadeBarChart leituras={leiturasFiltradas} />
+        <DistribuicaoDiagnosticosCard
+          diagnosticos={diagnosticosFiltrados}
+          rotuloPeriodo={rotuloPeriodo}
+          rotuloCampo={campoSelecionado === 'todos' ? undefined : campoSelecionado}
+        />
 
-        <Text style={styles.secaoTitulo}>Diagnósticos de campo</Text>
-        {diagnosticosFiltrados.length === 0 ? (
-          <EstadoVazio
-            icone="scan-outline"
-            titulo="Nenhum diagnóstico no período selecionado"
-            subtitulo={filtroAtivo ? 'Tente ampliar o período ou trocar o campo selecionado.' : undefined}
-            variante="secao"
-          />
-        ) : (
-          diagnosticosFiltrados.map((d) => (
-            <DiagnosticoHistoricoCard key={d.id} diagnostico={d} />
-          ))
+        {diagnosticosFiltrados.length > 0 && (
+          <Text style={styles.secaoTitulo}>Diagnósticos de campo</Text>
         )}
+        {diagnosticosFiltrados.map((d) => (
+          <DiagnosticoHistoricoCard key={d.id} diagnostico={d} />
+        ))}
 
         <Text style={styles.secaoTitulo}>Leituras ambientais</Text>
         {leiturasFiltradas.length === 0 ? (

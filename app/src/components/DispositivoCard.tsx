@@ -4,6 +4,28 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import { Dispositivo } from '../services/dispositivos';
 
+/**
+ * POR QUE OS RÓTULOS DOS LIMIARES MUDARAM
+ * ---------------------------------------
+ * Diziam "Limiar temperatura 34°C", "Limiar umidade do ar 90%" e
+ * "Limiar umidade do solo 20%". Três problemas num rótulo de duas
+ * palavras:
+ *
+ * 1. "Limiar" não é palavra de produtor, e não diz o que acontece
+ *    quando o número é cruzado.
+ * 2. Não dizia de que LADO. Os três são limites de direções
+ *    diferentes: temperatura e umidade do ar são tetos, umidade do solo
+ *    é piso (ver o comentário em DispositivoOut, cloud/app/db/schemas.py).
+ *    Lado nenhum à vista, 20% parecia um teto igual aos outros dois, e
+ *    a tela sugeria que solo acima de 20% era problema.
+ * 3. Não dizia PARA QUE servem. São exatamente os números que geram os
+ *    avisos da tela de Alertas (cloud/app/core/alertas_ambientais.py, de
+ *    onde a rota os lê), e isso não estava escrito em lugar nenhum.
+ *
+ * Agora o rótulo diz o efeito ("Alerta de calor") e o valor carrega a
+ * comparação ("acima de 34 °C"), que é o que responde "isto está bom?".
+ */
+
 interface Props {
   dispositivo: Dispositivo;
 }
@@ -40,21 +62,30 @@ export function DispositivoCard({ dispositivo }: Props) {
           </Text>
         </View>
         <View style={styles.coluna}>
-          <Text style={styles.label}>Limiar temperatura</Text>
-          <Text style={styles.valor}>{dispositivo.limiar_temperatura}°C</Text>
+          <Text style={styles.label}>Alerta de calor</Text>
+          <Text style={styles.valor}>acima de {dispositivo.limiar_temperatura} °C</Text>
         </View>
       </View>
 
       <View style={styles.grid}>
         <View style={styles.coluna}>
-          <Text style={styles.label}>Limiar umidade do ar</Text>
-          <Text style={styles.valor}>{dispositivo.limiar_umidade_ar}%</Text>
+          <Text style={styles.label}>Alerta de mofo</Text>
+          <Text style={styles.valor}>
+            ar acima de {dispositivo.limiar_umidade_ar}%
+          </Text>
         </View>
         <View style={styles.coluna}>
-          <Text style={styles.label}>Limiar umidade do solo</Text>
-          <Text style={styles.valor}>{dispositivo.limiar_umidade_solo}%</Text>
+          <Text style={styles.label}>Alerta de solo seco</Text>
+          <Text style={styles.valor}>
+            abaixo de {dispositivo.limiar_umidade_solo}%
+          </Text>
         </View>
       </View>
+
+      <Text style={styles.rodape}>
+        Quando uma medição cruza um destes limites, o aviso aparece na tela de
+        Alertas.
+      </Text>
     </View>
   );
 }
@@ -125,5 +156,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: colors.textDark,
+  },
+  rodape: {
+    fontSize: 11,
+    color: colors.textMuted,
+    fontStyle: 'italic',
+    marginTop: 2,
+    lineHeight: 15,
   },
 });

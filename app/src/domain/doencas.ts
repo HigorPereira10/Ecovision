@@ -44,6 +44,16 @@ interface CondicaoFitossanitaria {
   /** true quando NÃO houve diagnóstico. Não é saudável nem doente: é
    * ausência de resposta, e a tela trata em cinza. */
   semDiagnostico?: boolean;
+  /** true para alteração visível na folha que NÃO é doença conhecida.
+   *
+   * Existe porque o sistema passou a ter quatro estados, não dois. Até
+   * 2026-11-03 o Dashboard contava como "com doença" tudo que não fosse
+   * saudável, e passou a exibir "Com doença (10)" para uma planta que o
+   * próprio app descreve, duas telas adiante, como "alteração na folha
+   * que não corresponde às doenças que o sistema reconhece".
+   *
+   * A tela trata em âmbar: pede atenção, não tratamento. */
+  estresse?: boolean;
 }
 
 /** Classe devolvida pela API quando a foto foi reprovada na guarda de
@@ -92,7 +102,7 @@ const CATALOGO: Record<string, CondicaoFitossanitaria> = {
   // CLASSES_ATIVAS sai do catálogo, então resumoDoEscopoDoModelo()
   // dizia ao produtor que a análise reconhece 3 condições enquanto a
   // tela mostrava a quarta logo acima.
-  estresse_foliar: { rotulo: 'Estresse foliar', ativa: true },
+  estresse_foliar: { rotulo: 'Estresse foliar', ativa: true, estresse: true },
 
   // --- no catálogo agronômico, aguardando dado de treino ---
   requeima: { rotulo: 'Requeima', ativa: false },
@@ -157,6 +167,30 @@ export function ehSaudavel(classe: ClasseDiagnostico): boolean {
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .includes('saudavel');
+}
+
+/** True quando há alteração na folha sem doença identificada.
+ *
+ * Decide a cor âmbar e a contagem separada nas telas. O fallback por
+ * texto segue o mesmo princípio de ehSaudavel: uma classe nova de
+ * estresse poderia chegar antes desta tabela ser atualizada, e nesse
+ * caso contá-la como doença mandaria o produtor pulverizar uma planta
+ * que não tem doença nenhuma. */
+export function ehEstresse(classe: ClasseDiagnostico): boolean {
+  const condicao = CATALOGO[classe];
+  if (condicao !== undefined) return condicao.estresse === true;
+
+  return classe.toLowerCase().includes('estresse');
+}
+
+/** True quando o diagnóstico é de doença identificada.
+ *
+ * Definida por exclusão de propósito: qualquer classe nova que não seja
+ * sadia, estresse, nem ausência de diagnóstico, é doença. Errar para
+ * "doença" aqui é o lado seguro: avisa demais em vez de calar sobre uma
+ * doença real. */
+export function ehDoenca(classe: ClasseDiagnostico): boolean {
+  return !ehSaudavel(classe) && !ehEstresse(classe) && !semDiagnostico(classe);
 }
 
 /** Frase pronta com o que a IA reconhece hoje, para a tela de

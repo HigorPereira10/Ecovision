@@ -21,6 +21,14 @@ import { LeituraAmbiental } from '../services/leituras';
  * Separar resolve os dois problemas de uma vez, e evita o eixo duplo,
  * que sugere correlação entre as séries sem que ela tenha sido medida.
  *
+ * AS CORES SÃO AS DOS CARDS LOGO ACIMA
+ * -------------------------------------
+ * Laranja para temperatura, azul para umidade do ar, verde para umidade
+ * do solo: exatamente o que LeituraCard usa no Dashboard. Antes o
+ * gráfico pintava a umidade do ar de verde, que é a cor do SOLO na
+ * linha de cards imediatamente acima dele, na mesma tela. Trocar a cor
+ * de significado no meio da rolagem é pior do que não ter cor.
+ *
  * CADA GRÁFICO MOSTRA O SEU LIMIAR
  * --------------------------------
  * É o que transforma o cartão de decorativo em informativo: a linha de
@@ -41,6 +49,25 @@ const LIMIAR_UMIDADE_PCT = 90;
 /** Tolerância ampla do tomateiro, fora da qual há risco de perda
  * rápida. */
 const FAIXA_TEMPERATURA_C = { min: 10, max: 34 };
+
+/** Faixa de conforto do solo. ATENÇÃO: diferente das duas acima, este
+ * número NÃO vem da Embrapa. É a mesma convenção prática que o servidor
+ * usa (UMIDADE_SOLO_MIN_PCT em cloud/app/core/alertas_ambientais.py),
+ * registrada lá com a ressalva de que depende do substrato e da
+ * calibração do sensor resistivo.
+ *
+ * Por isso a nota de fonte no pé do cartão fala só de temperatura e
+ * umidade do ar, e a ressalva do solo vai na legenda da própria série.
+ * Pendurar um número nosso na credibilidade da Embrapa é o tipo de coisa
+ * que a banca cobra e que não tem defesa. */
+const FAIXA_SOLO_PCT = { min: 20, max: 80 };
+
+/** Abaixo disso a leitura do solo está no piso da escala, o que indica
+ * sonda fora da terra ou calibração pendente, não solo seco. Espelha
+ * SOLO_PISO_SUSPEITO_PCT no servidor, que gera alerta de sensor em vez
+ * de alerta de seca. Com a sonda fora do vaso, as leituras ficaram em
+ * 1,7 a 2,1%. */
+const PISO_SUSPEITO_SOLO_PCT = 4;
 
 const FONTE = 'Embrapa Hortaliças, Tomate de mesa: Clima';
 
@@ -74,16 +101,28 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
     .filter((l) => l.umidade_ar !== null)
     .map((l) => ({ x: new Date(l.timestamp), y: l.umidade_ar as number }));
 
+  // Leitura de solo no piso da escala sai da série pelo mesmo motivo que
+  // o zero do DHT22: não é medição. Plotada contra a linha de 20% ela
+  // desenha uma estufa em seca severa quando o que houve foi a sonda
+  // fora da terra.
+  const leiturasSolo = validas.filter((l) => l.umidade_solo !== null);
+  const dadosSolo = leiturasSolo
+    .filter((l) => (l.umidade_solo as number) > PISO_SUSPEITO_SOLO_PCT)
+    .map((l) => ({ x: new Date(l.timestamp), y: l.umidade_solo as number }));
+  const soloNoPiso = leiturasSolo.length - dadosSolo.length;
+
   // Uma linha precisa de DOIS pontos para existir. Com um ponto só, o
   // gráfico saía desenhado, com eixos e grade, e completamente vazio
   // por dentro, enquanto o eixo do tempo repetia o mesmo horário cinco
   // vezes (foi o que apareceu no primeiro teste com o dispositivo real:
   // "16:50" cinco vezes e nenhuma linha). Um gráfico vazio parece
   // defeito; uma frase explicando o que falta, não.
-  const pontosSuficientes = dadosTemperatura.length >= 2 || dadosUmidade.length >= 2;
+  const pontosSuficientes =
+    dadosTemperatura.length >= 2 || dadosUmidade.length >= 2 || dadosSolo.length >= 2;
 
   if (!pontosSuficientes) {
-    const algumaMedicao = dadosTemperatura.length > 0 || dadosUmidade.length > 0;
+    const algumaMedicao =
+      dadosTemperatura.length > 0 || dadosUmidade.length > 0 || dadosSolo.length > 0;
     return (
       <View style={styles.card}>
         <Text style={styles.titulo}>Condições da estufa</Text>
@@ -92,7 +131,7 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
             ? 'Nenhuma leitura recebida ainda.'
             : algumaMedicao
               ? 'Só há uma medição até agora. O gráfico aparece a partir da segunda.'
-              : 'As leituras recebidas não trazem temperatura nem umidade do ar.'}
+              : 'As leituras recebidas não trazem nenhuma medição de temperatura ou umidade.'}
         </Text>
       </View>
     );
@@ -112,7 +151,7 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
         titulo="Umidade do ar"
         unidade="%"
         dados={dadosUmidade}
-        cor={colors.oliveGreen}
+        cor={colors.azulUmidade}
         largura={largura}
         referencia={{
           valor: LIMIAR_UMIDADE_PCT,
@@ -124,7 +163,7 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
         titulo="Temperatura"
         unidade="°C"
         dados={dadosTemperatura}
-        cor={colors.danger}
+        cor={colors.laranjaTemperatura}
         largura={largura}
         referencia={{
           valor: FAIXA_TEMPERATURA_C.max,
@@ -132,7 +171,33 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
         }}
       />
 
-      <Text style={styles.fonte}>Faixas recomendadas: {FONTE}.</Text>
+      <MiniSerie
+        titulo="Umidade do solo"
+        unidade="%"
+        dados={dadosSolo}
+        cor={colors.oliveGreen}
+        largura={largura}
+        referencia={{
+          valor: FAIXA_SOLO_PCT.min,
+          texto:
+            `Abaixo de ${FAIXA_SOLO_PCT.min}% há risco de estresse hídrico e acima de ` +
+            `${FAIXA_SOLO_PCT.max}% de apodrecimento da raiz. Esta faixa é convenção ` +
+            'prática, não recomendação publicada: o sensor resistivo não foi calibrado ' +
+            'para este substrato, então leia a curva como tendência.',
+        }}
+        aviso={
+          soloNoPiso > 0
+            ? `${soloNoPiso} ${soloNoPiso === 1 ? 'leitura ficou' : 'leituras ficaram'} ` +
+              `abaixo de ${PISO_SUSPEITO_SOLO_PCT}% e não entraram no gráfico: no piso da ` +
+              'escala, o valor indica sonda fora da terra, não solo seco.'
+            : undefined
+        }
+      />
+
+      <Text style={styles.fonte}>
+        Faixas recomendadas de temperatura e umidade do ar: {FONTE}. A faixa do
+        solo é convenção prática do projeto.
+      </Text>
     </View>
   );
 }
@@ -144,6 +209,9 @@ interface MiniSerieProps {
   cor: string;
   largura: number;
   referencia: { valor: number; texto: string };
+  /** Ressalva sobre medições que esta série descartou. Aparece abaixo da
+   * legenda, para o produtor não achar que faltou dado sem motivo. */
+  aviso?: string;
 }
 
 function MiniSerie({
@@ -153,12 +221,14 @@ function MiniSerie({
   cor,
   largura,
   referencia,
+  aviso,
 }: MiniSerieProps) {
   if (dados.length < 2) {
     return (
       <View style={styles.serie}>
         <Text style={styles.serieTitulo}>{titulo}</Text>
         <Text style={styles.serieVazia}>Sem medição suficiente.</Text>
+        {aviso !== undefined && <Text style={styles.serieAviso}>{aviso}</Text>}
       </View>
     );
   }
@@ -230,6 +300,8 @@ function MiniSerie({
       <Text style={styles.serieLegenda}>
         A linha tracejada marca {referencia.valor} {unidade}. {referencia.texto}
       </Text>
+
+      {aviso !== undefined && <Text style={styles.serieAviso}>{aviso}</Text>}
     </View>
   );
 }
@@ -285,6 +357,12 @@ const styles = StyleSheet.create({
   serieVazia: {
     fontSize: 12,
     color: colors.textMuted,
+  },
+  serieAviso: {
+    fontSize: 11,
+    color: colors.cuidado,
+    lineHeight: 15,
+    marginTop: 4,
   },
   fonte: {
     fontSize: 10,

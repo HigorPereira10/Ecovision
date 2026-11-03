@@ -31,7 +31,11 @@ import { colors } from '../theme/colors';
 
 interface DiagnosticoResumo {
   saudaveis: number;
+  comEstresse: number;
   comDoenca: number;
+  /** Fotos reprovadas na guarda de qualidade. Ficam fora das tres
+   * contagens acima e aparecem como nota no card. */
+  semAnalise: number;
 }
 
 interface DadosDashboard {
@@ -61,10 +65,19 @@ async function buscarDadosDashboard(): Promise<DadosDashboard> {
   // reprovada na guarda de qualidade não diz nada sobre a planta, e
   // contá-la como doença encheria o card de alarme falso toda vez que
   // o LED falhasse.
+  //
+  // Sao TRES estados de planta, nao dois. Ate 2026-11-03 esta contagem
+  // era `saudaveis` contra `!saudavel`, e no dia em que a classe
+  // estresse_foliar entrou em producao o card passou a exibir "Com
+  // doenca (10)" para uma planta que a tela de Diagnostico descreve,
+  // duas telas adiante, como alteracao que NAO corresponde a doenca
+  // nenhuma do catalogo. Estresse pede atencao, nao pulverizacao.
   const analisados = diagnosticos.filter((d) => !d.semDiagnostico);
   const situacao: DiagnosticoResumo = {
     saudaveis: analisados.filter((d) => d.saudavel).length,
-    comDoenca: analisados.filter((d) => !d.saudavel).length,
+    comEstresse: analisados.filter((d) => d.estresse).length,
+    comDoenca: analisados.filter((d) => d.doenca).length,
+    semAnalise: diagnosticos.length - analisados.length,
   };
 
   return { leitura, historico, situacao };
@@ -89,7 +102,8 @@ export default function DashboardScreen() {
   // sensor, antes do IoT começar a reportar dados.
   const semNenhumDado =
     dados && !dados.leitura && dados.historico.length === 0 &&
-    dados.situacao.saudaveis === 0 && dados.situacao.comDoenca === 0;
+    dados.situacao.saudaveis === 0 && dados.situacao.comEstresse === 0 &&
+    dados.situacao.comDoenca === 0 && dados.situacao.semAnalise === 0;
 
   return (
     <View style={styles.container}>
@@ -122,7 +136,12 @@ export default function DashboardScreen() {
         ) : (
           dados && (
             <>
-              <SituacaoSanitariaCard saudaveis={dados.situacao.saudaveis} comDoenca={dados.situacao.comDoenca} />
+              <SituacaoSanitariaCard
+                saudaveis={dados.situacao.saudaveis}
+                comEstresse={dados.situacao.comEstresse}
+                comDoenca={dados.situacao.comDoenca}
+                semAnalise={dados.situacao.semAnalise}
+              />
 
               {dados.leitura && (
                 <View style={styles.linhaCards}>
