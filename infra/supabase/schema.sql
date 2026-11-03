@@ -34,17 +34,39 @@ CREATE INDEX ix_registros_imagem_device_id ON registros_imagem (device_id);
 CREATE INDEX ix_registros_imagem_idempotency_key ON registros_imagem (idempotency_key);
 
 -- Temperatura/umidade do ar (DHT22) e umidade do solo (sensor
--- capacitivo + ADS1115), 1:1 com uma captura (o Pi manda os dois
--- juntos no mesmo ciclo). Colunas nullable porque edge/src/main.py já
--- tolera falha de leitura de sensor sem abortar a captura da foto.
+-- capacitivo + ADS1115). Colunas de medição nullable porque o edge/
+-- tolera falha de um sensor sem abortar o ciclo.
+--
+-- registro_imagem_id é OPCIONAL desde a migration 0008. Nasceu NOT NULL,
+-- modelando "1:1 com uma captura", porque o Pi lia os sensores e tirava
+-- a foto no mesmo ciclo de 2 horas. Esse intervalo é caro por causa da
+-- FOTO, não do sensor, e com a leitura amarrada à foto a temperatura na
+-- tela inicial do app podia ter 2 horas de idade. Agora o Pi manda
+-- sensor a cada 15 min (edge/src/sensores.py -> POST /leituras) e foto a
+-- cada 2 h (edge/src/main.py -> POST /diagnostico).
+--
+-- O UNIQUE continua: no Postgres ele aceita vários NULL, então vale como
+-- "no máximo uma leitura por captura" sem impedir leitura sem captura.
+--
+-- device_id é PRÓPRIO da leitura, não herdado da foto. Antes o
+-- dispositivo saía de um JOIN com registros_imagem, e sem foto não há
+-- JOIN: a leitura ficaria invisível para o escopo por dono de
+-- GET /leituras e para o filtro por campo do app.
 CREATE TABLE leituras_ambientais (
     id                 SERIAL PRIMARY KEY,
-    registro_imagem_id INTEGER NOT NULL UNIQUE REFERENCES registros_imagem(id),
+    device_id          TEXT NOT NULL,
+    registro_imagem_id INTEGER UNIQUE REFERENCES registros_imagem(id),
+    idempotency_key    TEXT UNIQUE,
     temperatura_c      REAL,
     umidade_ar_pct     REAL,
     umidade_solo_pct   REAL,
     criado_em          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Exatamente como GET /leituras consulta: filtra por dispositivo e
+-- ordena por data.
+CREATE INDEX ix_leituras_device_criado
+    ON leituras_ambientais (device_id, criado_em);
 
 -- Resultado da inferência TFLite. classe_prevista fica "indisponivel"
 -- e confianca 0.0 enquanto o modelo real (ml/) não existir; ver

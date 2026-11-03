@@ -16,9 +16,16 @@
  * timestamp). A conversão fica aqui, num lugar só, para nenhuma tela
  * precisar mudar.
  *
+ * DOIS CRONOGRAMAS, UMA SÉRIE: desde 2026-11-03 o Pi manda leitura de
+ * sensor a cada 15 minutos (sem foto, POST /leituras) e captura completa
+ * a cada 2 horas (POST /diagnostico). As duas chegam nesta mesma lista,
+ * distinguidas por `temFoto`. Antes, leitura só existia junto de uma
+ * foto, e a tela inicial exibia temperatura de até 2 horas atrás sem ter
+ * nada mais novo para buscar.
+ *
  * MEDIÇÃO AUSENTE: os três valores podem vir nulos. Quando um sensor
- * falha, edge/src/main.py grava None naquele campo e segue o ciclo, para
- * não perder a foto por causa de um sensor instável. Nulo é propagado
+ * falha, o edge/ grava None naquele campo e segue o ciclo, para não
+ * perder a foto por causa de um sensor instável. Nulo é propagado
  * como null de propósito: converter para 0 mostraria "0% de umidade do
  * solo", um valor válido e alarmante, quando na verdade não houve
  * medição. Os gráficos pulam esses pontos.
@@ -38,6 +45,7 @@ interface LeituraDaApi {
   temperatura_c: number | null;
   umidade_ar_pct: number | null;
   umidade_solo_pct: number | null;
+  tem_foto: boolean;
   criado_em: string;
 }
 
@@ -47,6 +55,14 @@ export interface LeituraAmbiental {
   temperatura: number | null;
   umidade_ar: number | null;
   umidade_solo: number | null;
+  /** true quando a leitura veio de um ciclo de captura, com foto.
+   *
+   * Desde 2026-11-03 o Pi tem dois cronogramas: sensor a cada 15 min
+   * (POST /leituras) e foto a cada 2 h (POST /diagnostico). As telas
+   * desenham as duas igual, porque as medicoes sao as mesmas, mas o
+   * campo existe para poder explicar ao produtor por que o numero de
+   * pontos de ambiente nao bate com o de diagnosticos. */
+  temFoto: boolean;
   timestamp: string;
 }
 
@@ -57,6 +73,11 @@ function traduzir(bruta: LeituraDaApi): LeituraAmbiental {
     temperatura: bruta.temperatura_c,
     umidade_ar: bruta.umidade_ar_pct,
     umidade_solo: bruta.umidade_solo_pct,
+    // ?? false para o app nao quebrar contra uma API mais antiga, que
+    // nao devolvia este campo. Acontece de verdade: o aplicativo
+    // atualiza por EAS Update e o backend por deploy no Railway, e nada
+    // garante que os dois cheguem na mesma ordem.
+    temFoto: bruta.tem_foto ?? false,
     timestamp: bruta.criado_em,
   };
 }

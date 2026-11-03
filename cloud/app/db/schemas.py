@@ -160,9 +160,16 @@ class LeituraOut(BaseModel):
     perder a foto por causa de um sensor instável. O app precisa exibir
     isso como ausência de leitura, nunca como zero.
 
-    `device_id` vem de registros_imagem (via join), não da própria
-    leitura: o modelo liga leitura -> registro de imagem -> dispositivo.
-    É usado pelo filtro por dispositivo da tela de Histórico do app.
+    `device_id` é coluna da própria leitura desde a migration 0008.
+    Antes vinha de registros_imagem por join, porque leitura só existia
+    junto de uma captura. Com o Pi mandando sensor sem foto a cada 15
+    minutos, o join deixou de existir para essas linhas, e uma leitura
+    sem dono some do escopo por produtor e do filtro por campo do app.
+
+    `tem_foto` diz se aquela leitura veio de um ciclo de captura. O app
+    não precisa do dado para desenhar o gráfico, as três séries são
+    iguais nos dois casos, mas precisa para explicar ao produtor por que
+    existem muito mais pontos de ambiente do que diagnósticos.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -172,7 +179,32 @@ class LeituraOut(BaseModel):
     temperatura_c: float | None
     umidade_ar_pct: float | None
     umidade_solo_pct: float | None
+    tem_foto: bool
     criado_em: datetime
+
+
+class LeituraDispositivoIn(BaseModel):
+    """Corpo de POST /leituras, o ciclo de sensor sem foto.
+
+    Formato JSON, diferente de POST /diagnostico, que é multipart porque
+    carrega um arquivo. Sem arquivo, multipart só adicionaria cerimônia.
+
+    As três medições são opcionais pelo mesmo motivo de sempre: quando um
+    sensor falha, edge/src/sensores.py manda None naquele campo em vez de
+    abortar o ciclo. Uma requisição com as três nulas é aceita e gravada:
+    "nenhum sensor respondeu às 14:15" é informação, e é exatamente o que
+    a tela precisa para não exibir a leitura de duas horas atrás como se
+    fosse de agora.
+
+    `idempotency_key` evita linha duplicada quando a resposta se perde e
+    o Pi reenvia. Ver o comentário em LeituraAmbiental.idempotency_key.
+    """
+
+    device_id: str
+    idempotency_key: str
+    temperatura_c: float | None = None
+    umidade_ar_pct: float | None = None
+    umidade_solo_pct: float | None = None
 
 
 class DiagnosticoHistoricoOut(BaseModel):

@@ -28,6 +28,10 @@ Relação com o resto do sistema:
 - Consumido pelo frontend (app/) nas telas de Histórico e Diagnóstico.
 - Depende de app/db/models.py (leituras_ambientais, diagnosticos) e
   app/core/security.py (obter_produtor_atual, exige login).
+- POST /leituras, a ESCRITA do mesmo recurso, mora em
+  app/api/routes/leituras.py: quem escreve autentica por credencial de
+  dispositivo e quem le autentica por login de produtor, e sao fluxos
+  sem nada em comum. Ver o cabecalho daquele modulo.
 - `url_imagem` em DiagnosticoHistoricoOut vem de
   app/storage/supabase_storage.py (signed URL, bucket privado, decisão
   em infra/supabase/storage_policies.md).
@@ -72,38 +76,44 @@ async def listar_leituras(
     ignorado (a primeira cláusula já decide o empate). Isso já causou
     um bug real aqui: o `.reverse()` do ramo sem filtro invertia uma
     lista que já estava em ordem crescente, devolvendo a ordem errada."""
-    base = select(LeituraAmbiental, RegistroImagem.device_id).join(
-        RegistroImagem, LeituraAmbiental.registro_imagem_id == RegistroImagem.id
-    )
+    # SEM JOIN com registros_imagem, de proposito. Era um INNER JOIN, a
+    # unica forma de descobrir o dispositivo da leitura antes de
+    # `device_id` virar coluna propria (migration 0008). Mantido, ele
+    # descartaria silenciosamente toda leitura sem foto, que e justamente
+    # a maioria desde que o Pi passou a medir o ambiente a cada 15 min: o
+    # grafico da tela inicial voltaria a mostrar so os pontos de 2 em 2
+    # horas, sem nenhum erro aparente.
+    base = select(LeituraAmbiental)
 
     device_ids = await device_ids_visiveis(sessao, produtor)
     if device_ids is not None:
-        base = base.where(RegistroImagem.device_id.in_(device_ids))
+        base = base.where(LeituraAmbiental.device_id.in_(device_ids))
 
     if horas is not None:
         desde = datetime.now(timezone.utc) - timedelta(hours=horas)
         consulta = base.where(LeituraAmbiental.criado_em >= desde).order_by(
             LeituraAmbiental.criado_em.asc()
         )
-        linhas = (await sessao.execute(consulta)).all()
+        leituras = list((await sessao.execute(consulta)).scalars().all())
     else:
         # sem filtro: pega as N mais recentes (DESC + limit) e so depois
         # inverte para ordem cronologica, senao limitar uma consulta ASC
         # pegaria as N MAIS ANTIGAS em vez das N mais recentes.
         consulta = base.order_by(LeituraAmbiental.criado_em.desc()).limit(_LIMITE_MAXIMO_ITENS)
-        linhas = list((await sessao.execute(consulta)).all())
-        linhas.reverse()
+        leituras = list((await sessao.execute(consulta)).scalars().all())
+        leituras.reverse()
 
     return [
         {
             "id": leitura.id,
-            "device_id": device_id,
+            "device_id": leitura.device_id,
             "temperatura_c": leitura.temperatura_c,
             "umidade_ar_pct": leitura.umidade_ar_pct,
             "umidade_solo_pct": leitura.umidade_solo_pct,
+            "tem_foto": leitura.registro_imagem_id is not None,
             "criado_em": leitura.criado_em,
         }
-        for leitura, device_id in linhas
+        for leitura in leituras
     ]
 
 

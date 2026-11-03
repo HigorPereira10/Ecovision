@@ -68,23 +68,59 @@ class RegistroImagem(Base):
 
 
 class LeituraAmbiental(Base):
-    """Temperatura/umidade do ar (DHT22) e umidade do solo (ADS1115),
-    associadas 1:1 a uma captura, já que o Pi manda os dois juntos no
-    mesmo ciclo. Campos nullable porque edge/src/main.py já tolera
-    falha de leitura de sensor sem abortar a captura da foto."""
+    """Temperatura/umidade do ar (DHT22) e umidade do solo (ADS1115).
+
+    `registro_imagem_id` e OPCIONAL (migration 0008). Nasceu NOT NULL,
+    modelando "uma leitura por captura", que era verdade enquanto o Pi
+    lia os sensores e tirava a foto no mesmo ciclo de 2 horas.
+
+    O custo do ciclo de 2 horas e da FOTO: acionar o LED, comprimir
+    1,2 MB, subir para o Storage, rodar a inferencia. Ler o DHT22 leva
+    2 segundos. Com a leitura amarrada a foto, a temperatura na tela
+    inicial do app podia ter 2 horas de idade e nao havia leitura mais
+    nova para buscar. Agora o Pi manda sensor a cada 15 min
+    (edge/src/sensores.py) e foto a cada 2 h.
+
+    O UNIQUE continua: no Postgres ele permite varios NULL, entao vale
+    como "no maximo uma leitura por captura" sem impedir leitura sem
+    captura.
+
+    `device_id` e PROPRIO da leitura, nao herdado da foto. Antes o
+    dispositivo saia de um JOIN com registros_imagem, e sem foto nao
+    existe JOIN: a leitura ficaria invisivel para o escopo por dono de
+    GET /leituras e para o filtro por campo do app.
+
+    As tres medicoes continuam nullable porque edge/src/main.py tolera
+    falha de um sensor sem abortar o ciclo."""
 
     __tablename__ = "leituras_ambientais"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    registro_imagem_id: Mapped[int] = mapped_column(
-        ForeignKey("registros_imagem.id"), nullable=False, unique=True
+    # SEM index=True aqui, diferente de registros_imagem.device_id. A
+    # migration 0008 cria um indice COMPOSTO (device_id, criado_em), que
+    # e como GET /leituras consulta: filtra por dispositivo e ordena por
+    # data. Um indice de coluna unica em device_id seria redundante,
+    # porque ele e a coluna inicial do composto, e os dois declarados
+    # faria um `alembic revision --autogenerate` futuro propor criar o
+    # que ja existe.
+    device_id: Mapped[str] = mapped_column(String, nullable=False)
+    registro_imagem_id: Mapped[int | None] = mapped_column(
+        ForeignKey("registros_imagem.id"), nullable=True, unique=True
+    )
+    # Mesma razao da chave em registros_imagem: um reenvio depois de
+    # falha parcial criaria linha duplicada, que contaria duas vezes no
+    # grafico e geraria o mesmo alerta ambiental duas vezes. Nula nas
+    # leituras que nasceram junto da foto, cuja chave esta no registro
+    # de imagem.
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String, nullable=True, unique=True
     )
     temperatura_c: Mapped[float | None] = mapped_column(Float, nullable=True)
     umidade_ar_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     umidade_solo_pct: Mapped[float | None] = mapped_column(Float, nullable=True)
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_agora_utc)
 
-    registro_imagem: Mapped["RegistroImagem"] = relationship(back_populates="leitura")
+    registro_imagem: Mapped["RegistroImagem | None"] = relationship(back_populates="leitura")
 
 
 class Diagnostico(Base):

@@ -65,7 +65,12 @@ async def _montar_estufa(sessao: AsyncSession, *, email: str, device_id: str) ->
     sessao.add(registro)
     await sessao.flush()
 
-    leitura = LeituraAmbiental(registro_imagem_id=registro.id, temperatura_c=30.0, criado_em=AGORA)
+    leitura = LeituraAmbiental(
+        device_id=device_id,
+        registro_imagem_id=registro.id,
+        temperatura_c=30.0,
+        criado_em=AGORA,
+    )
     diagnostico = Diagnostico(
         registro_imagem_id=registro.id,
         classe_prevista="pinta_preta",

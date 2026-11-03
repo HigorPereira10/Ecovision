@@ -64,7 +64,10 @@ async def _criar_registro_com_leitura_e_diagnostico(
     # sem isso, "mais nova"/"mais antiga" ficariam definidas pela ordem
     # de insercao no teste, nao pelo timestamp em si.
     sessao.add(LeituraAmbiental(
-        registro_imagem_id=registro.id, temperatura_c=temperatura_c, criado_em=capturado_em
+        device_id=device_id,
+        registro_imagem_id=registro.id,
+        temperatura_c=temperatura_c,
+        criado_em=capturado_em,
     ))
     sessao.add(Diagnostico(
         registro_imagem_id=registro.id,

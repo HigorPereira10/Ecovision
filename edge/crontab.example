@@ -1,16 +1,36 @@
 # edge/crontab.example
 #
-# Agendamento de referência (Blueprint v3.0, Fase 2):
+# Agendamento de referência:
+# - Leitura de sensores, sem foto: a cada 15 minutos.
 # - Captura de imagem + leituras: a cada 2 horas.
 # - Drenagem da fila offline / upload: a cada 15 minutos.
+#
+# POR QUE SENSOR E FOTO TÊM CRONOGRAMAS SEPARADOS
+# -----------------------------------------------
+# O intervalo de 2 horas é ditado pela FOTO: Ring LED, autofoco (5,6s a
+# 27s medidos no dispositivo), compressão de 1,2 MB, upload para o
+# Storage e inferência TFLite no servidor. Ler o DHT22 e o sensor de solo
+# leva 2 segundos e produz três números.
+#
+# Enquanto as duas coisas andavam no mesmo ciclo, a temperatura na tela
+# inicial do app podia ter 2 horas de idade e não havia leitura mais nova
+# para buscar, porque leitura sem foto não existia no banco. Separado a
+# partir de 2026-11-03 (migration 0008 do cloud, POST /leituras).
+#
+# A ORDEM DAS LINHAS IMPORTA MENOS DO QUE PARECE: às horas pares os dois
+# ciclos coincidem, e o resultado é uma leitura sem foto e uma com foto
+# no mesmo minuto. Isso é aceito de propósito: duas medições a 30
+# segundos de distância não distorcem a série, e evitar a sobreposição
+# exigiria um deslocamento que ninguém lembraria de manter.
 #
 # Instalado automaticamente por edge/scripts/install.sh, que substitui os
 # placeholders /caminho/... pelos caminhos reais do venv e do repositório
 # antes de instalar via `crontab`. Para instalar manualmente, rodar
-# `crontab -e` e colar as duas linhas abaixo já com os caminhos ajustados.
+# `crontab -e` e colar as linhas abaixo já com os caminhos ajustados.
 #
 # Logs vão para edge/data/logs/ (dentro do repo, dono é o próprio usuário
 # que roda o cron) em vez de /var/log/, que normalmente exige root.
 
+*/15 * * * * /caminho/venv/bin/python /caminho/edge/src/sensores.py        >> /caminho/edge/data/logs/sensores.log 2>&1
 0 */2 * * *  /caminho/venv/bin/python /caminho/edge/src/main.py            >> /caminho/edge/data/logs/captura.log 2>&1
 */15 * * * * /caminho/venv/bin/python /caminho/edge/src/upload/uploader.py >> /caminho/edge/data/logs/upload.log 2>&1

@@ -41,7 +41,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.routes import alertas, auth, diagnostico, dispositivos, historico, usuarios
+from app.api.routes import (
+    alertas,
+    auth,
+    diagnostico,
+    dispositivos,
+    historico,
+    leituras,
+    usuarios,
+)
 from app.config import settings
 from app.core.inference import carregar_modelo_tflite
 from app.db.session import get_session
@@ -133,3 +141,7 @@ app.include_router(historico.router)
 app.include_router(alertas.router)
 app.include_router(usuarios.router)
 app.include_router(dispositivos.router)
+# POST /leituras (ingestao do dispositivo). GET /leituras esta em
+# historico.router: escrita e leitura do mesmo recurso, autenticacoes
+# diferentes. Ver o cabecalho de app/api/routes/leituras.py.
+app.include_router(leituras.router)
