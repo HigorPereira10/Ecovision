@@ -76,17 +76,36 @@ def _imagem_falsa() -> bytes:
 
     A falha foi útil: provou que a guarda pega o caso para o qual foi
     escrita. O padrão quadriculado abaixo tem brilho e desvio padrão
-    acima dos limiares, imitando uma foto com conteúdo."""
+    acima dos limiares, imitando uma foto com conteúdo.
+
+    EM 2026-11-02 A FIXTURE PRECISOU EVOLUIR DE NOVO, pelo mesmo motivo.
+    O diagnóstico por janela (app/core/janelas.py) exige, além de brilho
+    e textura, COBERTURA DE VERDE: janela sem folha não vale
+    diagnóstico. O xadrez cinza passava na guarda antiga e era recusado
+    por "sem folha", devolvendo imagem_inadequada em oito testes.
+
+    De novo a falha foi útil, e pela mesma razão: provou que a guarda
+    por janela recusa o que não é folha. A correção é tornar o xadrez
+    VERDE e grande o bastante para render janelas, não afrouxar a
+    guarda.
+
+    O tamanho importa: janelas.recortar decodifica em metade (ESCALA=2)
+    e recorta blocos de 448, então uma imagem de 64 px não rende janela
+    nenhuma."""
     import numpy as np
 
-    # Xadrez de 16x16 com ruído leve: textura alta o suficiente para
-    # passar, sem depender de nenhum arquivo externo.
-    lado = 64
+    # Xadrez VERDE de 16x16 com ruído leve. Verde porque a guarda por
+    # janela mede cobertura de folha; 1024 px porque abaixo disso não
+    # sobra janela depois do recorte.
+    lado = 1024
     base = np.indices((lado, lado)).sum(axis=0) // 8 % 2
-    cinza = np.where(base == 0, 70, 190).astype(np.uint8)
     rng = np.random.default_rng(42)
-    cinza = np.clip(cinza.astype(np.int16) + rng.integers(-15, 16, cinza.shape), 0, 255)
-    rgb = np.stack([cinza, cinza, cinza], axis=-1).astype(np.uint8)
+    ruido = rng.integers(-15, 16, (lado, lado))
+    canais = []
+    for claro, escuro in ((70, 30), (190, 90), (80, 40)):  # R, G, B: verde domina
+        canal = np.where(base == 0, escuro, claro).astype(np.int16) + ruido
+        canais.append(np.clip(canal, 0, 255).astype(np.uint8))
+    rgb = np.stack(canais, axis=-1)
 
     buffer = BytesIO()
     Image.fromarray(rgb).save(buffer, format="JPEG", quality=95)
@@ -99,6 +118,35 @@ def _imagem_escura() -> bytes:
     buffer = BytesIO()
     Image.new("RGB", (64, 64), color=(8, 8, 10)).save(buffer, format="JPEG")
     return buffer.getvalue()
+
+
+def _forcar_diagnostico(monkeypatch, resultado):
+    """Faz a rota devolver `resultado`, seja qual for o caminho de
+    inferencia.
+
+    Desde 2026-11-02 a rota tem DOIS caminhos: o quadro inteiro
+    (inference.rodar_inferencia) e a janela deslizante
+    (janelas.diagnosticar_por_janelas), escolhidos por
+    DIAGNOSTICO_POR_JANELA. Um teste que so trocava o primeiro passou a
+    nao ter efeito nenhum quando a chave ligou, e o sintoma era
+    confuso: o teste de alerta falhava como se o alerta estivesse
+    quebrado.
+
+    Estes testes sao sobre ALERTA e RESSALVA, nao sobre qual caminho de
+    inferencia roda, entao eles fixam a saida dos dois.
+    """
+    def _quadro(_interpretador, _imagem):
+        return dict(resultado)
+
+    def _janela(_interpretador, _bytes):
+        return dict(resultado)
+
+    monkeypatch.setattr(inference_module, "rodar_inferencia", _quadro)
+    monkeypatch.setattr(diagnostico_module.inference, "rodar_inferencia", _quadro)
+    monkeypatch.setattr(
+        diagnostico_module.janelas, "diagnosticar_por_janelas", _janela
+    )
+
 
 
 def _payload_valido(**overrides):
@@ -270,16 +318,12 @@ async def test_diagnostico_ruim_gera_alerta_mas_indisponivel_nao(monkeypatch):
     assert alertas == [], "diagnostico placeholder 'indisponivel' nao deveria gerar alerta"
 
     # agora simula um modelo de verdade detectando uma doença
-    monkeypatch.setattr(
-        inference_module,
-        "rodar_inferencia",
-        lambda interpretador, imagem: {
-            "classe": "requeima",
-            "confianca": 0.91,
-            "recomendacao": "Aplicar fungicida a base de cobre.",
-            "severidade": "alta",
-        },
-    )
+    _forcar_diagnostico(monkeypatch, {
+        "classe": "requeima",
+        "confianca": 0.91,
+        "recomendacao": "Aplicar fungicida a base de cobre.",
+        "severidade": "alta",
+    })
 
     with TestClient(app) as client:
         resposta = client.post(
@@ -335,16 +379,12 @@ async def test_doenca_e_risco_ambiental_juntos_correlaciona_no_texto(monkeypatch
     monkeypatch.setattr(
         "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
     )
-    monkeypatch.setattr(
-        inference_module,
-        "rodar_inferencia",
-        lambda interpretador, imagem: {
-            "classe": "mofo_de_folha",
-            "confianca": 0.8,
-            "recomendacao": "Melhore a ventilacao da estufa.",
-            "severidade": "media",
-        },
-    )
+    _forcar_diagnostico(monkeypatch, {
+        "classe": "mofo_de_folha",
+        "confianca": 0.8,
+        "recomendacao": "Melhore a ventilacao da estufa.",
+        "severidade": "media",
+    })
 
     payload = _payload_valido(
         idempotency_key="doenca-com-ambiente",
@@ -586,8 +626,7 @@ async def _semear_historico(device_id: str, dias: int, umidade_pct: float) -> No
 
 async def _recomendacao_do_envio(monkeypatch) -> str:
     monkeypatch.setattr("app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso)
-    monkeypatch.setattr(inference_module, "rodar_inferencia", _inferencia_fungica)
-    monkeypatch.setattr(diagnostico_module.inference, "rodar_inferencia", _inferencia_fungica)
+    _forcar_diagnostico(monkeypatch, _inferencia_fungica(None, None))
     with TestClient(app) as client:
         resposta = client.post(
             "/diagnostico",

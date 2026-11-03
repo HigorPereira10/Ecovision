@@ -307,7 +307,16 @@ _INFO_POR_CLASSE: dict[str, tuple[str | None, str | None]] = {
 # quantidade ou a ordem das classes mudar. Esta lista tem que
 # acompanhar, senão cada predição sai com o rótulo de outra doença e
 # nada falha de forma visível.
-_CLASSES_DO_MODELO: list[str] = ["septoriose", "pinta_preta", "saudavel"]
+# A ordem e a do treino (ml/src/training/ajuste_dominio_proprio.py) e
+# NAO pode mudar: trocar nao quebra nada visivelmente, so passa a
+# mandar fungicida para folha sa. Ja aconteceu neste projeto, ver o
+# comentario de _CATALOGO_AGRONOMICO.
+_CLASSES_DO_MODELO: list[str] = [
+    "septoriose",
+    "pinta_preta",
+    "saudavel",
+    "estresse_foliar",
+]
 
 
 def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
@@ -355,6 +364,34 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
     try:
         interpretador = Interpreter(model_path=caminho_modelo)
         interpretador.allocate_tensors()
+
+        # CONFERE AS SAÍDAS CONTRA A LISTA DE CLASSES, NO CARREGAMENTO.
+        #
+        # ATENÇÃO, BUG REAL PEGO EM 2026-11-02: o padrão de
+        # TFLITE_MODEL_PATH foi trocado em config.py para o modelo de 4
+        # classes, mas cloud/.env define a mesma variável, e variável de
+        # ambiente ganha do padrão. O sistema rodou o modelo ANTIGO, de
+        # 3 saídas, com _CLASSES_DO_MODELO listando 4 nomes.
+        #
+        # Não houve erro nenhum: a votação por janela elegeu
+        # "septoriose" com severidade alta numa planta sem doença. A
+        # proteção que já existia em rodar_inferencia só dispara quando
+        # o índice ULTRAPASSA a lista, ou seja, modelo maior que a
+        # lista. O caso inverso, lista maior que o modelo, passava
+        # despercebido e é o mais perigoso dos dois, porque o nome
+        # errado sai com confiança alta.
+        saidas = int(interpretador.get_output_details()[0]["shape"][-1])
+        if saidas != len(_CLASSES_DO_MODELO):
+            logger.error(
+                "Modelo em %s tem %d saídas, mas _CLASSES_DO_MODELO lista %d "
+                "nomes (%s). A API sobe com resultado placeholder em vez de "
+                "diagnosticar com os nomes trocados. Confira TFLITE_MODEL_PATH "
+                "(o .env sobrepõe o padrão do código) e a lista de classes.",
+                caminho_modelo, saidas, len(_CLASSES_DO_MODELO),
+                _CLASSES_DO_MODELO,
+            )
+            return None
+
         return interpretador
     except Exception:
         logger.warning(

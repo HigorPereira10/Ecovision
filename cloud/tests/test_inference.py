@@ -23,6 +23,7 @@ erro nenhum, e por isso valem teste próprio:
 """
 
 import io
+from pathlib import Path
 
 import numpy as np
 from PIL import Image
@@ -84,7 +85,12 @@ def test_classes_do_modelo_batem_com_o_conversor():
     """A ordem aqui precisa ser a mesma de ml/src/export/convert_tflite.py.
     Se divergir, cada predição sai com o nome e a recomendação de outra
     doença, e nada falha de forma visível."""
-    assert inference._CLASSES_DO_MODELO == ["septoriose", "pinta_preta", "saudavel"]
+    assert inference._CLASSES_DO_MODELO == [
+        "septoriose",
+        "pinta_preta",
+        "saudavel",
+        "estresse_foliar",
+    ]
 
     # Toda classe do modelo precisa existir no catálogo agronômico,
     # senão o produtor recebe diagnóstico sem orientação nenhuma.
@@ -188,3 +194,31 @@ def test_limiares_mantem_margem_sobre_a_pior_foto_boa():
     # (brilho 51,4 / textura 17,8), que foi o caso medido em que o
     # modelo devolveu 0,97 de confiança para lixo.
     assert inference.TEXTURA_MINIMA > 17.8
+
+
+def test_modelo_com_numero_de_saidas_diferente_da_lista_nao_carrega(tmp_path, caplog):
+    """BUG REAL de 2026-11-02: o padrao de TFLITE_MODEL_PATH foi trocado
+    para o modelo de 4 classes, mas cloud/.env define a mesma variavel e
+    ganha do padrao. Rodou o modelo ANTIGO de 3 saidas com 4 nomes
+    listados, e elegeu "septoriose" com severidade ALTA numa planta sem
+    doenca, sem erro nenhum.
+
+    A protecao que existia so pegava o caso inverso (modelo maior que a
+    lista). Este teste trava o caso perigoso: lista maior que o modelo.
+    """
+    import logging
+
+    caminho = Path(__file__).resolve().parents[2] / "ml" / "models" / "modelo.tflite"
+    if not caminho.is_file():
+        pytest.skip("modelo de 3 classes nao esta no disco")
+
+    original = inference._CLASSES_DO_MODELO
+    inference._CLASSES_DO_MODELO = ["a", "b", "c", "d"]  # 4 nomes, modelo tem 3
+    try:
+        with caplog.at_level(logging.ERROR):
+            interpretador = inference.carregar_modelo_tflite(str(caminho))
+    finally:
+        inference._CLASSES_DO_MODELO = original
+
+    assert interpretador is None, "carregar com nomes a mais devolve None"
+    assert "saídas" in caplog.text, "o log tem que dizer o que esta errado"

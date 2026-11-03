@@ -51,7 +51,7 @@ SAIDA = os.path.join(RAIZ, "models", "modelo.tflite")
 # ALFABETICAMENTE. Esta lista precisa bater exatamente com a de
 # cloud/app/core/inference.py: se divergir, cada predição sai com o
 # rótulo (e a recomendação agronômica) de outra doença, sem erro visível.
-CLASSES = ["distrator_septoria", "pinta_preta", "saudavel"]
+CLASSES = ["distrator_septoria", "pinta_preta", "saudavel", "estresse_foliar"]
 
 
 def converter_para_tflite(caminho_keras: str, caminho_saida: str) -> None:
