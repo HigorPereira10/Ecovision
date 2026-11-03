@@ -79,6 +79,21 @@ const CATALOGO: Record<string, CondicaoFitossanitaria> = {
   septoriose: { rotulo: 'Septoriose (Septoria lycopersici)', ativa: true },
   pinta_preta: { rotulo: 'Pinta preta (Alternaria solani)', ativa: true },
 
+  // Classe do domínio próprio, rotulada nas capturas desta estufa
+  // (ADR 0018). Entrou em produção em 2026-11-02.
+  //
+  // O nome é DESCRITIVO de propósito: afirmar "deficiência de potássio"
+  // a partir de uma foto exige saber a adubação, e o sistema não sabe.
+  // "Distúrbio fisiológico" é o termo da Embrapa para o quadro, e está
+  // no texto da recomendação.
+  //
+  // Sem esta entrada o app ainda funcionava, porque rotuloDeEmergencia
+  // transforma 'estresse_foliar' em 'Estresse foliar'. Mas
+  // CLASSES_ATIVAS sai do catálogo, então resumoDoEscopoDoModelo()
+  // dizia ao produtor que a análise reconhece 3 condições enquanto a
+  // tela mostrava a quarta logo acima.
+  estresse_foliar: { rotulo: 'Estresse foliar', ativa: true },
+
   // --- no catálogo agronômico, aguardando dado de treino ---
   requeima: { rotulo: 'Requeima', ativa: false },
   mancha_bacteriana: { rotulo: 'Mancha bacteriana', ativa: false },
