@@ -64,6 +64,27 @@ ml/data/*
 !ml/data/*.csv
 *.zip
 
+# Artefatos da abordagem REJEITADA do ADR 0018 (quarta classe vinda do
+# OLID I). Mesmo raciocinio da excecao acima, aplicado ao outro lado: o
+# que e insubstituivel e pequeno fica versionado, o que e grande e
+# regeneravel nao fica.
+#
+# Estes dois arquivos somam 29 MB e sao a SAIDA de scripts que estao no
+# repositorio: ml/src/training/ajuste_quatro_classes.py grava os dois
+# (linhas 344 e 426) a partir de ml/data/olid_divisao.csv, que esta
+# versionado, e do OLID I, que e publico (Zenodo 8105154, CC BY 4.0).
+# Quem quiser conferir os numeros do ADR 0018 roda o script.
+#
+# POR QUE ESTES NAO E OS OUTROS: ml/models/modelo.tflite,
+# ml/models/modelo_dominio.tflite e os .keras de ml/training/ CONTINUAM
+# versionados de proposito. Aqueles estao ou estiveram em producao, e um
+# modelo que gerou diagnostico para o produtor tem que poder ser
+# recuperado byte a byte, porque reproduzir o treino nao reproduz os
+# pesos. Estes nunca rodaram em producao: foram medidos, falharam e a
+# medicao esta no ADR.
+ml/models/modelo_4c.tflite
+ml/training/modelo_quatro_classes.keras
+
 # Saidas locais de analise do modelo (mapas de calor Grad-CAM)
 ml/validacao_externa/gradcam/
 ml/validacao_externa/gradcam_depois/
