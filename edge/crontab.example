@@ -1,27 +1,62 @@
 # edge/crontab.example
 #
 # Agendamento de referência:
-# - Leitura de sensores, sem foto: a cada 15 minutos.
-# - Captura de imagem + leituras: a cada 2 horas.
-# - Drenagem da fila offline / upload: a cada 15 minutos.
+# - Leitura de sensores, sem foto: a cada 15 minutos (minutos 5, 20, 35, 50).
+# - Captura de imagem + leituras: a cada 2 horas (minuto 0).
+# - Drenagem da fila offline / upload: a cada 15 minutos (minuto 0, 15, 30, 45).
 #
 # POR QUE SENSOR E FOTO TÊM CRONOGRAMAS SEPARADOS
 # -----------------------------------------------
 # O intervalo de 2 horas é ditado pela FOTO: Ring LED, autofoco (5,6s a
-# 27s medidos no dispositivo), compressão de 1,2 MB, upload para o
-# Storage e inferência TFLite no servidor. Ler o DHT22 e o sensor de solo
-# leva 2 segundos e produz três números.
+# 27s medidos no dispositivo), compressão, upload para o Storage e
+# inferência TFLite no servidor. Ler o DHT22 e o sensor de solo leva 2
+# segundos e produz três números.
 #
 # Enquanto as duas coisas andavam no mesmo ciclo, a temperatura na tela
 # inicial do app podia ter 2 horas de idade e não havia leitura mais nova
 # para buscar, porque leitura sem foto não existia no banco. Separado a
 # partir de 2026-11-03 (migration 0008 do cloud, POST /leituras).
 #
-# A ORDEM DAS LINHAS IMPORTA MENOS DO QUE PARECE: às horas pares os dois
-# ciclos coincidem, e o resultado é uma leitura sem foto e uma com foto
-# no mesmo minuto. Isso é aceito de propósito: duas medições a 30
-# segundos de distância não distorcem a série, e evitar a sobreposição
-# exigiria um deslocamento que ninguém lembraria de manter.
+# POR QUE OS MINUTOS 5, 20, 35, 50, E POR QUE O flock
+# ---------------------------------------------------
+# Esta é a parte que NÃO pode ser "simplificada" de volta para
+# `*/15 * * * *`, e a razão é um defeito de driver, não de estilo.
+#
+# O DHT22 é lido pela pilha Adafruit Blinka, cujo PulseIn conversa com um
+# processo auxiliar através de uma fila SysV IPC. Essa fila NÃO tolera
+# dois leitores ao mesmo tempo: quem termina primeiro a destrói na saída,
+# e o outro processo fica preso em `receive(block=True)` até estourar com
+#
+#     sysv_ipc.ExistentialError: The queue no longer exists
+#
+# Com os sensores em `*/15`, os dois cronogramas coincidiam no minuto 0
+# de toda hora par. O que foi medido em 2026-11-05, depois de dois dias
+# rodando assim:
+#
+#   - o ciclo de foto das 20:00 ficou 14 MINUTOS preso na leitura do
+#     DHT22 antes de desistir e seguir sem temperatura;
+#   - 04/11 gravou 7 fotos das 12 esperadas, e 05/11 gravou 9 de 11;
+#   - sensores.log, no mesmo período, teve 201 ciclos e ZERO falhas.
+#
+# Quem perde é sempre a foto, porque ela chega depois na disputa, e
+# perder uma foto é perder um diagnóstico que não se recupera.
+#
+# Duas defesas, de propósito:
+#
+# 1. Os minutos 5, 20, 35, 50 fazem os dois nunca COMEÇAREM no mesmo
+#    segundo. Resolve o caso comum.
+# 2. O flock no mesmo arquivo de lock garante que não se sobreponham nem
+#    quando um deles demora mais que o normal, que é exatamente a
+#    situação em que o defeito aparece. As esperas são assimétricas de
+#    propósito:
+#      - a FOTO usa `-w 120`, esperando até 2 minutos pelo lock, porque
+#        perder a foto custa um diagnóstico;
+#      - os SENSORES usam `-n`, desistindo na hora, porque a próxima
+#        amostra vem em 15 minutos e a série continua legível com um
+#        ponto faltando.
+#
+# O uploader não entra no lock: ele não toca em sensor nenhum, só lê a
+# fila em disco e faz POST.
 #
 # Instalado automaticamente por edge/scripts/install.sh, que substitui os
 # placeholders /caminho/... pelos caminhos reais do venv e do repositório
@@ -31,6 +66,6 @@
 # Logs vão para edge/data/logs/ (dentro do repo, dono é o próprio usuário
 # que roda o cron) em vez de /var/log/, que normalmente exige root.
 
-*/15 * * * * /caminho/venv/bin/python /caminho/edge/src/sensores.py        >> /caminho/edge/data/logs/sensores.log 2>&1
-0 */2 * * *  /caminho/venv/bin/python /caminho/edge/src/main.py            >> /caminho/edge/data/logs/captura.log 2>&1
-*/15 * * * * /caminho/venv/bin/python /caminho/edge/src/upload/uploader.py >> /caminho/edge/data/logs/upload.log 2>&1
+0 */2 * * *        flock -w 120 /tmp/ecovision-dht22.lock /caminho/venv/bin/python /caminho/edge/src/main.py      >> /caminho/edge/data/logs/captura.log  2>&1
+5,20,35,50 * * * * flock -n     /tmp/ecovision-dht22.lock /caminho/venv/bin/python /caminho/edge/src/sensores.py  >> /caminho/edge/data/logs/sensores.log 2>&1
+*/15 * * * *                                              /caminho/venv/bin/python /caminho/edge/src/upload/uploader.py >> /caminho/edge/data/logs/upload.log 2>&1
