@@ -17,6 +17,7 @@ import React from 'react';
 import { View, Text, Image, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
+import { corDoDiagnostico } from '../theme/coresDiagnostico';
 import { Diagnostico } from '../services/diagnosticos';
 
 interface Props {
@@ -47,13 +48,7 @@ export function DiagnosticoHistoricoCard({ diagnostico }: Props) {
         <Text
           style={[
             styles.classificacao,
-            {
-              color: diagnostico.semDiagnostico
-                ? colors.textMuted
-                : diagnostico.saudavel
-                  ? colors.oliveGreen
-                  : colors.danger,
-            },
+            { color: corDoDiagnostico(diagnostico) },
           ]}
         >
           {diagnostico.classificacao}

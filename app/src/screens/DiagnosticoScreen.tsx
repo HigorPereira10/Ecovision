@@ -51,6 +51,7 @@ import { EstadoVazio } from '../components/EstadoVazio';
 import { AvisoErroInline } from '../components/AvisoErroInline';
 import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
+import { corDoDiagnostico } from '../theme/coresDiagnostico';
 
 const MODELO_IA = 'MobileNetV2 (TFLite)';
 
@@ -107,11 +108,7 @@ export default function DiagnosticoScreen() {
 
   const idSelecionado = diagnosticoAtualId ?? diagnosticos[0].id;
   const diagnostico = diagnosticos.find((d) => d.id === idSelecionado) ?? diagnosticos[0];
-  const corStatus = diagnostico.semDiagnostico
-    ? colors.textMuted
-    : diagnostico.saudavel
-      ? colors.oliveGreen
-      : colors.danger;
+  const corStatus = corDoDiagnostico(diagnostico);
   const confiancaPercentual = Math.round(diagnostico.confianca * 100);
 
   return (
@@ -200,7 +197,7 @@ export default function DiagnosticoScreen() {
 
             <View style={styles.grid}>
               {diagnosticos.map((item) => {
-                const itemCor = item.saudavel ? colors.oliveGreen : colors.danger;
+                const itemCor = corDoDiagnostico(item);
                 const selecionado = item.id === diagnostico.id;
 
                 return (

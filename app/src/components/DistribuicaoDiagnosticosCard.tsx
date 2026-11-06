@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
+import { corDoDiagnostico } from '../theme/coresDiagnostico';
 import { Diagnostico } from '../services/diagnosticos';
 import { rotuloDaClasse } from '../domain/doencas';
 
@@ -58,19 +59,6 @@ interface Fatia {
   cor: string;
 }
 
-/** A cor vem do ESTADO da planta, não da classe.
- *
- * Duas doenças diferentes são as duas vermelhas de propósito: a
- * pergunta que a cor responde é "preciso agir?", e para essa pergunta
- * septoriose e pinta preta são a mesma resposta. Qual das duas é, está
- * escrito ao lado. */
-function corDoEstado(d: Diagnostico): string {
-  if (d.semDiagnostico) return colors.informativo;
-  if (d.saudavel) return colors.oliveGreen;
-  if (d.estresse) return colors.cuidado;
-  return colors.danger;
-}
-
 /** Ordem de leitura: do mais grave para o menos, com "sem análise" por
  * último porque não é resultado sobre a planta. */
 function pesoDaOrdem(d: Fatia, haviaSemDiagnostico: Set<string>): number {
@@ -106,7 +94,11 @@ export function DistribuicaoDiagnosticosCard({
       classe: d.classe,
       rotulo: rotuloDaClasse(d.classe),
       quantidade: 1,
-      cor: corDoEstado(d),
+      // Duas doenças diferentes ficam as duas vermelhas de propósito: a
+      // pergunta que a cor responde é "preciso agir?", e para essa
+      // pergunta septoriose e pinta preta são a mesma resposta. Qual
+      // das duas é, está escrito ao lado.
+      cor: corDoDiagnostico(d),
     });
   }
 
