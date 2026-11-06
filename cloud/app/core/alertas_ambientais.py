@@ -73,11 +73,37 @@ TEMPERATURA_MAX_C = 34.0
 
 UMIDADE_AR_MAX_PCT = 90.0
 
-# Limite de ALERTA deste sistema, não recomendação publicada. Os dois
-# critérios publicados e a razão pela qual nenhum dos dois pode ser
-# colado aqui estão no cabeçalho.
+# OS DOIS LIMIARES DE SOLO NÃO TÊM O MESMO RESPALDO, e a diferença foi
+# medida em 2026-11-06. Ver docs/decisions/0005-limiares-ambientais.md,
+# seção "Medição de campo de 2026-11-06".
+#
+# MAX (80%): MEDIDO. A capacidade de campo deste vaso é 76,0% (bruto
+# 9648), identificada pelo patamar de 6 horas que seguiu a drenagem da
+# rega de 03/11/2026. Água acima da capacidade de campo é água que o solo
+# não retém: está drenando e ocupando os poros de que a raiz precisa para
+# respirar. Os 80% ficam 4 pontos acima disso, então o alerta tem
+# justificativa agronômica direta, e os 16 alertas já emitidos saíram todos
+# nas horas seguintes a regas.
+#
+# MIN (20%): SEM RESPALDO E INALCANÇÁVEL. Em 367 leituras este alerta
+# nunca disparou, porque o vaso opera entre 67% e 76%. Só dispararia com a
+# sonda fora da terra, que é o caso que SOLO_PISO_SUSPEITO_PCT trata. O
+# número certo depende do ponto de murcha permanente, que exige secar o
+# vaso até a planta murchar e não é extraível da série (em 3 dias o solo
+# caiu 8,4 pontos abaixo da capacidade de campo sem sinal de estresse).
+#
+# NÃO "CORRIJA" ISTO TROCANDO SOIL_WET_RAW PARA 9648. Mudar só o extremo
+# molhado comprime a faixa de operação nos 11 pontos de cima da escala e
+# faz saturado virar indistinguível de capacidade de campo, porque os dois
+# passam a ser cortados em 100%. Isso destruiria o alerta de encharcamento,
+# que é o que funciona. O ADR explica.
 UMIDADE_SOLO_MIN_PCT = 20.0  # abaixo disso: risco de seca
-UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: risco de solo encharcado
+UMIDADE_SOLO_MAX_PCT = 80.0  # acima disso: acima da capacidade de campo medida
+
+# Capacidade de campo medida neste vaso, em 2026-11-06, a partir da série
+# de 15 minutos. Não entra em comparação nenhuma: existe para o texto da
+# documentação citar a medição sem repetir o número em três arquivos.
+CAPACIDADE_DE_CAMPO_MEDIDA_PCT = 76.0
 
 # Os dois critérios publicados, para o texto da documentação e das telas
 # citarem sem repetir o número solto em três arquivos. NENHUM dos dois

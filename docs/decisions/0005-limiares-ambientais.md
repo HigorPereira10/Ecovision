@@ -1,6 +1,12 @@
 # ADR 0005: Limiares de risco ambiental (temperatura, umidade do ar, umidade do solo)
 
-**Status:** Decidido. Revisado em 2026-11-03: a ressalva sobre umidade do
+**Status:** Decidido. Revisado em 2026-11-06: a **capacidade de campo deste
+vaso foi medida em 76,0%** (bruto 9648), a partir do patamar de 6 horas que
+seguiu a drenagem da rega de 03/11, sem precisar de experimento novo. Com
+isso o limiar de encharcamento (80%) deixou de ser convenção e passou a ser
+"acima da capacidade de campo medida", e o limiar de seca (20%) ficou
+explicitamente registrado como inalcançável. Ver "Medição de campo de
+2026-11-06". Revisado antes em 2026-11-03: a ressalva sobre umidade do
 solo passou a citar as DUAS referências publicadas para tomate (tensão
 crítica de 15-25 kPa, Embrapa; e manter acima de 60% da água disponível,
 FAO-56) e a explicar por que a escala do sensor não é conversível para
@@ -30,8 +36,8 @@ abaixo, com fontes de confiabilidade diferentes por variável:
 |---|---|---|---|---|
 | Temperatura | 21-27°C dia / 16-18°C noite (ideal); 10-34°C (tolerância ampla) | `< 10°C` ou `> 34°C` | **alta**: fora da tolerância ampla, risco de perda rápida | **Alta**: Embrapa Hortaliças |
 | Umidade do ar | 55-70% (ideal) | `> 90%` | **media**: favorece doença, não mata a planta diretamente | **Alta**: Embrapa Hortaliças |
-| Umidade do solo (seca) | critérios publicados são **15-25 kPa** (Embrapa) e **> 60% da água disponível** (FAO-56); nenhum na unidade do sensor | `< 20%` | **alta**: estresse hídrico pode matar a planta rápido | **Limite de alerta do sistema**, não recomendação: o sensor foi calibrado entre ar e água, ver ressalva abaixo |
-| Umidade do solo (encharcada) | idem acima | `> 80%` | **media**: apodrecimento é mais gradual | **Limite de alerta do sistema**, ver ressalva abaixo |
+| Umidade do solo (seca) | critérios publicados são **15-25 kPa** (Embrapa) e **> 60% da água disponível** (FAO-56); nenhum na unidade do sensor | `< 20%` | **alta**: estresse hídrico pode matar a planta rápido | **Sem respaldo e inalcançável**: nunca disparou em 367 leituras, porque o vaso opera entre 67% e 76%. Ver a medição de 2026-11-06 |
+| Umidade do solo (encharcada) | **acima da capacidade de campo**, medida em 76,0% nesta estufa em 03/11 | `> 80%` | **media**: apodrecimento é mais gradual | **Medido**: 4 pontos acima da capacidade de campo deste vaso. Ver a medição de 2026-11-06 |
 
 Severidade usada em `alertas.severidade` (`cloud/app/db/models.py`);
 ver também [ADR 0006](0006-recomendacoes-por-diagnostico.md) para a
@@ -160,6 +166,93 @@ diferentes: se os 20% do limiar fossem umidade volumétrica, o vaso
 estaria permanentemente abaixo do ponto de murcha, e a planta está viva.
 Em 2026-11-03, com a terra recém-molhada, o sensor leu 90,5%, valor que
 como umidade volumétrica seria fisicamente impossível em solo.
+
+### Medição de campo de 2026-11-06: a capacidade de campo apareceu nos dados
+
+Esta seção foi escrita depois das outras e **melhora metade do caso**. Não
+foi preciso experimento novo: a medição estava gravada desde 03/11, e só
+apareceu quando o cron de sensores a cada 15 minutos deu resolução
+suficiente para enxergá-la.
+
+Em 2026-11-03 às 19:49 o vaso foi regado. O que a série registrou:
+
+| Momento | Leitura | Bruto do ADC | Estado |
+|---|---|---|---|
+| 03/11 19:49 | 90,5% | 8156 | saturado, logo após a rega |
+| 03/11 21:00 | **76,0%** | **9648** | drenagem livre cessou |
+| 03/11 21:00 a 04/11 03:15 | 75,7 a 76,2% | 9628 a 9679 | **6 h de patamar** |
+| 06/11 21:35 | 67,6% | 10513 | 8,4 pontos abaixo, 3 dias depois |
+
+O patamar que segue o fim da drenagem livre **é a capacidade de campo**,
+por definição. São 25 leituras em 6 horas oscilando dentro de 0,5 ponto,
+que é o ruído do sensor.
+
+**Por que isso vale apesar de o vaso não ter sido coberto.** O protocolo
+manda cobrir a superfície para excluir evaporação da medida. Não foi
+coberto. Mas a janela de medição foi das 19:49 às 03:15, de madrugada,
+sem sol, e a série mostra variação líquida ZERO ao longo das 6 horas. A
+condição que a cobertura existe para garantir foi verificada diretamente
+no dado, em vez de assumida.
+
+**Limitação honesta:** é UM evento de rega, não replicado. A próxima rega
+confirma ou desmente, e é de graça: basta olhar a série depois.
+
+### O que isso resolve, e o que não resolve
+
+| Limiar | Antes | Depois desta medição |
+|---|---|---|
+| Encharcado, 80% | convenção prática | **4 pontos acima da capacidade de campo medida nesta estufa** |
+| Seco, 20% | convenção prática | continua sem respaldo, e agora se sabe por quê |
+
+O limiar de encharcamento passou a ter justificativa agronômica direta:
+água acima da capacidade de campo é água que o solo NÃO retém, está
+drenando e ocupando os poros de que a raiz precisa para respirar. "Acima
+da capacidade de campo" é a definição do risco, e 80% está logo acima dos
+76% medidos.
+
+Isso valida retroativamente os 16 alertas de "Solo encharcado" já
+emitidos: todos saíram em 28/10, 01/11 e 03/11, nas horas seguintes a
+regas, quando o solo de fato estava acima da capacidade de campo. Eles
+estavam certos.
+
+**O limiar de seca continua sem respaldo**, e a medição explica o
+sintoma: em 367 leituras, o alerta de "Solo seco" NUNCA disparou. O vaso
+opera entre 67% e 76%, e os 20% estão numa região que ele não visita. O
+alerta só dispararia com a sonda fora da terra, que é o que aconteceu em
+03/11 e é a razão de SOLO_PISO_SUSPEITO_PCT existir.
+
+### Por que NÃO mudar SOIL_WET_RAW para 9648 agora
+
+Parece a conclusão natural, e é uma armadilha. Trocar o extremo molhado
+de 7179 (submerso em água) para 9648 (capacidade de campo), mantendo o
+extremo seco em 17468 (ar), produz:
+
+| Estado | Leitura hoje | Leitura com a troca |
+|---|---|---|
+| Capacidade de campo | 76,0% | 100% |
+| Saturado, pós-rega | 90,5% | 100% (cortado) |
+| Hoje, 3 dias depois | 67,6% | 88,9% |
+
+A faixa de operação inteira comprime para os 11 pontos de cima da escala,
+e **saturado deixa de ser distinguível de capacidade de campo**, porque os
+dois passam a ser cortados em 100%. Ou seja: a troca destruiria o único
+alerta de solo que funciona e que esta seção acabou de justificar, em
+troca de nada no lado seco.
+
+A troca só faz sentido junto com o extremo seco, que é o que falta e o
+que exige a secagem até murcha. **Mudar um só dos dois piora.**
+
+### O que falta, e por que ficou mais barato
+
+Falta só o extremo seco. O ponto de murcha permanente é propriedade do
+SOLO e não se extrai de uma curva de secagem: em 3 dias o vaso saiu da
+capacidade de campo e caiu 8,4 pontos sem a planta dar sinal de estresse,
+então o dado simplesmente não contém o outro extremo e extrapolar seria
+inventar.
+
+Mas a metade difícil, que exigiria regar e esperar, já está feita. Quem
+for calibrar precisa de um ponto, não de dois, e a ferramenta para medir
+é `edge/scripts/calibrar_solo.py`.
 
 ### O que fica decidido
 

@@ -113,10 +113,18 @@ def _ler_bruto(canal: int) -> int:
     return valor - 0x10000 if valor > 0x7FFF else valor
 
 
-def ler_umidade_solo() -> float:
-    """Lê o canal analógico do sensor de solo via ADS1115 e retorna um
-    percentual (0-100), onde 0% = seco (SOIL_DRY_RAW) e 100% = saturado
-    (SOIL_WET_RAW)."""
+def converter_para_pct(valor_bruto: int) -> float:
+    """Converte um valor bruto do ADC no percentual de 0 a 100.
+
+    Separada de ler_umidade_solo() para edge/scripts/calibrar_solo.py
+    poder mostrar "que porcentagem a calibração vigente daria para este
+    bruto" sem ler o sensor de novo, num instante diferente.
+
+    O script tinha esta conta copiada, e conta copiada diverge: bastaria
+    alguém trocar o clamp ou o arredondamento aqui para a ferramenta de
+    calibração passar a mostrar um número que o sistema não produz, que
+    é o pior defeito possível numa ferramenta de calibração.
+    """
     # Sensor capacitivo: valor bruto CAI conforme a umidade AUMENTA.
     faixa = config.SOIL_DRY_RAW - config.SOIL_WET_RAW
     if faixa == 0:
@@ -125,7 +133,20 @@ def ler_umidade_solo() -> float:
             "(ver edge/src/config.py)."
         )
 
-    valor_bruto = _ler_bruto(config.SOIL_ADS1115_CHANNEL)
-
     umidade_pct = (config.SOIL_DRY_RAW - valor_bruto) / faixa * 100
     return round(_clamp(umidade_pct, 0.0, 100.0), 1)
+
+
+def ler_umidade_solo() -> float:
+    """Lê o canal analógico do sensor de solo via ADS1115 e retorna um
+    percentual (0-100), onde 0% = seco (SOIL_DRY_RAW) e 100% = saturado
+    (SOIL_WET_RAW).
+
+    ATENÇÃO AO QUE ESSE PERCENTUAL SIGNIFICA: os dois extremos foram
+    medidos no AR e SUBMERSO EM ÁGUA PURA, e nenhum dos dois é um estado
+    em que solo existe. Medido em 367 leituras de campo, a consequência é
+    que o vaso opera entre 60% e 80% e o alerta de seca de 20% nunca
+    disparou. Ver docs/decisions/0005-limiares-ambientais.md e
+    edge/scripts/calibrar_solo.py.
+    """
+    return converter_para_pct(_ler_bruto(config.SOIL_ADS1115_CHANNEL))
