@@ -1,47 +1,21 @@
 """
-cloud/tests/test_diagnostico.py
+Testes de ponta a ponta de POST /diagnostico, simulando o envio do
+dispositivo (edge/src/upload/uploader.py), com o Storage simulado:
 
-O que este arquivo verifica, em português simples:
-
-Este é o teste "de ponta a ponta" do endpoint POST /diagnostico.
-Simula exatamente o que a Raspberry Pi manda (edge/src/upload/uploader.py):
-uma imagem + device_id + timestamp + leituras de sensores, autenticado
-por API Key. Sem precisar de Supabase real nem de rede, confere:
-
-1. Sem a API Key certa (ausente ou errada), a API recusa com 401: não
-   dá para mandar fotos falsas se não souber a chave.
-2. Com a API Key certa, a requisição funciona de ponta a ponta: a
-   imagem "sobe" para o storage (aqui, simulado, já que não existe
-   Supabase de verdade rodando no teste), e as 3 tabelas relacionadas
-   (registros_imagem, leituras_ambientais, diagnosticos) são gravadas
-   corretamente no banco.
-3. Quando um sensor falhou na Pi (edge/src/main.py grava `None` nesse
-   caso, que pode chegar aqui como campo ausente ou como a string
-   "None"), a API não trava: grava a leitura como nula no banco, em
-   vez de dar erro.
-4. O diagnóstico gravado vem do modelo real (ml/models/modelo.tflite,
-   versionado no repositório). Se por algum motivo ele não carregar, a
-   API ainda responde 200 com o placeholder "indisponivel", em vez de
-   derrubar o envio da captura.
-5. Reenvio da MESMA captura (mesmo idempotency_key), uma situação
-   real: a API confirma 200 mas o Pi cai antes de tirar o registro da
-   fila local, e no próximo ciclo ele reenvia a mesma foto. A API
-   detecta e devolve o diagnóstico já existente, sem duplicar a linha
-   no banco.
-6. Imagem corrompida ou inválida: a API recusa com 400 (erro claro),
-   em vez de travar com um 500 cru.
-7. Diagnóstico que não é "saudavel" nem o placeholder "indisponivel"
-   gera um alerta automático; o placeholder não gera, porque avisar o
-   produtor de uma classe que não significa nada seria pior que não
-   avisar.
-8. timestamp ou leitura de sensor em formato inválido: recusado com
-   422 ANTES de subir a imagem para o storage (evita imagem órfã no
-   bucket).
-9. Imagem maior que o limite (5MB): recusada com 413, sem processar.
-10. Duas requisições com a MESMA idempotency_key "correndo" ao mesmo
-    tempo (a checagem inicial ainda não vê a outra): a segunda não
-    quebra com erro de chave duplicada, devolve o diagnóstico que já
-    tinha sido criado pela primeira.
+1. credencial ausente ou errada: 401;
+2. envio válido: imagem enviada ao Storage e registro, leitura e
+   diagnóstico gravados;
+3. sensor com falha (campo ausente ou "None"): leitura gravada como nula;
+4. modelo ausente: 200 com o resultado "indisponivel";
+5. reenvio com a mesma idempotency_key: devolve o diagnóstico existente,
+   sem duplicar;
+6. imagem inválida: 400;
+7. alertas de diagnóstico, exceto para "saudavel" e "indisponivel";
+8. timestamp ou leitura inválidos: 422 antes do upload;
+9. imagem acima de 5 MB: 413;
+10. requisições simultâneas com a mesma chave: a segunda devolve o
+    diagnóstico da primeira;
+11. imagem inadequada e ressalva de plausibilidade ambiental.
 """
 
 from datetime import datetime, timedelta
@@ -68,45 +42,14 @@ async def _salvar_imagem_falso(device_id: str, timestamp: str, bytes_imagem: byt
 
 @lru_cache(maxsize=1)
 def _imagem_falsa() -> bytes:
-    """Um JPEG pequeno, mas de verdade, e com TEXTURA.
-
-    Era um quadrado de cor única até 2026-10-17. Isso deixou de servir
-    quando a guarda de qualidade entrou em app/core/inference.py: uma
-    imagem lisa é exatamente o que ela reprova (lente tampada, parede,
-    fora de foco total), então todo teste de envio bem-sucedido passou a
-    receber "imagem_inadequada" em vez do diagnóstico esperado.
-
-    A falha foi útil: provou que a guarda pega o caso para o qual foi
-    escrita. O padrão quadriculado abaixo tem brilho e desvio padrão
-    acima dos limiares, imitando uma foto com conteúdo.
-
-    EM 2026-11-02 A FIXTURE PRECISOU EVOLUIR DE NOVO, pelo mesmo motivo.
-    O diagnóstico por janela (app/core/janelas.py) exige, além de brilho
-    e textura, COBERTURA DE VERDE: janela sem folha não vale
-    diagnóstico. O xadrez cinza passava na guarda antiga e era recusado
-    por "sem folha", devolvendo imagem_inadequada em oito testes.
-
-    De novo a falha foi útil, e pela mesma razão: provou que a guarda
-    por janela recusa o que não é folha. A correção é tornar o xadrez
-    VERDE e grande o bastante para render janelas, não afrouxar a
-    guarda.
-
-    O tamanho importa: janelas.recortar decodifica em metade (ESCALA=2)
-    e recorta blocos de 448, então uma imagem de 64 px não rende janela
-    nenhuma."""
+    """JPEG com textura e cobertura verde, grande o suficiente para render
+    janelas aproveitáveis; uma imagem lisa seria reprovada pela
+    verificação de qualidade."""
     import numpy as np
 
-    # Xadrez VERDE de 16x16 com ruído leve. Verde porque a guarda por
-    # janela mede cobertura de folha.
-    #
-    # O TAMANHO TEM QUE RENDER PELO MENOS JANELAS_MINIMAS JANELAS. Com
-    # 1024x1024 saía UMA só: recortar() decodifica em metade, sobram
-    # 512 px, e uma janela de 448 com passo 224 só cabe uma vez. Em
-    # 2026-11-03, quando o mínimo de janelas entrou, isso derrubou três
-    # testes com "imagem_inadequada".
-    #
-    # 2688x1512 (16:9, como a câmera) vira 1344x756 e rende 5 por 2,
-    # ou seja 10 janelas: margem confortável sobre o mínimo de 6.
+    # Xadrez verde de 16x16 com ruído leve. Em 2688x1512 (16:9), a
+    # decodificação em metade da resolução rende 10 janelas, acima do
+    # mínimo de 6.
     largura, altura = 2688, 1512
     base = np.indices((altura, largura)).sum(axis=0) // 8 % 2
     rng = np.random.default_rng(42)
@@ -131,20 +74,9 @@ def _imagem_escura() -> bytes:
 
 
 def _forcar_diagnostico(monkeypatch, resultado):
-    """Faz a rota devolver `resultado`, seja qual for o caminho de
-    inferencia.
-
-    Desde 2026-11-02 a rota tem DOIS caminhos: o quadro inteiro
-    (inference.rodar_inferencia) e a janela deslizante
-    (janelas.diagnosticar_por_janelas), escolhidos por
-    DIAGNOSTICO_POR_JANELA. Um teste que so trocava o primeiro passou a
-    nao ter efeito nenhum quando a chave ligou, e o sintoma era
-    confuso: o teste de alerta falhava como se o alerta estivesse
-    quebrado.
-
-    Estes testes sao sobre ALERTA e RESSALVA, nao sobre qual caminho de
-    inferencia roda, entao eles fixam a saida dos dois.
-    """
+    """Faz a rota devolver `resultado` nos dois caminhos de inferência
+    (quadro inteiro e janelas), para testar alertas e ressalvas
+    independentemente do caminho."""
     def _quadro(_interpretador, _imagem):
         return dict(resultado)
 
@@ -208,11 +140,8 @@ async def test_envio_com_sucesso_grava_as_tres_tabelas(monkeypatch):
 
     assert resposta.status_code == 200
     corpo = resposta.json()
-    # Antes este teste fixava "indisponivel", porque o modelo nao
-    # carregava. Nao era o comportamento desejado: era um bug de caminho
-    # relativo (ver test_inference.py). Agora o modelo real roda, entao a
-    # assercao e sobre o CONTRATO, nao sobre uma classe especifica: assim
-    # o teste continua valendo quando o modelo for retreinado.
+    # Com o modelo real carregado, a asserção é sobre o contrato, não sobre
+    # uma classe específica.
     assert corpo["classe_prevista"] in inference_module._CLASSES_DO_MODELO, (
         f"classe {corpo['classe_prevista']!r} fora de _CLASSES_DO_MODELO. "
         "Se virou 'indisponivel', o modelo nao carregou."
@@ -352,17 +281,8 @@ async def test_diagnostico_ruim_gera_alerta_mas_indisponivel_nao(monkeypatch):
 
 
 async def test_titulo_do_alerta_nao_vaza_nome_tecnico_da_classe(monkeypatch):
-    """O titulo do alerta e texto GRAVADO, nao classe que a tela traduz.
-
-    O titulo era montado interpolando a chave crua da classe, e o
-    alerta do ciclo de 2026-11-03 chegou ao aplicativo escrito
-    "Possivel estresse_foliar detectado", com o sublinhado a vista. O
-    app tem a sua propria tabela de rotulos, mas ela nao alcanca este
-    caso: o que esta em alertas.titulo e o que o produtor le.
-
-    A classe escolhida aqui e justamente a de nome composto, que e a
-    unica em que o defeito aparecia.
-    """
+    """O título do alerta é texto gravado e deve usar o nome legível da
+    classe, sem sublinhados."""
     monkeypatch.setattr(
         "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
     )
@@ -397,7 +317,7 @@ async def test_leitura_fora_da_faixa_gera_alerta_ambiental(monkeypatch):
 
     payload = _payload_valido(
         idempotency_key="risco-ambiental",
-        temperatura_c="40.0",  # acima do limiar (ver docs/decisions/0005-limiares-ambientais.md)
+            temperatura_c="40.0",  # acima do limiar de temperatura
         umidade_solo_pct="10.0",  # solo seco
     )
 
@@ -422,9 +342,8 @@ async def test_leitura_fora_da_faixa_gera_alerta_ambiental(monkeypatch):
 
 
 async def test_doenca_e_risco_ambiental_juntos_correlaciona_no_texto(monkeypatch):
-    """Quando doença e risco ambiental ocorrem no mesmo ciclo, a
-    descricao do alerta de doenca deve citar isso (correlacao em texto,
-    ver ADR 0006: nao e fusao de modelo, so uma mensagem mais util)."""
+    """Quando doença e risco ambiental ocorrem no mesmo ciclo, a descrição
+    do alerta de doença menciona as condições ambientais."""
     monkeypatch.setattr(
         "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
     )
@@ -502,11 +421,9 @@ async def test_imagem_maior_que_limite_retorna_413(monkeypatch):
 
 
 async def test_corrida_de_idempotency_key_no_commit_nao_quebra(monkeypatch, tmp_path):
-    """Simula a corrida: forca a checagem inicial a nao encontrar nada
-    (como se as duas requisicoes tivessem chegado juntas), mas ja existe
-    de verdade uma linha com a mesma idempotency_key no banco. O commit
-    deve bater na constraint UNIQUE e o endpoint deve se recuperar,
-    devolvendo o diagnostico ja existente em vez de um 500."""
+    """Simula a corrida: a verificação inicial não encontra a linha, que já
+    existe no banco. O commit viola a restrição UNIQUE e a rota devolve o
+    diagnóstico existente, sem erro 500."""
     monkeypatch.setattr(
         "app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso
     )
@@ -534,10 +451,8 @@ async def test_corrida_de_idempotency_key_no_commit_nao_quebra(monkeypatch, tmp_
         await sessao_setup.commit()
         id_vencedor = diagnostico_vencedor.id
 
-    # forca a checagem INICIAL da requisicao "perdedora" a nao ver a
-    # linha que acabou de ser commitada, simulando a janela de corrida.
-    # Mas a segunda chamada (dentro do except IntegrityError, buscando
-    # o vencedor de verdade) precisa continuar funcionando normalmente.
+    # A verificação inicial da requisição "perdedora" não vê a linha; a
+    # busca dentro do tratamento de IntegrityError funciona normalmente.
     busca_real = diagnostico_module._buscar_diagnostico_por_idempotency_key
     contador = {"chamadas": 0}
 
@@ -575,18 +490,8 @@ async def test_corrida_de_idempotency_key_no_commit_nao_quebra(monkeypatch, tmp_
 
 
 async def test_foto_reprovada_guarda_a_imagem_mas_nao_afirma_diagnostico(monkeypatch):
-    """O comportamento decidido pelo grupo em 2026-10-17.
-
-    A captura com foto ruim NÃO é descartada: a imagem é guardada e as
-    leituras também, porque é olhando a própria foto que o produtor
-    descobre o que aconteceu (LED apagado, lente suja, captura à noite)
-    e confere se o aviso estava certo.
-
-    O que NÃO acontece é afirmar um diagnóstico. Sem esta guarda, uma
-    foto preta recebia "saudavel" com 0,93 de confiança, que é a
-    afirmação mais perigosa que este sistema pode fazer: diz ao produtor
-    que a planta está bem, com alta confiança, sobre uma imagem onde não
-    se vê nada."""
+    """Captura com foto inadequada é gravada (imagem e leituras), mas sem
+    diagnóstico afirmado."""
     monkeypatch.setattr("app.api.routes.diagnostico.salvar_imagem", _salvar_imagem_falso)
 
     with TestClient(app) as client:
@@ -618,28 +523,13 @@ async def test_foto_reprovada_guarda_a_imagem_mas_nao_afirma_diagnostico(monkeyp
         assert len(alertas) == 1
         assert "analisar a foto" in alertas[0].titulo.lower()
         assert alertas[0].severidade == "media", "pede conferir a camera, nao agir no cultivo"
-        # E nenhum alerta de doenca: o sistema nao acusa doenca nenhuma
-        # a partir de uma foto que ele mesmo recusou analisar. O alerta
-        # de doenca tem o formato "Sinal de <classe> na planta", e e
-        # esse prefixo que o distingue.
-        #
-        # A assercao era sobre a palavra "detectado", do titulo antigo.
-        # Depois que o titulo mudou ela continuava passando, mas sem
-        # provar nada: nenhum titulo tem mais essa palavra.
+        # Nenhum alerta de doença (prefixo "Sinal de <classe> na planta").
         assert "sinal de" not in alertas[0].titulo.lower()
 
 
 # --- 11. ressalva de plausibilidade ambiental ---------------------------
-#
-# O modelo de imagem nao duvida de si mesmo: medido em 2026-11-01, os
-# logits de uma planta com amarelamento nutricional ficam no mesmo
-# patamar dos das classes conhecidas (mediana 1,70 contra 1,89), entao
-# ele acusa doenca com confianca alta e nada na visao o contradiz. Quem
-# contradiz e o historico da estufa, via app/core/pressao_infecciosa.py.
-#
-# O que os testes abaixo fixam: a ressalva so aparece quando ha medicao
-# suficiente E o ambiente de fato nao sustentou infeccao, e ela nunca
-# substitui a recomendacao agronomica, so se soma a ela.
+# A ressalva só aparece com medição suficiente e quando o ambiente não
+# sustentou infecção, e é somada à recomendação, sem substituí-la.
 
 
 def _inferencia_fungica(_interpretador, _imagem):

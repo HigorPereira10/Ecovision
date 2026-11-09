@@ -1,6 +1,4 @@
 /**
- * app/src/components/EstadoErro.tsx
- *
  * Estado de erro em tela cheia, usado quando a carga inicial de uma
  * tela falha (ainda não há nenhum dado pra mostrar). Ícone + mensagem
  * + botão "Tentar novamente", no mesmo padrão visual em todas as

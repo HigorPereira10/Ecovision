@@ -1,32 +1,11 @@
 """
-edge/src/main.py
+Ciclo de captura, executado pelo cron a cada 2 horas.
 
-Orquestrador principal do ciclo de captura, executado periodicamente
-via cron (Blueprint v3.0, Fase 2: agendamento de captura a cada 2h).
-
-Fluxo:
-1. Ler sensores (sensors/dht22.py, sensors/soil_moisture.py), com
-   tolerância a falha: um sensor ambiental instável não deve impedir a
-   captura da foto, que é o dado mais valioso do ciclo (ver
-   _ler_sensores()).
-2. Acionar o Ring LED via MOSFET (actuators/led_flash.py), abraçando a
-   captura da foto para garantir sincronismo real entre flash e câmera.
-   Espera LED_FLASH_DURATION_SECONDS com o LED já aceso antes de disparar
-   a câmera, para a foto não sair mal iluminada.
-3. Capturar a foto (capture.py) com autofoco.
-4. Comprimir a imagem (compress.py).
-5. Enfileirar o pacote (imagem + leituras) na fila offline
-   (queue/offline_queue.py).
-6. Tentar drenar a fila e enviar para a API (upload/uploader.py), de
-   forma best-effort. Uma falha de rede aqui não deve derrubar o cron
-   de captura, já que a drenagem "de verdade" está garantida pelo cron
-   separado de 15min (crontab.example).
-
-Relação com o resto do sistema:
-- É o script chamado pelo `crontab.example`.
-- Depende de todos os demais módulos de edge/src/.
-- O destino final dos dados é o endpoint POST /diagnostico da API
-  (cloud/app/api/routes/diagnostico.py).
+1. Lê os sensores; a falha de um sensor não impede a captura da foto.
+2. Aciona o LED e aguarda LED_FLASH_DURATION_SECONDS antes da foto.
+3. Captura a imagem e a recomprime em JPEG.
+4. Grava imagem e leituras na fila local.
+5. Tenta drenar a fila (melhor esforço; o cron de 15 minutos garante o envio).
 """
 
 import logging
@@ -35,10 +14,8 @@ import time
 from pathlib import Path
 
 if __name__ == "__main__":
-    # Cron invoca este arquivo diretamente (`python edge/src/main.py`),
-    # então a raiz do repositório não entra em sys.path por padrão. Ela
-    # precisa ser adicionada manualmente para os imports `edge.src.*`
-    # funcionarem.
+    # O cron executa este arquivo diretamente; a raiz do repositório
+    # precisa estar em sys.path para os imports edge.src.*.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from edge.src import capture, compress, config
@@ -52,11 +29,8 @@ logger = logging.getLogger("ecovision.edge")
 
 
 def _ler_sensores() -> dict:
-    """Lê DHT22 e sensor de solo com tolerância a falha individual: se um
-    sensor falhar (ex.: o DHT22 é propenso a falhas pontuais de leitura,
-    ver dht22.py), grava None nesse campo e segue o ciclo em vez de
-    abortar. A foto não deve ser perdida por causa de um sensor
-    ambiental instável."""
+    """Lê DHT22 e sensor de solo; um sensor que falha vira None, sem
+    interromper o ciclo."""
     leituras: dict = {}
 
     try:
@@ -76,21 +50,14 @@ def _ler_sensores() -> dict:
 
 
 def ciclo_de_captura() -> None:
-    """Executa um ciclo completo: sensores -> LED -> foto -> compressão -> fila -> upload."""
+    """Executa um ciclo completo: sensores, LED, foto, compressão, fila e envio."""
     leituras = _ler_sensores()
     logger.info("Leituras dos sensores: %s", leituras)
 
     led_flash.ligar_led(config.LED_MOSFET_PIN)
     try:
-        # Espera o LED estabilizar antes de disparar a câmera, para a foto
-        # não sair mal iluminada por causa do LED ainda subindo de brilho.
-        #
-        # O LED fica aceso durante a captura inteira, não só por esta
-        # espera. Medido no dispositivo, o ciclo leva de 5,6s a 27s, e
-        # quem domina esse tempo é o autofoco: quanto mais escura a
-        # cena, mais ele demora a convergir. É esse tempo, e não os
-        # 0,5s do nome da variável, que dimensiona a potência do
-        # resistor em série do LED.
+        # O LED fica aceso durante toda a captura; esta espera só deixa o
+        # brilho estabilizar antes do disparo.
         time.sleep(config.LED_FLASH_DURATION_SECONDS)
         imagem_crua = capture.capturar_imagem()
     finally:
@@ -105,9 +72,7 @@ def ciclo_de_captura() -> None:
     try:
         uploader.drenar_fila_e_enviar()
     except Exception:
-        # Melhor esforço: se a rede estiver fora agora, o cron de
-        # drenagem (15min) tenta de novo depois. O ciclo de captura não
-        # deve falhar por causa disso.
+        # Melhor esforço: sem rede agora, o cron de drenagem tenta depois.
         logger.warning("Falha ao tentar drenar a fila imediatamente.", exc_info=True)
 
 

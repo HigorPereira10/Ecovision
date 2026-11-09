@@ -1,19 +1,6 @@
 """
-cloud/app/db/schemas.py
-
-Schemas Pydantic usados para validação de entrada/saída dos endpoints
-FastAPI (app/api/routes/*.py), separados dos modelos ORM (app/db/models.py)
-por boa prática (não expor a estrutura de banco diretamente na API).
-
-Relação com o resto do sistema:
-- DiagnosticoOut: usado por app/api/routes/diagnostico.py.
-- LoginRequest/TokenResponse/RefreshRequest: usados por
-  app/api/routes/auth.py.
-- LeituraOut: usado por app/api/routes/leituras.py.
-- DiagnosticoHistoricoOut: usado por app/api/routes/diagnosticos.py.
-- AlertaOut: usado por app/api/routes/alertas.py.
-- UsuarioOut: usado por app/api/routes/usuarios.py.
-- DispositivoOut: usado por app/api/routes/dispositivos.py.
+Schemas Pydantic de entrada e saída das rotas, separados dos modelos ORM
+para não expor a estrutura do banco na API.
 """
 
 from datetime import datetime
@@ -24,12 +11,10 @@ from pydantic import BaseModel, ConfigDict
 class DiagnosticoOut(BaseModel):
     """Resposta de POST /diagnostico, devolvida ao dispositivo.
 
-    `classe_prevista` pode ser uma das classes do modelo, ou um dos dois
-    valores especiais: "indisponivel" (nenhum modelo carregado) e
-    "imagem_inadequada" (a foto foi reprovada na guarda de qualidade de
-    app/core/inference.py, e nenhum diagnóstico foi afirmado). Nos dois
-    casos `confianca` vem 0.0, e em "imagem_inadequada" `recomendacao`
-    traz o motivo em linguagem de produtor."""
+    `classe_prevista` é uma classe do modelo ou um dos valores especiais
+    "indisponivel" (modelo não carregado) e "imagem_inadequada" (foto
+    reprovada na verificação de qualidade). Nos dois casos `confianca` é
+    0.0; em "imagem_inadequada", `recomendacao` traz o motivo."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -49,15 +34,9 @@ class LoginRequest(BaseModel):
 class RegistroRequest(BaseModel):
     """Corpo de POST /auth/register.
 
-    Sem data de nascimento de propósito: o campo existia na primeira
-    versão da tela de cadastro, mas nenhuma funcionalidade do sistema
-    usa a idade do produtor, e a LGPD manda coletar só o indispensável
-    para a finalidade declarada (princípio da necessidade). Guardar essa
-    data criaria obrigação extra sem entregar nada.
-
-    A validação de formato acontece em app/api/routes/auth.py, não aqui,
-    para a resposta poder listar TODAS as regras de senha que falharam
-    de uma vez, e não só a primeira."""
+    Coleta apenas os dados necessários (nome, e-mail e senha). As regras
+    de senha são validadas em app/api/routes/auth.py, para que a resposta
+    liste todas as regras não cumpridas de uma vez."""
 
     nome: str
     email: str
@@ -65,19 +44,16 @@ class RegistroRequest(BaseModel):
 
 
 class UsuarioCriadoOut(BaseModel):
-    """Resposta de POST /auth/register. Não devolve token: o fluxo da
-    tela é criar a conta e voltar para o login (ver CadastroScreen.tsx).
-    Fazer login automático aqui obrigaria a emitir sessão para um email
-    que ninguém confirmou."""
+    """Resposta de POST /auth/register. Não devolve token: a sessão só é
+    emitida após a confirmação do e-mail."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int
     nome: str | None
     email: str
-    # False quando o SMTP não está configurado e a conta já nasceu
-    # ativa. O app usa isto para decidir se leva o produtor para a tela
-    # de código ou direto para o login.
+    # False quando não há envio de e-mail configurado e a conta já nasce
+    # ativa; o aplicativo decide se abre a tela de código ou o login.
     email_verificado: bool
 
 
@@ -95,14 +71,8 @@ class EsqueciSenhaRequest(BaseModel):
 
 
 class ReenviarCodigoRequest(BaseModel):
-    """Corpo de POST /auth/resend-code.
-
-    Pede um código de confirmação novo para uma conta que ainda não
-    confirmou o e-mail. Existe porque, sem ele, um e-mail que não chega
-    (cai no spam e é apagado, endereço digitado com um caractere
-    errado, falha momentânea do Brevo) deixaria a conta permanentemente
-    inacessível: o login recusa quem não confirmou, e não havia outro
-    jeito de gerar um código."""
+    """Corpo de POST /auth/resend-code: novo código de confirmação para
+    uma conta ainda não confirmada."""
 
     email: str
 
@@ -116,20 +86,15 @@ class RedefinirSenhaRequest(BaseModel):
 
 
 class MensagemOut(BaseModel):
-    """Resposta genérica das rotas de email.
-
-    Deliberadamente sem nenhum dado: nunca devolve o código, nem diz se
-    a conta existe. O código sai apenas pelo email. Se ele voltasse
-    aqui, bastaria olhar a resposta no navegador para redefinir a senha
-    de qualquer pessoa, e a resposta ainda denunciaria quais emails
-    estão cadastrados."""
+    """Resposta genérica das rotas de e-mail: não devolve o código nem
+    indica se a conta existe."""
 
     mensagem: str
 
 
 class VincularDispositivoRequest(BaseModel):
-    """Corpo de POST /dispositivos/vincular. `codigo` é o que vem na
-    etiqueta do aparelho, no formato ECO-XXXX-XXXX."""
+    """Corpo de POST /dispositivos/vincular; `codigo` no formato
+    ECO-XXXX-XXXX."""
 
     codigo: str
 
@@ -149,27 +114,11 @@ class TokenResponse(BaseModel):
 
 
 class LeituraOut(BaseModel):
-    """Item de GET /leituras. Nomes de campo mantidos como no schema
-    real (temperatura_c, umidade_ar_pct, umidade_solo_pct), diferente
-    dos nomes antigos do mock do app/ (temperatura, umidade_ar,
-    umidade_solo). A tradução entre os dois acontece no app, em
-    app/src/services/leituras.ts, para as telas não precisarem mudar.
+    """Item de GET /leituras.
 
-    As três medições são opcionais de propósito: quando um sensor falha,
-    edge/src/main.py grava None naquele campo e segue o ciclo, para não
-    perder a foto por causa de um sensor instável. O app precisa exibir
-    isso como ausência de leitura, nunca como zero.
-
-    `device_id` é coluna da própria leitura desde a migration 0008.
-    Antes vinha de registros_imagem por join, porque leitura só existia
-    junto de uma captura. Com o Pi mandando sensor sem foto a cada 15
-    minutos, o join deixou de existir para essas linhas, e uma leitura
-    sem dono some do escopo por produtor e do filtro por campo do app.
-
-    `tem_foto` diz se aquela leitura veio de um ciclo de captura. O app
-    não precisa do dado para desenhar o gráfico, as três séries são
-    iguais nos dois casos, mas precisa para explicar ao produtor por que
-    existem muito mais pontos de ambiente do que diagnósticos.
+    As medições são opcionais: um sensor com falha gera campo nulo, que o
+    aplicativo exibe como ausência de leitura, nunca como zero.
+    `tem_foto` indica se a leitura veio de um ciclo de captura.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -184,20 +133,11 @@ class LeituraOut(BaseModel):
 
 
 class LeituraDispositivoIn(BaseModel):
-    """Corpo de POST /leituras, o ciclo de sensor sem foto.
+    """Corpo de POST /leituras, o ciclo de leitura sem foto (JSON).
 
-    Formato JSON, diferente de POST /diagnostico, que é multipart porque
-    carrega um arquivo. Sem arquivo, multipart só adicionaria cerimônia.
-
-    As três medições são opcionais pelo mesmo motivo de sempre: quando um
-    sensor falha, edge/src/sensores.py manda None naquele campo em vez de
-    abortar o ciclo. Uma requisição com as três nulas é aceita e gravada:
-    "nenhum sensor respondeu às 14:15" é informação, e é exatamente o que
-    a tela precisa para não exibir a leitura de duas horas atrás como se
-    fosse de agora.
-
-    `idempotency_key` evita linha duplicada quando a resposta se perde e
-    o Pi reenvia. Ver o comentário em LeituraAmbiental.idempotency_key.
+    As medições são opcionais; uma requisição com as três nulas é aceita,
+    pois indica que o ciclo ocorreu sem resposta dos sensores.
+    `idempotency_key` evita duplicidade em reenvios.
     """
 
     device_id: str
@@ -208,26 +148,13 @@ class LeituraDispositivoIn(BaseModel):
 
 
 class DiagnosticoHistoricoOut(BaseModel):
-    """Item de GET /diagnosticos. `caminho_arquivo` é o caminho dentro
-    do bucket do Supabase Storage (não uma URL, útil só para depuração).
-    `url_imagem` é a signed URL pronta para exibir na tela (ver
-    app/storage/supabase_storage.py e
-    infra/supabase/storage_policies.md), válida por um tempo limitado;
-    vem None se a geração da URL falhar (a lista não deve quebrar por
-    causa de uma imagem).
+    """Item de GET /diagnosticos.
 
-    `device_id` vem de registros_imagem (via join), igual ao de
-    LeituraOut: o diagnóstico não guarda o dispositivo, ele chega pelo
-    registro de imagem que foi classificado. É o que permite à tela de
-    Histórico filtrar diagnóstico por estufa com o mesmo seletor que
-    filtra leitura. Antes de existir, o app assumia que todo
-    diagnóstico era do dispositivo de id 1, o que só funcionava
-    enquanto houvesse um único Pi no mundo.
-
-    `classe_prevista` é o nome técnico da classe ('pinta_preta',
-    'septoriose', 'saudavel'), não um rótulo de exibição. Quem traduz
-    para texto de tela é app/src/domain/doencas.ts, no frontend: a API
-    devolve o dado, a interface decide como escrevê-lo."""
+    `caminho_arquivo` é o caminho no bucket; `url_imagem` é a URL assinada
+    para exibição, com validade limitada, ou None se não puder ser gerada.
+    `device_id` vem do registro de imagem classificado. `classe_prevista`
+    é o nome técnico da classe; a tradução para texto fica no aplicativo
+    (app/src/domain/doencas.ts)."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -242,10 +169,9 @@ class DiagnosticoHistoricoOut(BaseModel):
 
 
 class AlertaOut(BaseModel):
-    """Item de GET /alertas. `id` é None e `sintetico` é True para o
-    alerta de dispositivo inativo (ADR 0008), que não corresponde a
-    nenhuma linha real da tabela `alertas`: o frontend não deve tentar
-    dar PATCH .../lido num item com sintetico=True."""
+    """Item de GET /alertas. Para o alerta sintético de dispositivo
+    inativo, `id` é None e `sintetico` é True; ele não pode ser marcado
+    como lido."""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -259,17 +185,10 @@ class AlertaOut(BaseModel):
 
 
 class UsuarioOut(BaseModel):
-    """Resposta de GET /usuarios/me (tela de Perfil do app).
+    """Resposta de GET /usuarios/me.
 
-    `papel` é devolvido porque o app muda o que exibe conforme ele:
-    hoje, o botão de notificação de demonstração na tela de Alertas só
-    aparece para 'administrador'. Não é informação sensível (o próprio
-    JWT do usuário já carrega esse campo assinado, ver
-    app/core/security.py), e devolver aqui evita o app ter que decodificar
-    o token por conta própria para descobrir algo que já é dele.
-
-    `nome` é opcional porque a coluna nasceu nula na migration 0004,
-    quando as contas existentes foram semeadas à mão sem esse dado.
+    `papel` permite ao aplicativo ajustar a interface (o mesmo valor já
+    consta no token). `nome` é opcional para contas antigas.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -280,28 +199,13 @@ class UsuarioOut(BaseModel):
 
 
 class DispositivoOut(BaseModel):
-    """Item de GET /dispositivos. `status` ('ativo' | 'inativo') é
-    computado sob demanda a partir da última captura recebida daquele
-    device_id, reaproveitando app/core/alertas_dispositivo.py (ADR
-    0008), não é uma coluna gravada no banco.
+    """Item de GET /dispositivos.
 
-    `campo`, `setor` e `intervalo_captura_min` eram, até 2026-10-10,
-    apenas enfeite no mock do app. Viraram colunas de verdade
-    (migration 0006) para a tela de Perfil poder consumir a API real em
-    vez de exibir um dispositivo inventado.
-
-    Os `limiar_*` NÃO são configuráveis por dispositivo: são os valores
-    que app/core/alertas_ambientais.py realmente usa para decidir se
-    gera alerta. Vêm na resposta porque a tela os exibe, e mostrar o
-    número verdadeiro é melhor do que mostrar um valor de enfeite que
-    não controla nada.
-
-    `limiar_umidade_solo` é o limite INFERIOR (solo seco), enquanto os
-    outros dois são limites superiores. A assimetria é proposital: o
-    card tem espaço para um valor por medição, e o número sobre o qual o
-    produtor age, em estufa irrigada, é quase sempre o da seca. O limite
-    superior (solo encharcado) continua existindo na lógica e gerando
-    alerta, só não cabe nesta tela."""
+    `status` ("ativo" ou "inativo") é calculado a partir da última captura
+    (app/core/alertas_dispositivo.py). Os campos `limiar_*` são os valores
+    usados por app/core/alertas_ambientais.py, exibidos na tela de Perfil;
+    `limiar_umidade_solo` é o limite inferior (solo seco), e os demais são
+    limites superiores."""
 
     model_config = ConfigDict(from_attributes=True)
 

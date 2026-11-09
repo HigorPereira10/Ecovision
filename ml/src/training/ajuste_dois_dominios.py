@@ -1,89 +1,32 @@
 """
-ml/src/training/ajuste_dois_dominios.py
+Ajuste fino do modelo base com imagens de laboratório (PlantVillage) e de
+campo (PlantDoc) ao mesmo tempo, gerando o modelo de três classes
+(ml/models/modelo.tflite).
 
-Gera o modelo que esta em producao (ml/models/modelo.tflite), por ajuste
-fino do baseline com DOIS dominios de imagem ao mesmo tempo.
+O modelo base, treinado só com laboratório, acertava 57,0% em campo.
+Ajustar só com campo trocava um domínio pelo outro (laboratório caía de
+90,7% para 78,2%). Com os dois domínios juntos, a validação cruzada de 5
+dobras (3.577 imagens, comparação pareada) deu:
 
-POR QUE ESTE AJUSTE EXISTE
---------------------------
-O baseline (ml/training/baseline_pinta_preta.keras) foi treinado so com
-imagem de laboratorio: folha arrancada, fundo uniforme, luz de estudio.
-Medido em 2026-10-22 sobre 277 fotos DE CAMPO (PlantDoc), ele acertava
-57,0%, com o acaso em 33,3%. Ou seja: ia bem no dominio em que aprendeu
-e mal no dominio em que o sistema de fato opera, que e foto de planta na
-estufa.
+    domínio       modelo base       este ajuste
+    laboratório   90,7% ± 0,2       95,3% ± 0,8
+    campo         57,0% ± 4,7       74,0% ± 2,3
 
-Ajustar so com foto de campo resolvia metade do problema e criava outra:
-subia campo para 69,3% e DERRUBAVA laboratorio de 90,7% para 78,2%, e o
-modelo passava a chamar 495 das 1100 pinta pretas de laboratorio de
-septoriose, porque herdava o desequilibrio do PlantDoc (138 septoriose
-de 277). Era troca, nao melhora.
+Decisões do ajuste:
+1. Só as 30 últimas camadas da base são descongeladas, exceto as de
+   BatchNormalization, cujas estatísticas seriam ruidosas com lotes de 16.
+2. Taxa de aprendizado de 1e-5, para evitar esquecimento catastrófico.
+3. Peso por classe e por domínio: 3.000 imagens de laboratório contra 249
+   de campo. Como o Keras aceita apenas peso por classe, o peso de domínio
+   entra na contagem efetiva de cada classe (aproximação).
 
-Treinar com os dois dominios juntos eliminou a troca.
+Dados (não versionados; publicados no Zenodo ou de origem pública):
+- campo: ml/data/plantdoc_tomate/, na divisão de plantdoc_tomate_divisao.csv;
+- laboratório: PlantVillage, tomate, 3 classes com 1.100 imagens cada.
 
-RESULTADO (validacao cruzada de 5 dobras, 3577 imagens, cada uma testada
-uma vez, comparacao pareada contra o baseline nas MESMAS imagens):
-
-    dominio       baseline          este ajuste
-    laboratorio   90,7% +- 0,2      95,3% +- 0,8    (+4,5 p.p.)
-    campo         57,0% +- 4,7      74,0% +- 2,3   (+17,0 p.p.)
-
-Venceu nas 5 dobras dos dois dominios: 10 comparacoes pareadas, 10
-vitorias. Em campo tambem ficou mais estavel, com metade do desvio.
-
-TRES DECISOES QUE FAZEM ESTE AJUSTE FUNCIONAR
----------------------------------------------
-1. SO O TOPO DA BASE E DESCONGELADO (as 30 ultimas camadas, menos as de
-   BatchNormalization). As camadas iniciais detectam borda e textura, que
-   valem para qualquer imagem; descongelar tudo com poucas fotos de campo
-   destruiria o que a rede aprendeu no ImageNet. As de BatchNormalization
-   ficam congeladas porque, com lote de 16, as estatisticas de lote sao
-   ruidosas demais e desestabilizam o ajuste.
-
-2. TAXA DE APRENDIZADO BAIXA (1e-5, contra 1e-3 do treino original).
-   Ajuste fino precisa de passos pequenos, senao o modelo esquece o que
-   ja sabia. E o chamado esquecimento catastrofico, e foi exatamente o
-   que aconteceu na versao que treinou so com campo.
-
-3. PESO POR CLASSE E POR DOMINIO. Sao 3000 fotos de laboratorio contra
-   249 de campo. Sem compensar, o campo vira ruido estatistico e o ajuste
-   nao muda nada. Cada foto de campo entra valendo por cerca de 12 de
-   laboratorio no calculo do class_weight.
-
-   ATENCAO, APROXIMACAO ASSUMIDA: o Keras so aceita peso por CLASSE, nao
-   por amostra. O peso de dominio entra embutido na contagem efetiva por
-   classe, o que nao e equivalente a pesar cada imagem individualmente.
-   Funcionou na medicao, mas nao e a formulacao exata do problema.
-
-DADOS
------
-- Campo: ml/data/plantdoc_tomate/ (PlantDoc, recorte de tomate em 3
-  classes). ATENCAO: NAO esta versionado. O .gitignore ignora ml/data/
-  inteiro por peso, entao este conjunto vive apenas na maquina de quem
-  treina. Vale tanto para as imagens quanto para a DIVISAO entre train/
-  e test/, que e a parte insubstituivel: o PlantDoc e publico, a nossa
-  divisao nao. Enquanto o deposito no Zenodo nao sair, perder o disco
-  significa nao conseguir reproduzir nenhuma metrica de campo.
-- Laboratorio: PlantVillage tomate, 3 classes, 1100 imagens cada. NAO
-  esta versionado aqui por tamanho (cerca de 400 MB). Foi obtido do
-  recorte publico em
-  github.com/batestin1/coding_the_future_reconhecimento_de_pragas_com_redes_neurais
-  (pasta dataset/, imagens 256x256 com os nomes originais do
-  PlantVillage). Qualquer copia do PlantVillage tomate serve, desde que
-  as pastas sejam mapeadas para as mesmas 3 classes.
-
-ARMADILHAS QUE CONTINUAM VALENDO (ver ADR 0011)
------------------------------------------------
-- O modelo normaliza POR DENTRO: quem chama passa pixels CRUS de 0 a 255.
-- A ordem das classes e septoriose, pinta_preta, saudavel, e tem que
-  bater com _CLASSES_DO_MODELO em cloud/app/core/inference.py.
-- Exportar SEM quantizacao.
-- O vies do escuro NAO foi resolvido por este ajuste: foto subexposta
-  continua saindo como "saudavel" com confianca alta. A guarda de
-  qualidade de imagem em cloud/app/core/inference.py segue obrigatoria.
-
-Como rodar (precisa de TensorFlow, que nao entra em cloud/requirements.txt
-por causa do limite de RAM do Railway; usar um venv separado):
+O modelo normaliza internamente (pixels de 0 a 255), a ordem das classes
+é septoriose, pinta_preta, saudavel (igual a _CLASSES_DO_MODELO) e a
+exportação é sem quantização. Requer TensorFlow, em ambiente separado:
 
     python ml/src/training/ajuste_dois_dominios.py --laboratorio <caminho>
 """

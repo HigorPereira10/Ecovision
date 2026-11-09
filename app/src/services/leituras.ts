@@ -1,34 +1,15 @@
 /**
- * app/src/services/leituras.ts
+ * Leituras ambientais (temperatura, umidade do ar e umidade do solo), a
+ * partir de GET /leituras.
  *
- * Camada de dados para leituras ambientais (temperatura, umidade do ar,
- * umidade do solo). Consome GET /leituras da API real (ver
- * cloud/app/api/routes/historico.py).
+ * Converte os nomes da API (temperatura_c, umidade_ar_pct,
+ * umidade_solo_pct, criado_em) para os usados pelas telas (temperatura,
+ * umidade_ar, umidade_solo, timestamp). A lista reúne as leituras de 15
+ * minutos e as dos ciclos de captura, distinguidas por `temFoto`.
  *
- * SERVE DE MODELO para migrar os demais serviços (alertas.ts,
- * diagnosticos.ts, dispositivos.ts, gastos.ts), que ainda leem de
- * src/mocks/. O padrão é: chamar api.get(), traduzir a resposta para a
- * interface que as telas já usam, e manter a assinatura async/Promise.
- *
- * TRADUÇÃO DE NOMES: a API usa os nomes do schema do banco
- * (temperatura_c, umidade_ar_pct, umidade_solo_pct, criado_em) e as
- * telas usam os nomes antigos (temperatura, umidade_ar, umidade_solo,
- * timestamp). A conversão fica aqui, num lugar só, para nenhuma tela
- * precisar mudar.
- *
- * DOIS CRONOGRAMAS, UMA SÉRIE: desde 2026-11-03 o Pi manda leitura de
- * sensor a cada 15 minutos (sem foto, POST /leituras) e captura completa
- * a cada 2 horas (POST /diagnostico). As duas chegam nesta mesma lista,
- * distinguidas por `temFoto`. Antes, leitura só existia junto de uma
- * foto, e a tela inicial exibia temperatura de até 2 horas atrás sem ter
- * nada mais novo para buscar.
- *
- * MEDIÇÃO AUSENTE: os três valores podem vir nulos. Quando um sensor
- * falha, o edge/ grava None naquele campo e segue o ciclo, para não
- * perder a foto por causa de um sensor instável. Nulo é propagado
- * como null de propósito: converter para 0 mostraria "0% de umidade do
- * solo", um valor válido e alarmante, quando na verdade não houve
- * medição. Os gráficos pulam esses pontos.
+ * Os valores podem vir nulos quando um sensor falha e são mantidos como
+ * null, nunca 0, que seria lido como medição; os gráficos ignoram esses
+ * pontos.
  */
 
 import { get } from './api';
@@ -55,13 +36,7 @@ export interface LeituraAmbiental {
   temperatura: number | null;
   umidade_ar: number | null;
   umidade_solo: number | null;
-  /** true quando a leitura veio de um ciclo de captura, com foto.
-   *
-   * Desde 2026-11-03 o Pi tem dois cronogramas: sensor a cada 15 min
-   * (POST /leituras) e foto a cada 2 h (POST /diagnostico). As telas
-   * desenham as duas igual, porque as medicoes sao as mesmas, mas o
-   * campo existe para poder explicar ao produtor por que o numero de
-   * pontos de ambiente nao bate com o de diagnosticos. */
+  /** true quando a leitura veio de um ciclo de captura, com foto. */
   temFoto: boolean;
   timestamp: string;
 }
@@ -73,10 +48,7 @@ function traduzir(bruta: LeituraDaApi): LeituraAmbiental {
     temperatura: bruta.temperatura_c,
     umidade_ar: bruta.umidade_ar_pct,
     umidade_solo: bruta.umidade_solo_pct,
-    // ?? false para o app nao quebrar contra uma API mais antiga, que
-    // nao devolvia este campo. Acontece de verdade: o aplicativo
-    // atualiza por EAS Update e o backend por deploy no Railway, e nada
-    // garante que os dois cheguem na mesma ordem.
+    // ?? false mantém compatibilidade com versões da API sem este campo.
     temFoto: bruta.tem_foto ?? false,
     timestamp: bruta.criado_em,
   };
@@ -104,8 +76,7 @@ export async function getUltimaLeitura(): Promise<LeituraAmbiental | null> {
 }
 
 /**
- * Retorna as leituras da janela padrão, ordenadas cronologicamente
- * (mais antiga primeiro), para o gráfico de série temporal.
+ * Leituras da janela padrão, em ordem cronológica, para os gráficos.
  */
 export async function getHistoricoLeituras(
   horas: number = JANELA_PADRAO_HORAS,

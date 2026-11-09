@@ -6,40 +6,10 @@ import { Diagnostico } from '../services/diagnosticos';
 import { rotuloDaClasse } from '../domain/doencas';
 
 /**
- * Distribuição dos diagnósticos no período e no campo que o produtor
- * escolheu nos filtros da tela de Histórico.
- *
- * POR QUE ESTE CARTÃO SUBSTITUIU O UmidadeBarChart
- * ------------------------------------------------
- * O cartão anterior, "Umidade registrada", plotava a umidade do solo
- * como barras verticais, uma por leitura. Dois problemas:
- *
- * 1. A tela de Histórico tem uma lista de leituras ambientais logo
- *    abaixo, com os mesmos números em texto. O gráfico não respondia
- *    nenhuma pergunta que a lista já não respondesse, e a mesma série
- *    de umidade agora aparece como linha com limiar na tela Início, que
- *    é onde ela diz algo (ver SerieTemporalCard).
- * 2. Barra é a forma de comparar CATEGORIAS. Umidade ao longo do tempo é
- *    série contínua, e desenhá-la em barras sugere que cada medição é
- *    uma coisa independente das outras.
- *
- * O que faltava na tela era o contrário: uma visão agregada dos
- * DIAGNÓSTICOS, que são categorias de verdade, e que até aqui só
- * existiam como lista de cartões um a um. Com 40 registros, responder
- * "quanto da minha estufa está doente?" exigia contar à mão.
- *
- * POR QUE UMA BARRA POR CLASSE, E NÃO A EMPILHADA DO INÍCIO
- * ---------------------------------------------------------
- * O cartão do Início resume três ESTADOS (sadia, estresse, doença) e a
- * barra empilhada mostra bem a proporção entre três partes de um todo.
- * Aqui são quatro ou mais CLASSES, e o produtor quer saber qual doença
- * apareceu, não só que apareceu alguma. Em barra empilhada, fatias de
- * 5% viram riscos ilegíveis; em barras separadas com o número ao lado,
- * cada classe se lê sozinha.
- *
- * A cor continua sendo a do estado, não da classe: verde para sadia,
- * âmbar para estresse, vermelho para doença, cinza para sem análise. É
- * o mesmo vocabulário das outras telas.
+ * Distribuição dos diagnósticos no período e no campo escolhidos nos
+ * filtros da tela de Histórico, com uma barra por classe e a contagem ao
+ * lado. A cor segue o estado (verde para sadia, âmbar para estresse,
+ * vermelho para doença, cinza para sem análise), como nas demais telas.
  */
 
 interface DistribuicaoDiagnosticosCardProps {
@@ -94,10 +64,8 @@ export function DistribuicaoDiagnosticosCard({
       classe: d.classe,
       rotulo: rotuloDaClasse(d.classe),
       quantidade: 1,
-      // Duas doenças diferentes ficam as duas vermelhas de propósito: a
-      // pergunta que a cor responde é "preciso agir?", e para essa
-      // pergunta septoriose e pinta preta são a mesma resposta. Qual
-      // das duas é, está escrito ao lado.
+      // Todas as doenças usam vermelho: a cor indica a necessidade de
+      // agir, e o nome da classe vem escrito ao lado.
       cor: corDoDiagnostico(d),
     });
   }
@@ -109,10 +77,8 @@ export function DistribuicaoDiagnosticosCard({
     return b.quantidade - a.quantidade;
   });
 
-  // A barra mais longa é a da classe mais frequente, e as outras são
-  // proporcionais a ela. Escalar pelo total faria a barra de 100%
-  // encostar na borda e todas as demais ficarem minúsculas quando uma
-  // classe domina, que é justamente o caso comum numa estufa sadia.
+  // As barras são proporcionais à classe mais frequente, e não ao total,
+  // para continuarem legíveis quando uma classe domina.
   const maiorQuantidade = fatias.reduce((m, f) => Math.max(m, f.quantidade), 0);
 
   const descricaoFiltro =

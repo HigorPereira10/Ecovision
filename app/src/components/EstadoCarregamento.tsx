@@ -1,6 +1,4 @@
 /**
- * app/src/components/EstadoCarregamento.tsx
- *
  * Spinner de carregamento padrão, usado em tela cheia enquanto a
  * primeira busca de dados de uma tela ainda não terminou. Substitui
  * os blocos de ActivityIndicator que estavam duplicados em cada tela.

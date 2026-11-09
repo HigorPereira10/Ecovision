@@ -1,47 +1,16 @@
 /**
- * app/src/screens/AlertasScreen.tsx
+ * Tela de Alertas: lista filtrável por severidade (Crítico, Cuidado,
+ * Informativo), com estado lido/não lido e a ação "Marcar como lido".
  *
- * Tela de Alertas: lista de alertas, filtráveis por severidade
- * (Crítico / Cuidado / Informativo), com status lido/não lido e ação
- * "Marcar como lido".
+ * O alerta sintético de dispositivo inativo não tem id e não pode ser
+ * marcado como lido; no lugar do botão, a tela explica o que fazer. Uma
+ * falha ao marcar tem tratamento próprio e não esconde a lista. Ao ganhar
+ * foco, a tela verifica alertas não lidos e dispara notificações locais
+ * (services/notificacoes.ts); não há push enviado pelo servidor.
  *
- * Os dados vêm de services/alertas.ts, que desde 2026-10-11 consome a
- * API real (GET /alertas e PATCH /alertas/{id}/lido). O mock local
- * deixou de existir. A previsão de que a tela não precisaria mudar se
- * cumpriu quase inteira: só o alerta sintético de dispositivo inativo
- * (ADR 0008) exigiu mexer aqui, porque ele chega sem id e não pode ser
- * marcado como lido, então o botão não deve nem aparecer nele.
- *
- * Loading/erro/refresh padronizados via useCarregamentoAssincrono
- * (mesmo hook usado nas outras telas). "Marcar como lido" tem seu
- * próprio tratamento de erro local (erroMarcarLido), separado do erro
- * de carregamento da lista — uma falha ao marcar não deve esconder a
- * lista inteira. Um sucesso ao marcar mostra um toast leve
- * (useToastSucesso) como confirmação visual.
- *
- * Header customizado (logo + título) segue o mesmo padrão do
- * DashboardScreen, a aba "Alertas" no AppNavigator precisa estar com
- * headerShown: false, senão aparecem dois headers sobrepostos (mesmo
- * problema já resolvido no DiagnosticoScreen).
- *
- * Notificações locais: useFocusEffect roda uma verificação automática
- * (verificarNovosAlertasNaoLidos) toda vez que a tela ganha foco. Os
- * alertas conferidos são os de verdade, vindos da API, mas a
- * notificação em si continua sendo disparada pelo próprio aparelho:
- * não existe push enviado pelo servidor (ver ADR 0012 para o porquê e
- * para o que falta). Ou seja, o produtor só é avisado quando abre o
- * app, nunca com o app fechado. Ver services/notificacoes.ts.
- *
- * O botão de sino que dispara uma notificação de demonstração é
- * ferramenta de apresentação, não funcionalidade: para o produtor ele
- * parecia um ícone comum de notificações, e quem tocasse nele receberia
- * um alerta inventado sobre a estufa dele. Por isso ele só aparece em
- * duas situações: durante o desenvolvimento (__DEV__, ou seja, Expo Go
- * e `expo start`) ou para quem estiver logado numa conta de papel
- * 'administrador', que o grupo usa na apresentação. As duas condições
- * existem porque o __DEV__ some em build de produção, inclusive para
- * nós. Fora delas, o ícone dá lugar a um espaçador que mantém o título
- * centralizado.
+ * O botão de notificação de demonstração só aparece em desenvolvimento
+ * (__DEV__) ou para contas de administrador; nos demais casos, um
+ * espaçador mantém o título centralizado.
  */
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, Pressable, Image, ActivityIndicator } from 'react-native';
@@ -98,10 +67,8 @@ export default function AlertasScreen() {
   const [erroMarcarLido, setErroMarcarLido] = useState<string | null>(null);
   const { mensagem: mensagemToast, mostrarToast } = useToastSucesso();
 
-  // Descobre o papel só uma vez, na montagem. Falha de rede aqui é
-  // engolida de propósito: não saber o papel apenas esconde o botão de
-  // demonstração, e um erro visível por causa disso atrapalharia mais
-  // do que ajuda numa tela cujo conteúdo principal são os alertas.
+  // O papel é consultado uma vez, na montagem. Uma falha de rede apenas
+  // esconde o botão de demonstração, sem exibir erro.
   useEffect(() => {
     let ativo = true;
     getPerfilUsuario()
@@ -114,9 +81,7 @@ export default function AlertasScreen() {
     };
   }, []);
 
-  // Verificação automática de novos alertas não lidos toda vez que a
-  // tela ganha foco — simula, do lado do app, o que futuramente será
-  // um evento de push vindo do backend (Blueprint Fase 5).
+  // Verifica novos alertas não lidos sempre que a tela ganha foco.
   useFocusEffect(
     useCallback(() => {
       inicializarNotificacoes();
@@ -242,11 +207,9 @@ export default function AlertasScreen() {
                   <Text style={[styles.descricao, { color: config.cor }]}>{item.descricao}</Text>
                   <Text style={styles.data}>{formatarData(item.timestamp)}</Text>
 
-                  {/* O alerta de dispositivo inativo é recalculado a
-                      cada consulta e não tem linha no banco: marcá-lo
-                      como lido não teria o que atualizar, e ele voltaria
-                      na requisição seguinte de qualquer forma. Em vez do
-                      botão, explica-se o que fazer. */}
+                  {/* O alerta de dispositivo inativo é recalculado a cada
+                      consulta e não pode ser marcado como lido; no lugar
+                      do botão, explica-se o que fazer. */}
                   {item.sintetico ? (
                     <Text style={styles.avisoSintetico}>
                       Este aviso desaparece sozinho quando o dispositivo voltar a enviar dados.

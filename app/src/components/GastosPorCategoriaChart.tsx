@@ -1,6 +1,4 @@
 /**
- * app/src/components/GastosPorCategoriaChart.tsx
- *
  * Gráfico de barras (victory-native@36.9.2) mostrando o total gasto por
  * categoria. Segue o mesmo padrão de card branco usado no
  * SerieTemporalCard do Dashboard.

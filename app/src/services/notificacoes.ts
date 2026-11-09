@@ -1,41 +1,14 @@
 /**
- * app/src/services/notificacoes.ts
+ * Notificações locais de alertas (expo-notifications, sem servidor de push).
  *
- * Serviço de notificações locais, usado para simular o alerta que,
- * futuramente, vai ser disparado pelo backend (cloud/) quando um novo
- * diagnóstico gerar um alerta fitossanitário. Hoje é 100% local
- * (expo-notifications, sem push server) — é o diferencial de Fase 5
- * do Blueprint que justifica a escolha do Expo frente às alternativas
- * (React PWA/Streamlit não suportam push nativo).
+ * verificarNovosAlertasNaoLidos() compara os alertas não lidos da API com
+ * os já notificados (guardados no AsyncStorage) e notifica apenas os novos.
+ * dispararNotificacaoTeste() gera uma notificação de demonstração, exibida
+ * só em desenvolvimento ou para administradores.
  *
- * Duas formas de disparo, propositalmente:
- * 1) dispararNotificacaoTeste() — botão manual na tela de Alertas,
- *    útil pra demonstração na banca (não depende de estado dos dados).
- *    Só aparece sob __DEV__: no app publicado, um usuário tocando nele
- *    receberia um alerta inventado sobre a estufa dele.
- * 2) verificarNovosAlertasNaoLidos() — "automático": compara os
- *    alertas não lidos vindos de services/alertas.ts com os IDs já
- *    notificados (persistidos em AsyncStorage) e dispara notificação
- *    só para os que ainda não foram notificados nesta sessão/instalação.
- *
- * TODO quando o backend/IoT estiverem prontos:
- * - O disparo deixa de ser "polling" local e passa a reagir a um
- *   evento real (push remoto do FastAPI, ou notificação recebida via
- *   addNotificationReceivedListener). A função verificarNovosAlertasNaoLidos()
- *   pode ser removida ou mantida como fallback offline.
- *
- * CARREGAMENTO TARDIO: a expo-notifications é importada só quando uma
- * função daqui é chamada, nunca na inicialização do app. Motivo: a
- * partir do SDK 53 essa biblioteca registra um listener de push ao ser
- * carregada, e isso lança exceção dentro do Expo Go (push remoto foi
- * removido de lá). Como a AlertasScreen entra na árvore de navegação
- * no start, o import estático derrubava o app inteiro antes de
- * desenhar qualquer tela, com "[runtime not ready]".
- *
- * A falha de carregamento é tratada em vez de detectar o ambiente: se
- * a biblioteca carregar, as notificações funcionam; se não, as funções
- * viram no-op e o app segue normalmente. Isso preserva a notificação
- * local onde ela funciona, em vez de desligar por suposição.
+ * A biblioteca é carregada sob demanda: a partir do SDK 53 ela registra um
+ * listener de push ao ser importada, o que lança exceção no Expo Go. Se o
+ * carregamento falhar, as funções viram no-op e o app segue normalmente.
  */
 
 import { Platform } from 'react-native';
@@ -45,18 +18,10 @@ import { colors } from '../theme/colors';
 
 type ModuloNotificacoes = typeof import('expo-notifications');
 
-// Guarda a CHAVE do alerta, não o id numérico. Mudou junto com a
-// migração de services/alertas.ts para a API real: o alerta sintético
-// de dispositivo inativo (ADR 0008) chega com id null, e `null` como
-// identificador fazia todos os alertas sem id colidirem num só.
-//
-// O nome da chave de armazenamento ganhou sufixo porque o formato
-// guardado mudou de número para texto. Ler a lista antiga com o
-// formato novo não daria erro, daria algo pior: nenhuma correspondência
-// e notificação repetida de tudo, sem explicação visível. Com chave
-// nova, a lista antiga é simplesmente ignorada, e o custo é no máximo
-// uma notificação repetida dos alertas não lidos que já existiam no
-// aparelho na primeira abertura após a atualização.
+// Guarda a chave de cada alerta, e não o id numérico, porque o alerta
+// sintético de dispositivo inativo chega com id null. O sufixo no nome do
+// armazenamento marca a mudança de formato e faz a lista antiga ser
+// ignorada.
 const CHAVE_IDS_NOTIFICADOS = '@ecovision:notificacoes_chaves_notificadas';
 
 const SEVERIDADE_TITULO: Record<SeveridadeAlerta, string> = {
@@ -79,10 +44,8 @@ async function carregarNotificacoes(): Promise<ModuloNotificacoes | null> {
   try {
     const modulo = await import('expo-notifications');
 
-    // Não basta o import ter passado: no Expo Go a biblioteca registra
-    // o próprio erro internamente e devolve um módulo com as funções
-    // faltando, em vez de lançar. Sem esta checagem, o app quebrava
-    // depois, com "TypeError: undefined is not a function".
+    // No Expo Go o import pode concluir com funções ausentes em vez de
+    // lançar exceção; a verificação evita um TypeError posterior.
     if (typeof modulo.setNotificationHandler !== 'function') {
       throw new Error('Módulo carregou incompleto (funções ausentes).');
     }
@@ -102,9 +65,8 @@ async function carregarNotificacoes(): Promise<ModuloNotificacoes | null> {
 }
 
 /**
- * Configura o comportamento de exibição em primeiro plano e o canal
- * de notificação do Android. Idempotente — pode ser chamada em mais
- * de uma tela sem efeito colateral.
+ * Configura a exibição em primeiro plano e o canal de notificação do
+ * Android. Idempotente.
  */
 export async function inicializarNotificacoes(): Promise<void> {
   if (inicializado) return;
@@ -134,9 +96,8 @@ export async function inicializarNotificacoes(): Promise<void> {
 }
 
 /**
- * Garante que a permissão de notificação foi concedida, pedindo ao
- * usuário se ainda não foi decidido. Retorna false se foi negada —
- * quem chamar deve tratar esse caso silenciosamente (não travar o app).
+ * Garante a permissão de notificação, pedindo ao usuário se necessário.
+ * Devolve false se foi negada; quem chama deve seguir sem notificar.
  */
 async function garantirPermissao(): Promise<boolean> {
   const Notifications = await carregarNotificacoes();
@@ -151,9 +112,6 @@ async function garantirPermissao(): Promise<boolean> {
 
 /**
  * Dispara uma notificação local imediata representando um alerta.
- * Futuro: quando o backend existir, essa função pode ser chamada a
- * partir de um listener de push (addNotificationReceivedListener) ao
- * invés de ser chamada diretamente pela tela.
  */
 export async function dispararNotificacaoAlerta(alerta: Alerta): Promise<void> {
   await inicializarNotificacoes();
@@ -176,11 +134,9 @@ export async function dispararNotificacaoAlerta(alerta: Alerta): Promise<void> {
 }
 
 /**
- * Dispara uma notificação de demonstração, sem depender de haver
- * alerta de verdade no banco. Usada pelo botão de sino da tela de
- * Alertas, que só aparece em __DEV__ ou para conta de administrador:
- * é ferramenta de apresentação na banca, não funcionalidade do
- * produtor.
+ * Dispara uma notificação de demonstração, sem depender de alertas reais.
+ * Usada pelo botão da tela de Alertas, visível apenas em desenvolvimento
+ * ou para administradores.
  */
 export async function dispararNotificacaoTeste(): Promise<void> {
   const alertaDemo: Alerta = {
@@ -198,17 +154,11 @@ export async function dispararNotificacaoTeste(): Promise<void> {
 }
 
 /**
- * "Verificação automática": busca os alertas não lidos e dispara
- * notificação apenas para os que ainda não foram notificados nesta
- * instalação do app (controle via AsyncStorage). Retorna quantos
- * alertas novos foram notificados.
+ * Busca os alertas não lidos e notifica os que ainda não foram notificados
+ * nesta instalação. Devolve quantos foram notificados.
  *
- * Chamada ao focar a tela de Alertas. Os alertas conferidos são os de
- * verdade, vindos da API, mas quem dispara a notificação é o próprio
- * aparelho: com o app fechado, ninguém é avisado de nada. Push de
- * servidor exigiria guardar o token do Expo por usuário e um processo
- * que observe alertas novos; ver ADR 0012 para a decisão de não fazer
- * isso agora e para o que seria necessário.
+ * Chamada ao focar a tela de Alertas: a notificação é disparada pelo
+ * aparelho, então não há aviso com o aplicativo fechado.
  */
 export async function verificarNovosAlertasNaoLidos(): Promise<number> {
   // Sai antes de tocar no AsyncStorage: sem isso, os alertas seriam

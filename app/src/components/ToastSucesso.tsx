@@ -1,12 +1,7 @@
 /**
- * app/src/components/ToastSucesso.tsx
- *
- * Feedback visual leve pra ações bem-sucedidas (ex: "Gasto salvo",
- * "Alerta marcado como lido"). Aparece no rodapé da tela e some
- * sozinho depois de alguns segundos. Sem lib externa — Animated puro.
- *
- * Sempre usado junto com o hook useToastSucesso, que controla o texto
- * e quando mostrar/esconder.
+ * Aviso leve de ação concluída (por exemplo, "Gasto salvo"), exibido no
+ * rodapé e ocultado após alguns segundos, com Animated. Controlado pelo
+ * hook useToastSucesso.
  */
 
 import React, { useEffect, useRef } from 'react';

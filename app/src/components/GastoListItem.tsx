@@ -1,6 +1,4 @@
 /**
- * app/src/components/GastoListItem.tsx
- *
  * Linha individual da lista "Transações recentes": ícone, descrição,
  * categoria + data, valor em destaque e botão de excluir.
  */

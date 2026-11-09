@@ -1,17 +1,10 @@
 """
-cloud/tests/test_auth.py
+Testes de POST /auth/login e POST /auth/refresh:
 
-O que este arquivo verifica, em português simples:
-
-O fluxo de login do produtor (POST /auth/login) e a troca de refresh
-token por um novo access token (POST /auth/refresh):
-1. Login com email e senha corretos funciona, devolve os dois tokens.
-2. Senha errada e email inexistente devolvem o MESMO erro 401 genérico
-   (não dá pra um atacante descobrir por tentativa e erro quais emails
-   têm conta cadastrada).
-3. Um refresh token válido troca por um novo access token.
-4. Tentar usar o access token no lugar do refresh token (ou um refresh
-   token forjado/errado) é recusado.
+1. login correto devolve os dois tokens;
+2. senha errada e e-mail inexistente devolvem o mesmo 401;
+3. token de renovação válido gera novo token de acesso;
+4. token de acesso no lugar do de renovação, ou token inválido, é recusado.
 """
 
 from fastapi.testclient import TestClient

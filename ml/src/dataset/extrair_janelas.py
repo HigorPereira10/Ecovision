@@ -1,59 +1,21 @@
 """
-ml/src/dataset/extrair_janelas.py
+Extrai janelas das capturas do dispositivo para rotulagem e gera a divisão
+entre treino e teste.
 
-Transforma as capturas do dispositivo em janelas prontas para rotular.
+As classes de rótulo são descritivas: identificar a causa de uma
+alteração (como uma deficiência nutricional) a partir de uma foto exigiria
+conhecer o manejo da planta. A divisão é feita por data e por posição na
+grade, nunca de forma aleatória, porque capturas próximas da mesma planta
+são quase idênticas e vazariam do treino para o teste.
 
-POR QUE ISTO EXISTE
--------------------
-Medido em 2026-11-01, tres caminhos diferentes falharam no MESMO ponto,
-que e a distancia entre o dado de treino e esta estufa:
-
-  - quarta classe vinda do OLID: 83,3% dentro do proprio OLID, ZERO
-    janelas vencidas nas capturas do dispositivo;
-  - porta de familiaridade: recusa fundo, nao recusa folha estranha,
-    porque e post-hoc (ver o benchmark citado em ajuste_quatro_classes);
-  - geometria da lesao: separa entre fontes (AUC 0,849) e nao dentro
-    da mesma fonte (0,627), e a medida ainda muda com a distancia da
-    camera (22,7 a 20 cm contra 29,9 a 34 cm, mesma planta).
-
-O unico dominio ao qual o projeto tem acesso ilimitado e o proprio. E
-desde 2026-11-01 ele e consistente: foco travado em 20 cm, LED
-funcionando, captura de 2 em 2 horas, folíolo chegando ao modelo com
-222 px pela janela deslizante. Antes disso as capturas variavam demais
-para servir de treino.
-
-ROTULE O QUE DA PARA VER, NAO O QUE DA PARA SUPOR
--------------------------------------------------
-As classes sugeridas sao DESCRITIVAS, e isso nao e preciosismo. Nao da
-para afirmar "deficiencia de potassio" olhando uma foto sem saber o que
-a planta recebeu de adubo: o OLID so pode porque foi ensaio controlado,
-com privacao proposital. Ja "amarelecimento difuso" qualquer um verifica
-olhando, e e defensavel sem laudo agronomico.
-
-Afirmar etiologia a partir de rotulo visual e o tipo de coisa que a
-banca derruba em uma pergunta.
-
-A DIVISAO E POR TEMPO, NUNCA ALEATORIA
---------------------------------------
-Capturas de 2 em 2 horas da mesma planta sao quase duplicatas. Uma
-divisao aleatoria colocaria quadros praticamente identicos no treino e
-no teste, e a acuracia resultante nao mediria nada. Por isso
-montar_divisao() corta por DATA: treino ate um dia, teste do dia
-seguinte em diante.
-
-Isso ainda nao resolve o fato de ser UMA planta, em UM vaso, contra UM
-fundo. Isso e limitacao a declarar no texto, nao problema a esconder
-com metrica.
-
-USO
----
-    # 1. extrair janelas das capturas e montar as pastas de rotulo
+Uso:
+    # 1. extrair janelas das capturas e montar as pastas de rótulo
     python -m ml.src.dataset.extrair_janelas --capturas <pasta> --saida <pasta>
 
-    # 2. (voce move cada arquivo para a pasta da classe correspondente)
+    # 2. mover cada arquivo para a pasta da classe correspondente
 
-    # 3. gerar a divisao treino/teste por data
-    python -m ml.src.dataset.extrair_janelas --divisao <pasta> --corte 2026-11-08
+    # 3. gerar a divisão treino/teste por data
+    python -m ml.src.dataset.extrair_janelas --divisao <pasta> --corte AAAA-MM-DD
 """
 
 from __future__ import annotations
@@ -71,24 +33,10 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")
 
 RAIZ = Path(__file__).resolve().parents[3]
 
-# Descritivas de proposito, ver o topo. `septoriose` e `pinta_preta`
-# continuam porque sao o que o modelo ja sabe; as duas novas sao o que
-# a planta de fato apresenta e o modelo nao sabe nomear.
-# POR QUE UMA CLASSE SO PARA O ESTRESSE, E NAO AMARELECIMENTO E
-# TECIDO SECO SEPARADOS: medido em 2026-11-02 sobre 56 janelas, as duas
-# nao se separam. A fracao de tecido seco nas janelas chamadas de
-# amarelecimento na sessao B deu 7,6%, e nas chamadas de tecido seco
-# deu 7,7%. Sao a mesma coisa pela medida, e a fronteira derivou entre
-# sessoes: o mesmo padrao de amarelo com manchas marrons foi rotulado
-# de um jeito num dia e de outro no seguinte.
-#
-# Tem razao agronomica tambem, e e a mais forte: afirmar "amarelecimento
-# por deficiencia" exige autoridade que este trabalho nao tem. Dizer
-# "a folha esta alterada e nao e fungo conhecido" exige so o que se ve.
-#
-# O rotulo fino continua gravado na coluna classe_fina de rotulos.csv,
-# entao a separacao volta a ser possivel quando houver dado que a
-# sustente.
+# Classes descritivas. Amarelecimento e tecido seco formam uma única classe
+# de estresse foliar: as duas não se separaram nas medições e a fronteira
+# variou entre sessões de rotulagem. O rótulo detalhado fica na coluna
+# classe_fina de rotulos.csv.
 CLASSES = [
     "saudavel",
     "septoriose",
@@ -97,37 +45,21 @@ CLASSES = [
     "descartar",  # janela inutil: desfocada, cortada ao meio, duvidosa
 ]
 
-# Qualidade minima para valer o tempo de rotular. Janela sem quase nada
-# de verde nao e folha, e a porta ja recusa a maioria delas.
-# Mesmo limiar de cloud/app/core/janelas.py, e pelo mesmo motivo: com
-# 0,08 um pote plastico verde-azulado passou por folha em producao
-# (2026-11-03). O numero vem do percentil 5 das janelas ja rotuladas
-# como folha, que e 20,5%.
+# Cobertura verde mínima, a mesma de cloud/app/core/janelas.py (percentil 5
+# das janelas rotuladas como folha: 20,5%).
 COBERTURA_VERDE_MINIMA = 0.18
 
-# Sessão = um ENQUADRAMENTO. Muda quando o vaso ou a câmera muda de
-# lugar. Entra no nome do arquivo porque é metade da identidade de uma
-# posição (ver chave_posicao).
+# Sessão = enquadramento: muda quando o vaso ou a câmera mudam de lugar e
+# compõe a identidade de uma posição (ver chave_posicao).
 SESSAO_PADRAO = "A"
 
 
 def chave_posicao(nome_arquivo: str) -> str:
-    """Identidade de uma posição: o ENQUADRAMENTO mais a célula da grade.
+    """Identidade de uma posição: o enquadramento mais a célula da grade.
 
-    ATENÇÃO, BUG CORRIGIDO AQUI: antes a chave era só `xNNNN_yNNNN`. Com
-    um enquadramento só isso bastava, mas assim que o vaso muda de lugar
-    a mesma célula da grade passa a mostrar OUTRAS folhas. Duas janelas
-    completamente diferentes recebiam a mesma chave, e a trava
-    anti-vazamento mandava as duas para o mesmo lado da divisão achando
-    que eram a mesma folha.
-
-    Pior: a contagem de "posições distintas", que é o número que decide
-    quando há dado suficiente para treinar, ficava travada em 36 por
-    mais que o enquadramento mudasse. Mover o vaso pareceria não
-    adiantar nada, quando é justamente o que mais adianta.
-
-    Arquivo sem sessão no nome vem da extração anterior a esta correção
-    e é tratado como sessão A, que é de onde ele veio mesmo.
+    Sem o enquadramento, janelas diferentes de sessões distintas
+    receberiam a mesma chave. Arquivos sem sessão no nome são tratados
+    como sessão A.
     """
     celula = re.search(r"x\d+_y\d+", nome_arquivo)
     if not celula:
@@ -207,9 +139,8 @@ def extrair(pasta_capturas: Path, pasta_saida: Path, sessao: str) -> int:
                 nome = f"{sessao}__{caminho.stem}__x{x:04d}_y{y:04d}.png"
                 if nome in ja_vistos:
                     continue
-                # Grava o RECORTE NATIVO, nao o reduzido para 224: a
-                # redução pertence ao treino, e guardar o original deixa
-                # a decisão de escala em aberto se a janela mudar.
+                # Grava o recorte sem reduzir para 224 px; a redução fica
+                # para o treino.
                 pedaco = imagem.crop((x, y, x + lado, y + lado))
                 pedaco.save(entrada / nome)
                 escritor.writerow(
@@ -230,7 +161,7 @@ def extrair(pasta_capturas: Path, pasta_saida: Path, sessao: str) -> int:
 
 def _data_da_captura(nome_captura: str) -> date | None:
     """Extrai a data do nome do arquivo gravado pelo dispositivo
-    (formato 2026-11-01T20-15-37...)."""
+    (formato AAAA-MM-DDTHH-MM-SS)."""
     try:
         return datetime.strptime(nome_captura[:10], "%Y-%m-%d").date()
     except ValueError:
@@ -238,12 +169,8 @@ def _data_da_captura(nome_captura: str) -> date | None:
 
 
 def montar_divisao(pasta: Path, corte: date) -> int:
-    """Gera a divisão treino/teste cortando por DATA.
-
-    Nunca aleatória: ver o cabeçalho deste arquivo. Capturas de 2 em 2
-    horas da mesma planta são quase duplicatas, e uma divisão aleatória
-    colocaria quadros praticamente idênticos dos dois lados.
-    """
+    """Gera a divisão treino/teste cortando por data, nunca de forma
+    aleatória."""
     manifesto = pasta / "manifesto.csv"
     if not manifesto.exists():
         raise SystemExit(f"{manifesto} não existe. Rode a extração antes.")
@@ -253,18 +180,9 @@ def montar_divisao(pasta: Path, corte: date) -> int:
         for linha in csv.DictReader(arquivo):
             origem[linha["arquivo"]] = linha["captura"]
 
-    # TRAVA POR POSIÇÃO, além da trava por data.
-    #
-    # Medido em 2026-11-01, nas primeiras 47 janelas rotuladas: 2,4
-    # imagens por posição da grade, porque capturas de 10 em 10 minutos
-    # mostram a mesma folha. A posição `x0672 y0224` apareceu em três
-    # capturas e as três são praticamente a mesma imagem.
-    #
-    # A divisão por data já separa, porque capturas do mesmo dia caem do
-    # mesmo lado. Mas isso só vale enquanto ninguém mexer no corte: um
-    # corte no meio de um dia, ou um reuso deste script com outra regra,
-    # colocaria a mesma folha no treino e no teste sem nenhum aviso.
-    # Esta trava torna isso impossível em vez de improvável.
+    # Trava por posição, além da trava por data: janelas da mesma posição
+    # da grade mostram a mesma folha e ficam sempre do mesmo lado da
+    # divisão, mesmo que o corte caia no meio de um dia.
     posicoes: dict[str, str] = {}
     linhas: list[tuple[str, str, str]] = []
     sem_data = 0

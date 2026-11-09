@@ -1,33 +1,12 @@
 """
-edge/src/upload/uploader.py
+Envio dos registros pendentes da fila local para POST /diagnostico.
 
-Upload HTTP dos registros pendentes para a API, com retry/backoff
-(Blueprint v3.0, Fase 2).
-
-Contrato assumido do endpoint (cloud/app/api/routes/diagnostico.py já
-existe: reconferir os dois lados sempre que um dos dois mudar):
-  POST {API_BASE_URL}/diagnostico
-  Header: Authorization: <DEVICE_API_KEY>
-  multipart/form-data:
-    - imagem: arquivo JPEG comprimido
-    - device_id, timestamp: strings
-    - temperatura_c, umidade_ar_pct, umidade_solo_pct: números (as demais
-      chaves de "leituras" gravadas por edge/src/fila/offline_queue.py)
-
-Responsabilidades:
-- Ler os pendentes da fila (edge/src/fila/offline_queue.py).
-- Enviar cada um para a API, autenticado via header Authorization com a
-  API Key estática (config.DEVICE_API_KEY).
-- Retry com backoff exponencial (requests.Session + urllib3 Retry) para
-  falhas de rede/5xx.
-- Remover da fila apenas os itens confirmados (HTTP 2xx) pela API.
-
-Relação com o resto do sistema:
-- Consome a fila escrita por edge/src/main.py.
-- Único ponto de contato do edge/ com o endpoint
-  cloud/app/api/routes/diagnostico.py.
-- Agendado a cada 15min via `crontab.example`; também chamado de forma
-  best-effort ao final de cada ciclo de captura (edge/src/main.py).
+Cada registro é enviado como multipart/form-data (imagem, device_id,
+timestamp, leituras e idempotency_key), com o cabeçalho Authorization
+contendo a credencial do dispositivo. Falhas de rede e respostas 5xx são
+repetidas com espera exponencial. Só os registros confirmados pela API
+saem da fila. Executado pelo cron a cada 15 minutos e ao fim de cada
+ciclo de captura.
 """
 
 import logging
@@ -35,10 +14,8 @@ import sys
 from pathlib import Path
 
 if __name__ == "__main__":
-    # Cron invoca este arquivo diretamente (`python edge/src/upload/uploader.py`),
-    # então a raiz do repositório não entra em sys.path por padrão. Ela
-    # precisa ser adicionada manualmente para os imports `edge.src.*`
-    # funcionarem.
+    # O cron executa este arquivo diretamente; a raiz do repositório
+    # precisa estar em sys.path para os imports edge.src.*.
     sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 import requests
@@ -48,12 +25,8 @@ from urllib3.util.retry import Retry
 from edge.src import config
 from edge.src.fila import offline_queue
 
-# ATENÇÃO, BUG JÁ CORRIGIDO AQUI: este módulo não tinha nenhum log.
-# Como roda sozinho via cron a cada 15min (crontab.example), sem isso
-# não havia como saber, sem SSH na estufa, se os uploads estavam de
-# fato acontecendo. basicConfig() é seguro de chamar de novo aqui,
-# mesmo quando main.py já chamou (é no-op se o root logger já tem
-# handler configurado).
+# Registro em stdout, redirecionado para upload.log pelo cron. basicConfig
+# não tem efeito se main.py já tiver configurado o logging.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("ecovision.edge.upload")
 
@@ -77,11 +50,8 @@ def _sessao_com_retry() -> requests.Session:
 def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
     caminho_imagem = Path(registro["imagem_path"])
     if not caminho_imagem.exists():
-        # Imagem já foi removida (ex.: envio anterior parcialmente
-        # confirmado). Não há o que reenviar; trata como concluído para
-        # não travar a fila indefinidamente. Logado como warning (não
-        # info) porque também pode indicar um bug ou corrupção real:
-        # sem isso não havia nenhum rastro desse caso acontecer.
+        # A imagem já não existe: o registro é tratado como concluído para
+        # não travar a fila, com aviso no log.
         logger.warning(
             "Registro %s sem imagem em %s, tratando como já enviado.",
             registro.get("id"), caminho_imagem,
@@ -97,15 +67,8 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
     dados = {
         "device_id": registro["device_id"],
         "timestamp": registro["timestamp"],
-        # ATENÇÃO, BUG JÁ CORRIGIDO AQUI: a API não recebia nenhum
-        # identificador estável da captura, então não dava para
-        # distinguir uma foto nova de um reenvio (ex.: a API confirma
-        # HTTP 200, mas o processo cai antes de tirar o registro da fila
-        # local; no próximo ciclo, o mesmo registro seria reenviado como
-        # se fosse novo). O `id` já é gerado localmente por
-        # offline_queue.enfileirar(); agora ele também viaja para a API,
-        # que usa isso para ignorar reenvios duplicados
-        # (ver cloud/app/api/routes/diagnostico.py).
+        # O id gerado na fila permite à API descartar reenvios do mesmo
+        # registro.
         "idempotency_key": registro["id"],
         **leituras,
     }
@@ -134,7 +97,7 @@ def _enviar_registro(sessao: requests.Session, registro: dict) -> bool:
 
 
 def drenar_fila_e_enviar() -> None:
-    """Lê pendentes, envia com retry/backoff, remove da fila os confirmados."""
+    """Lê os pendentes, envia com novas tentativas e remove da fila os confirmados."""
     pendentes = offline_queue.ler_pendentes()
     if not pendentes:
         logger.info("Fila vazia, nada para enviar.")

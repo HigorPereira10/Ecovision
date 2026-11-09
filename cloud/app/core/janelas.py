@@ -1,50 +1,15 @@
 """
-cloud/app/core/janelas.py
+Diagnóstico por janela deslizante, agregado em um único rótulo.
 
-Diagnóstico por JANELA DESLIZANTE, agregado num rótulo só.
+Reduzir o quadro inteiro de 4608 × 2592 para 224 × 224 deixa o folíolo com
+cerca de 43 pixels, e a acurácia cai para perto do acaso (80,7% com a
+folha a 224 pixels, 47,4% a 56 pixels, em 249 imagens rotuladas). As
+janelas de 896 pixels reduzidas para 224 reproduzem a escala do treino.
 
-POR QUE ISTO EXISTE
--------------------
-A câmera entrega 4608x2592 e o caminho atual reduz o quadro inteiro
-para 224x224. É uma redução de 20,6 vezes, e o folíolo chega ao modelo
-com cerca de 43 px mesmo com o vaso na distância certa de 20 cm. Medido
-em 2026-10-29 sobre 249 imagens rotuladas, com o acaso em 33,3%:
-
-    folha com 224 px na entrada .... 80,7% de acurácia
-    folha com 112 px ............... 62,7%
-    folha com  56 px ............... 47,4%
-
-O quadro inteiro opera na faixa do acaso. A janela de 896 px nativos
-reduzida para 224 dá redução de 4 vezes, que é o regime de treino: o
-mesmo folíolo chega com 222 px.
-
-O efeito, medido na captura de 2026-11-02 com o modelo de domínio
-próprio:
-
-    quadro inteiro ... septoriose 38,9%, e TROCA para estresse_foliar
-                       só por mudar o filtro de redimensionamento
-    por janela ....... 23 estresse, 12 saudável, 1 fúngica, estável
-
-No quadro inteiro o modelo está indeciso e qualquer perturbação vira
-troca de rótulo. Na janela ele é firme.
-
-O CONTRATO NÃO MUDA
--------------------
-Esta função devolve o MESMO dicionário que inference.rodar_inferencia:
-classe, confianca, recomendacao, severidade. O app continua recebendo
-um rótulo só e não precisa de alteração nenhuma.
-
-A contagem de votos vai junto, em `votos`, para quem quiser o mapa
-depois sem refazer a conta. O caminho de rótulo único é uma
-simplificação consciente: a planta é mista, e o rótulo agregado perde
-essa informação. Ver "O QUE ESTA AGREGAÇÃO PERDE" abaixo.
-
-Relação com o resto do sistema:
-- Chamado por app/api/routes/diagnostico.py quando
-  settings.DIAGNOSTICO_POR_JANELA estiver ligado.
-- A geometria (JANELA_NATIVA, PASSO_NATIVO, ESCALA) tem que ser a MESMA
-  de ml/src/porta/avaliar.py e ml/src/dataset/extrair_janelas.py, senão
-  o modelo recebe uma escala diferente daquela em que foi treinado.
+Devolve o mesmo dicionário de inference.rodar_inferencia (classe,
+confianca, recomendacao, severidade), mais `votos` e `janelas`. A
+geometria (JANELA_NATIVA, PASSO_NATIVO, ESCALA) deve ser a mesma de
+ml/src/porta/avaliar.py e ml/src/dataset/extrair_janelas.py.
 """
 
 from __future__ import annotations
@@ -67,88 +32,35 @@ from app.core.inference import (
 
 logger = logging.getLogger("ecovision.cloud.janelas")
 
-# Mesma geometria de ml/src/porta/avaliar.py. NÃO alterar sem alterar lá.
+# Mesma geometria de ml/src/porta/avaliar.py; alterar nos dois lugares.
 JANELA_NATIVA = 896
 PASSO_NATIVO = 448
-ESCALA = 2  # decodifica em metade: economiza memória sem mudar o resultado
+ESCALA = 2  # decodifica em metade da resolução, sem alterar o resultado
 
-# Cobertura mínima de verde para a janela valer diagnóstico.
-#
-# ERA 0,08 E ISSO FALHOU EM PRODUÇÃO, em 2026-11-03. Com a planta fora
-# da estufa, a câmera enquadrou um pote plástico verde-azulado. Às
-# 11:00 e 13:00 todas as 36 janelas foram recusadas, correto. Às 15:00,
-# com luz mais forte, o plástico rendeu 9% a 12% de "verde", cinco
-# janelas passaram e o sistema afirmou "saudavel 93%" sobre uma cena
-# SEM PLANTA. É a afirmação mais perigosa que este sistema pode fazer,
-# e é a que a guarda existe para impedir.
-#
-# O número novo vem das 135 janelas rotuladas à mão, não de chute:
-#
-#     folha saudável, percentil 5 ...... 20,5%
-#     folha com estresse, percentil 5 .. 25,7%
-#     pote plástico que passou .........  9% a 12%
-#
-# 18% fica abaixo de toda janela de folha real e bem acima do plástico.
+# Cobertura mínima de verde para uma janela ser aproveitada. Nas janelas
+# rotuladas, o percentil 5 é 20,5% para folha sadia e 25,7% para folha com
+# estresse; objetos verdes que não são folha (como um pote plástico) ficam
+# entre 9% e 12%.
 COBERTURA_VERDE_MINIMA = 0.18
 
-# Mínimo de janelas aproveitáveis para o sistema afirmar qualquer
-# coisa.
-#
-# A captura das 15:00 diagnosticou com CINCO janelas de 36. Mesmo que
-# as cinco fossem folha de verdade, 14% do quadro é base fraca demais
-# para um diagnóstico, e a regra de incidência perde o sentido: com 5
-# janelas, uma única vira 20% e cruza o limiar sozinha.
-#
-# Seis é um quarto da grade útil típica (30 a 34 janelas nas capturas
-# com planta) e faz cada voto valer no máximo 17%.
+# Mínimo de janelas aproveitáveis para afirmar um diagnóstico; com menos,
+# um único voto ultrapassaria a fração de incidência sozinho.
 JANELAS_MINIMAS = 6
 
-# AGREGAÇÃO POR INCIDÊNCIA, NÃO POR MAIORIA NEM POR MÉDIA
-# --------------------------------------------------------
-# Uma planta não precisa estar inteira doente para estar doente. Em
-# fitopatologia a incidência se mede pela porcentagem de tecido
-# afetado, e o limiar de ação é baixo. Esperar que a lesão domine o
-# quadro é esperar tarde demais.
-#
-# Média e maioria falham pelo mesmo motivo: exigem que o problema seja
-# a condição DOMINANTE. Medido em 2026-11-02 sobre cinco enquadramentos
-# da MESMA planta no mesmo dia, as duas regras davam respostas
-# diferentes conforme o ângulo (saudável em C e E, estresse em D e nas
-# capturas noturnas). Um diagnóstico que muda com o ângulo da câmera
-# não é diagnóstico.
-#
-# A regra por incidência deu `estresse_foliar` nos cinco, que é a
-# resposta certa: é a mesma planta.
+# Agregação por incidência: vence a classe mais severa cuja fração de
+# janelas atinge o limiar, mesmo que não seja a maioria. Média e maioria
+# exigem que o problema domine o quadro e davam respostas diferentes para
+# a mesma planta conforme o enquadramento.
 ORDEM_SEVERIDADE = ("septoriose", "pinta_preta", "estresse_foliar", "saudavel")
 
-# DE ONDE SAI ESTE NÚMERO, E POR QUE ELE NÃO PODE SER MEXIDO SOZINHO
-# ------------------------------------------------------------------
-# A fração tem que ficar acima da taxa de FALSO POSITIVO do modelo,
-# senão um punhado de votos positivos é ruído, não sinal.
-#
-# Medido no conjunto de teste reservado (enquadramentos C e E, 34
-# janelas que o modelo nunca viu no treino):
-#
-#     de 14 janelas realmente saudáveis
-#         chamadas de estresse ....  1  (7%)
-#         chamadas de doença ......  1  (7%)
-#     de 20 janelas realmente com estresse
-#         detectadas .............. 12  (60%)
-#
-# Com 7% de falso positivo, 20% fica três vezes acima do ruído.
-#
-# AO TROCAR O MODELO, MEÇA A TAXA DE FALSO POSITIVO DE NOVO e ajuste
-# esta fração junto. Um modelo mais agressivo precisa de fração maior.
-# Mexer num sem o outro transforma ruído em diagnóstico.
+# A fração precisa ficar acima da taxa de falso positivo do modelo (7% nos
+# enquadramentos retidos do treino). Ao trocar o modelo, meça essa taxa de
+# novo e ajuste a fração junto.
 FRACAO_MINIMA_INCIDENCIA = 0.20
 
-# A GUARDA DE QUALIDADE PRECISA RODAR POR JANELA, não só no quadro.
-#
-# Medido por Grad-CAM em 2026-11-02: uma janela quase toda preta, com um
-# fruto no canto, saiu como "saudavel" com 90% de confiança. O quadro
-# inteiro passou na guarda (brilho médio bom), mas aquela janela
-# específica não tinha nada visível. Sem esta checagem, o viés do escuro
-# documentado no ADR 0016 volta uma vez por janela.
+# A verificação de qualidade também roda por janela: uma janela quase toda
+# escura pode ser classificada como "saudavel" com alta confiança mesmo
+# quando o quadro inteiro passa na verificação.
 BRILHO_MINIMO_JANELA = BRILHO_MINIMO
 TEXTURA_MINIMA_JANELA = TEXTURA_MINIMA
 
@@ -175,13 +87,9 @@ def _janela_aproveitavel(recorte: np.ndarray) -> str | None:
 
 
 def recortar(bytes_imagem: bytes) -> tuple[list[np.ndarray], list[tuple[int, int, int]]]:
-    """Divide a captura em janelas já reduzidas para a entrada do modelo.
-
-    O redimensionamento usa NEAREST, igual a inference.preprocessar_imagem.
-    Não trocar: medido em 2026-10-24, com BILINEAR duas de seis imagens
-    de campo trocaram de classe, e NEAREST ganha 7 pontos no domínio de
-    campo, que é onde este sistema opera.
-    """
+    """Divide a captura em janelas já reduzidas para a entrada do modelo,
+    com redimensionamento pelo vizinho mais próximo, como em
+    inference.preprocessar_imagem."""
     imagem = Image.open(io.BytesIO(bytes_imagem))
     imagem.draft("RGB", (imagem.size[0] // ESCALA, imagem.size[1] // ESCALA))
     imagem = imagem.convert("RGB")
@@ -206,21 +114,12 @@ def recortar(bytes_imagem: bytes) -> tuple[list[np.ndarray], list[tuple[int, int
 
 
 def diagnosticar_por_janelas(interpretador: Any, bytes_imagem: bytes) -> dict:
-    """Roda o modelo em cada janela aproveitável e agrega num rótulo só.
+    """Classifica cada janela aproveitável e agrega em um rótulo.
 
-    Devolve o MESMO contrato de inference.rodar_inferencia, mais
-    `votos` e `janelas` para quem quiser a distribuição.
-
-    A agregação é por INCIDÊNCIA: vence a classe mais severa cuja
-    fração de votos passe de FRACAO_MINIMA_INCIDENCIA. Ver a nota
-    daquela constante para por que não é média nem maioria, e de onde
-    sai o número.
-
-    `confianca` continua significando a confiança do MODELO, não a
-    incidência: é a probabilidade média da classe vencedora entre as
-    janelas que votaram nela. A incidência vai no texto da recomendação
-    e em `votos`, porque é ela que diz ao produtor quanto da planta
-    está afetado.
+    Vence a classe mais severa cuja fração de votos atinge
+    FRACAO_MINIMA_INCIDENCIA. `confianca` é a probabilidade média da classe
+    vencedora entre as janelas que votaram nela; a incidência vai no texto
+    da recomendação e em `votos`.
     """
     recortes, _posicoes = recortar(bytes_imagem)
     if not recortes:
@@ -255,9 +154,7 @@ def diagnosticar_por_janelas(interpretador: Any, bytes_imagem: bytes) -> dict:
         for i, nome in enumerate(_CLASSES_DO_MODELO)
     }
 
-    # A classe mais severa que passe do limiar. Se nenhuma passar, cai
-    # na mais votada, que nesse caso é necessariamente `saudavel` ou
-    # uma classe residual: nada atingiu incidência relevante.
+    # Classe mais severa acima do limiar; se nenhuma atingir, a mais votada.
     indice = int(np.bincount(vencedoras, minlength=len(_CLASSES_DO_MODELO)).argmax())
     for nome in ORDEM_SEVERIDADE:
         if nome in _CLASSES_DO_MODELO and fracoes.get(nome, 0.0) >= FRACAO_MINIMA_INCIDENCIA:
@@ -268,8 +165,7 @@ def diagnosticar_por_janelas(interpretador: Any, bytes_imagem: bytes) -> dict:
     media = votantes.mean(axis=0) if len(votantes) else probabilidades.mean(axis=0)
 
     if indice >= len(_CLASSES_DO_MODELO):
-        # Mesma proteção de inference.rodar_inferencia: .tflite trocado
-        # sem atualizar a lista de classes.
+        # .tflite trocado sem atualizar a lista de classes.
         logger.error(
             "Modelo devolveu indice %d, fora de _CLASSES_DO_MODELO (%d classes).",
             indice, len(_CLASSES_DO_MODELO),
@@ -289,10 +185,8 @@ def diagnosticar_por_janelas(interpretador: Any, bytes_imagem: bytes) -> dict:
     }
     incidencia = fracoes[classe]
 
-    # A incidência é o número acionável: diz QUANTO da planta mostra o
-    # sinal. Ela entra no texto porque `confianca` significa outra
-    # coisa (quanto o modelo confia onde detectou), e trocar o sentido
-    # daquele campo quebraria a leitura de quem já usa o app.
+    # A incidência indica quanto da planta mostra o sinal e vai no texto;
+    # `confianca` mantém o significado de confiança do modelo.
     if classe != "saudavel":
         aviso = (
             f"Sinal observado em {int(round(incidencia * total))} de {total} "
@@ -318,9 +212,8 @@ def diagnosticar_por_janelas(interpretador: Any, bytes_imagem: bytes) -> dict:
 
 
 def _sem_janela(motivo: str) -> dict:
-    """Nenhuma janela serviu. Trata como imagem inadequada, que é o
-    caminho que o sistema já tem para 'não dá para afirmar nada',
-    em vez de inventar um diagnóstico."""
+    """Nenhuma janela aproveitável: tratado como imagem inadequada, sem
+    afirmar diagnóstico."""
     return {
         "classe": CLASSE_IMAGEM_INADEQUADA,
         "confianca": 0.0,

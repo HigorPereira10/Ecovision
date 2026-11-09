@@ -1,26 +1,17 @@
 """
-cloud/scripts/provisionar_dispositivo.py
+Provisiona um dispositivo na tabela `dispositivos`, gerando:
 
-Gera as credenciais de um Raspberry Pi e grava na tabela `dispositivos`:
+- o segredo do dispositivo, para o .env do aparelho; o banco guarda só o
+  hash, e o valor em claro é exibido uma única vez;
+- o código de pareamento (ECO-XXXX-XXXX), para a etiqueta do aparelho,
+  usado pelo produtor no aplicativo (POST /dispositivos/vincular).
 
-- um SEGREDO, que vai no .env daquele Pi e autentica os envios dele.
-  Só o hash bcrypt fica no banco; o valor em claro aparece UMA VEZ, na
-  saída deste script. Se perder, rode de novo para gerar outro.
-- um CÓDIGO DE PAREAMENTO (ECO-XXXX-XXXX), que deve ser colado numa
-  etiqueta no aparelho. É ele que o agricultor digita no app para
-  reivindicar o equipamento (POST /dispositivos/vincular).
+O dispositivo é criado sem dono. Executar de novo para um device_id
+existente gera novo segredo e novo código, mantendo o dono.
 
-O dispositivo é criado SEM DONO de propósito. Quem o vincula é o
-produtor, pelo código, no app. Isso é o que torna seguro deixar o
-cadastro aberto: a conta só passa a enxergar dados depois de provar a
-posse física do equipamento.
+Uso (em cloud/, com o ambiente configurado):
 
-Como rodar (dentro de cloud/, com o venv ativado e o .env carregado):
-
-    python -m scripts.provisionar_dispositivo pi-estufa-02 "Estufa 2"
-
-Rodar de novo para um device_id existente ROTACIONA o segredo e o código
-(útil se o segredo vazar), mantendo o dono, se já houver um.
+    python -m scripts.provisionar_dispositivo <device_id> "<nome>"
 """
 
 import asyncio

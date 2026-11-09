@@ -1,21 +1,6 @@
 /**
- * app/src/screens/WelcomeScreen.tsx
- *
- * Tela de boas-vindas (apresentação do EcoVision antes do login).
- * Não existia no projeto ainda — é a tela da primeira imagem do design
- * (logo + 4 cards de funcionalidades + botão "Entrar").
- *
- * Deve ser a rota inicial do stack de não-autenticado no
- * app/src/navigation/AppNavigator.tsx, navegando para "Login" ao tocar
- * em "Entrar".
- *
- * Depende do arquivo de assets:
- *   app/assets/images/logo-ecovision.png
- * e da paleta compartilhada:
- *   app/src/theme/colors.ts
- *
- * Requer a dependência expo-linear-gradient:
- *   npx expo install expo-linear-gradient
+ * Tela de boas-vindas, antes do login: logo, cartões com as
+ * funcionalidades e botão "Entrar".
  */
 
 import React from "react";

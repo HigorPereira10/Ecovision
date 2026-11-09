@@ -1,19 +1,7 @@
 """
-edge/tests/test_config.py
-
-O que este arquivo verifica, em português simples:
-
-1. Que os caminhos da fila offline (QUEUE_DIR, QUEUE_FILE, ...) e dos
-   logs sempre viram caminhos ABSOLUTOS, ancorados na pasta edge/ do
-   próprio repositório, não importa de onde o script é chamado
-   (manualmente ou pelo cron). Isso corrige um bug real encontrado em
-   revisão: antes, o caminho padrão era relativo e podia apontar para
-   uma pasta diferente dependendo de quem chamava o script, fazendo
-   fotos e leituras "sumirem" sem nenhum erro visível.
-2. Que o programa recusa rodar, com uma mensagem de erro clara dizendo
-   qual variável falta, se uma configuração obrigatória (URL da API,
-   chave do dispositivo) não estiver definida, em vez de travar de
-   forma confusa em algum lugar mais adiante no código.
+Testes de edge/src/config.py: os caminhos da fila e dos logs são
+absolutos e ancorados em edge/, e a falta de uma variável obrigatória gera
+erro claro na importação.
 """
 
 import os
@@ -42,9 +30,7 @@ def test_queue_file_e_queue_images_dir_ficam_dentro_de_queue_dir():
 
 
 def test_falta_de_variavel_obrigatoria_da_erro_claro():
-    """Simula esquecer de configurar o .env no dispositivo: importar
-    config.py deve falhar imediatamente, citando o nome exato da
-    variável que falta, nunca falhar em silêncio ou mais tarde."""
+    """Sem .env, importar config.py falha citando a variável ausente."""
     ambiente_sem_api_url = {
         chave: valor for chave, valor in os.environ.items() if chave != "API_BASE_URL"
     }

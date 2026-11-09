@@ -5,180 +5,71 @@ import { colors } from '../theme/colors';
 import { LeituraAmbiental } from '../services/leituras';
 
 /**
- * Condições da estufa ao longo do tempo.
+ * Condições da estufa ao longo do tempo, em um gráfico por variável.
  *
- * POR QUE DOIS GRÁFICOS E NÃO UM
- * ------------------------------
- * Até 2026-11-02 as duas séries dividiam o mesmo eixo Y. Com os dados
- * reais do dispositivo, a temperatura ia de 20,8 a 28,4 °C e a umidade
- * de 64,3 a 79,2 %: num eixo de 21 a 79, a variação da temperatura
- * ocupava 13% da altura e virava uma linha quase reta colada embaixo.
- * Sete graus de variação numa estufa desapareciam.
+ * Gráficos separados evitam que a temperatura, de faixa estreita, vire uma
+ * linha reta ao dividir o eixo com a umidade, e evitam o eixo duplo, que
+ * sugere correlação. As cores seguem os cartões de leitura do Dashboard
+ * (laranja para temperatura, azul para umidade do ar, verde para umidade
+ * do solo).
  *
- * Também não havia legenda: duas linhas coloridas e nada dizendo qual
- * era qual.
- *
- * Separar resolve os dois problemas de uma vez, e evita o eixo duplo,
- * que sugere correlação entre as séries sem que ela tenha sido medida.
- *
- * AS CORES SÃO AS DOS CARDS LOGO ACIMA
- * -------------------------------------
- * Laranja para temperatura, azul para umidade do ar, verde para umidade
- * do solo: exatamente o que LeituraCard usa no Dashboard. Antes o
- * gráfico pintava a umidade do ar de verde, que é a cor do SOLO na
- * linha de cards imediatamente acima dele, na mesma tela. Trocar a cor
- * de significado no meio da rolagem é pior do que não ter cor.
- *
- * CADA GRÁFICO MOSTRA O SEU LIMIAR, E CITA DE ONDE ELE VEIO
- * ---------------------------------------------------------
- * É o que transforma o cartão de decorativo em informativo: a linha de
- * referência responde "isto está bom?" sem o produtor precisar decorar
- * número nenhum.
- *
- * Temperatura e umidade do ar vêm da Embrapa Hortaliças (ver
- * LIMIAR_UMIDADE_PCT e FAIXA_TEMPERATURA_C), na mesma unidade que o
- * sensor mede, então a linha tracejada É a recomendação.
- *
- * O solo é o caso difícil, e está explicado por inteiro em
- * CAPACIDADE_DE_CAMPO_PCT. Resumo: o sensor foi calibrado entre ar seco
- * e água pura, então não mede nenhuma das grandezas em que a literatura
- * expressa água no solo. Mas a CAPACIDADE DE CAMPO deste vaso foi
- * medida, na escala do próprio sensor, e é ela que a linha marca. Traço
- * tracejado LONGO, para distinguir de recomendação publicada sem fingir
- * que é invenção nossa: é medição nossa, que é coisa diferente das duas.
+ * Cada gráfico tem uma linha de referência com a origem indicada: para
+ * temperatura e umidade do ar, o limite de referência na mesma unidade do
+ * sensor (traço curto); para o solo, a capacidade de campo medida no vaso,
+ * na escala do sensor (traço longo), já que o sensor não mede as grandezas
+ * usadas nos critérios de irrigação.
  */
 
 interface SerieTemporalCardProps {
   leituras: LeituraAmbiental[]; // ordenadas por timestamp crescente
 }
 
-/** Acima disso a Embrapa associa surgimento de mofo nas folhas. É o
- * mesmo limiar que o servidor usa para alerta ambiental e para estimar
- * molhamento foliar no cruzamento com o diagnóstico. */
+/** Umidade do ar acima da qual a folha permanece úmida por mais tempo,
+ * favorecendo mofo. É o mesmo limiar do alerta ambiental do servidor. */
 const LIMIAR_UMIDADE_PCT = 90;
 
 /** Tolerância ampla do tomateiro, fora da qual há risco de perda
  * rápida. */
 const FAIXA_TEMPERATURA_C = { min: 10, max: 34 };
 
-/** Capacidade de campo DESTE vaso, na escala do próprio sensor.
+/** Capacidade de campo do vaso monitorado, na escala do sensor (espelha
+ * CAPACIDADE_DE_CAMPO_MEDIDA_PCT em cloud/app/core/alertas_ambientais.py).
  *
- * É o que a linha de referência da série de solo marca, e é medição, não
- * convenção. Espelha CAPACIDADE_DE_CAMPO_MEDIDA_PCT em
- * cloud/app/core/alertas_ambientais.py.
- *
- * COMO FOI MEDIDA, SEM EXPERIMENTO NOVO
- * -------------------------------------
- * O vaso foi regado em 2026-11-03 às 19:49. A série de 15 minutos
- * registrou:
- *
- *     19:49 ............ 90,5%  (bruto 8156, saturado)
- *     21:00 ............ 76,0%  (bruto 9648, drenagem livre cessou)
- *     21:00 a 03:15 .... 75,7 a 76,2%  (25 leituras, 6 HORAS de patamar)
- *     3 dias depois .... 67,6%  (queda lenta, por evapotranspiração)
- *
- * O patamar que segue o fim da drenagem livre é a capacidade de campo,
- * por definição. O protocolo manda cobrir o vaso para excluir
- * evaporação da medida; não foi coberto, mas a janela foi das 19:49 às
- * 03:15, de madrugada, e a variação líquida nas 6 horas foi ZERO. A
- * condição que a cobertura existe para garantir foi verificada no dado
- * em vez de assumida.
- *
- * Limitação: um evento de rega, não replicado. A próxima rega confirma
- * ou desmente, e é de graça.
- *
- * POR QUE ESTA LINHA, E NÃO O LIMIAR DE 20%
- * -----------------------------------------
- * Até 2026-11-06 a linha ficava em FAIXA_SOLO_PCT.min, o limiar de
- * alerta de seca. Dois problemas, os dois medidos em 367 leituras:
- *
- * 1. Os 20% estão FORA da faixa que o vaso visita (67% a 76%), então a
- *    linha nunca aparecia perto dos dados. Linha de referência que o
- *    dado não alcança não responde "isto está bom?", que é a única
- *    pergunta que ela existe para responder.
- * 2. Aquele número não tinha respaldo nenhum, e o alerta de solo seco
- *    nunca disparou uma vez.
- *
- * A capacidade de campo resolve os dois: está dentro da faixa de
- * operação, e significa algo verificável. Acima dela o solo não retém a
- * água, está drenando e os poros ficam sem ar para a raiz. Abaixo,
- * começou a secar.
- *
- * O QUE ESTA LINHA AINDA NÃO É
- * ----------------------------
- * Não é recomendação de quando irrigar. Os critérios publicados usam
- * outras unidades e os dois exigem o ponto de murcha permanente, que é
- * propriedade do solo e NÃO se extrai de uma curva de secagem:
- *
- *   TENSÃO. Para tomate de mesa tutorado, irrigar quando a tensão da
- *   água no solo chega a 15-25 kPa, medida com tensiômetro.
- *     BRAGA, M.B.; FELTRIM, A.L.; BORGES, L.C. Irrigação. In: ZAMBOLIM,
- *     L.; QUEZADO-DUVAL, A.M. (org.). Produção integrada do tomateiro
- *     tutorado. Viçosa, MG: UFV, CEAD, 2022. cap. 7, p. 102-116.
- *
- *   FRAÇÃO DE ÁGUA DISPONÍVEL. Tomate tem p = 0,40: irrigar quando 40%
- *   da água disponível foi consumida, mantendo acima de 60% dela.
- *     ALLEN, R.G. et al. Crop evapotranspiration: guidelines for
- *     computing crop water requirements. Roma: FAO, 1998. (FAO
- *     Irrigation and Drainage Paper, 56). Tabela 22.
- *
- * Com a capacidade de campo já medida, falta um ponto só para chegar
- * lá. Ver docs/decisions/0005-limiares-ambientais.md. */
+ * Identificada pelo patamar de seis horas (75,7% a 76,2%) que seguiu a
+ * drenagem de uma rega, em uma única medição. Acima dela, o solo está
+ * drenando; abaixo, começou a secar. Não é uma recomendação de irrigação:
+ * os critérios publicados usam tensão (15 a 25 kPa; BRAGA; FELTRIM;
+ * BORGES, 2022) ou fração de água disponível (FAO-56, Tabela 22), e
+ * exigem também o ponto de murcha permanente. */
 const CAPACIDADE_DE_CAMPO_PCT = 76;
 
 /** Limiares de alerta do servidor (UMIDADE_SOLO_MIN_PCT e MAX em
- * cloud/app/core/alertas_ambientais.py). Não são linha no gráfico.
+ * cloud/app/core/alertas_ambientais.py), que não são desenhados.
  *
- * Só o `max` aparece, e na legenda, não como linha. Ele existe no texto
- * para fechar uma lacuna de 4 pontos: a linha marca a capacidade de
- * campo (76%) e o alerta dispara em 80%, então entre os dois o gráfico
- * mostra o solo acima da linha e o sistema fica calado. Sem a frase, o
- * produtor leria isso como alerta que falhou. Com ela, fica claro que
- * acima da capacidade de campo o solo está drenando, e que o aviso vem
- * quando passa de 80%.
- *
- * O `min` (20%) NÃO aparece em lugar nenhum desta tela de propósito: ele
- * não tem respaldo, nunca disparou em 367 leituras e está fora da faixa
- * que o vaso visita. Mostrá-lo seria dar ao produtor um número em que
- * não se pode confiar. Ele continua visível na tela de Perfil, que
- * descreve o que o sistema FAZ, e está registrado como pendência em
- * docs/decisions/0005-limiares-ambientais.md. */
+ * O máximo aparece na legenda, para explicar por que o solo entre a
+ * capacidade de campo (76%) e 80% não gera alerta. O mínimo não aparece
+ * nesta tela por não ter respaldo agronômico e ficar fora da faixa em que
+ * o vaso opera; ele é exibido na tela de Perfil. */
 const FAIXA_SOLO_PCT = { min: 20, max: 80 };
 
 /** Tensão crítica de irrigação para tomate de mesa, em kPa (Braga,
- * Feltrim e Borges, 2022, p. 105). Não entra em comparação nenhuma: o
- * sensor não mede kPa. Está aqui para o pé do cartão citar o critério. */
+ * Feltrim e Borges, 2022, p. 105), citada no rodapé do cartão. */
 const TENSAO_CRITICA_KPA = { min: 15, max: 25 };
 
 /** Fração de água disponível a manter no solo, da FAO-56 (p = 0,40 para
- * tomate, logo 1 - 0,40). Também não entra em comparação.
- *
- * A FAO-56 ainda corrige p pela evapotranspiração,
- * p = 0,40 + 0,04 (5 - ETc), limitado a 0,1 <= p <= 0,8. Numa estufa
- * quente o ETc passa de 5 mm/dia, p cai e o piso sobe acima de 60%.
- * Esse refinamento fica para depois de o ponto de murcha ser medido:
- * aplicá-lo antes seria precisão decorativa. */
+ * tomate, logo 1 - 0,40), citada no rodapé do cartão. */
 const AGUA_DISPONIVEL_MINIMA_PCT = 60;
 
-/** Abaixo disso a leitura do solo está no piso da escala, o que indica
- * sonda fora da terra ou calibração pendente, não solo seco. Espelha
- * SOLO_PISO_SUSPEITO_PCT no servidor, que gera alerta de sensor em vez
- * de alerta de seca. Com a sonda fora do vaso, as leituras ficaram em
- * 1,7 a 2,1%. */
+/** Leituras abaixo deste valor estão no piso da escala e indicam sonda
+ * fora da terra ou calibração pendente, não solo seco (espelha
+ * SOLO_PISO_SUSPEITO_PCT no servidor). */
 const PISO_SUSPEITO_SOLO_PCT = 4;
 
 const FONTE_CLIMA = 'Embrapa Hortaliças, Tomate de mesa: Clima';
 
 /**
- * Leitura em que temperatura E umidade vêm exatamente zero não é
- * medição: é a assinatura de falha do DHT22, que passou a devolver
- * 0,0 nos dois campos em vez de erro. Três leituras assim ficaram no
- * banco (01/11, 00:30 às 00:50), de antes da guarda entrar no
- * dispositivo.
- *
- * Elas não são apagadas do banco, porque são registro de uma falha
- * real. Mas plotadas despencam o eixo e fazem parecer que a estufa
- * congelou, então saem daqui.
+ * Temperatura e umidade exatamente zero indicam falha do DHT22, não
+ * medição; essas leituras ficam no banco, mas não são desenhadas.
  */
 function ehFalhaDoSensor(l: LeituraAmbiental): boolean {
   return l.temperatura === 0 && l.umidade_ar === 0;
@@ -187,10 +78,8 @@ function ehFalhaDoSensor(l: LeituraAmbiental): boolean {
 export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
   const validas = leituras.filter((l) => !ehFalhaDoSensor(l));
 
-  // Cada série pula os pontos sem medição própria (a API devolve null
-  // quando aquele sensor falhou no ciclo). O filtro é por série, não por
-  // leitura: se só a umidade falhou, a temperatura do mesmo ciclo
-  // continua sendo plotada.
+  // Cada série ignora os pontos sem medição própria (null quando o sensor
+  // falhou); se só a umidade falhou, a temperatura do ciclo continua.
   const dadosTemperatura = validas
     .filter((l) => l.temperatura !== null)
     .map((l) => ({ x: new Date(l.timestamp), y: l.temperatura as number }));
@@ -199,22 +88,15 @@ export function SerieTemporalCard({ leituras }: SerieTemporalCardProps) {
     .filter((l) => l.umidade_ar !== null)
     .map((l) => ({ x: new Date(l.timestamp), y: l.umidade_ar as number }));
 
-  // Leitura de solo no piso da escala sai da série pelo mesmo motivo que
-  // o zero do DHT22: não é medição. Plotada contra a linha de 20% ela
-  // desenha uma estufa em seca severa quando o que houve foi a sonda
-  // fora da terra.
+  // Leituras de solo no piso da escala não são medição e saem da série.
   const leiturasSolo = validas.filter((l) => l.umidade_solo !== null);
   const dadosSolo = leiturasSolo
     .filter((l) => (l.umidade_solo as number) > PISO_SUSPEITO_SOLO_PCT)
     .map((l) => ({ x: new Date(l.timestamp), y: l.umidade_solo as number }));
   const soloNoPiso = leiturasSolo.length - dadosSolo.length;
 
-  // Uma linha precisa de DOIS pontos para existir. Com um ponto só, o
-  // gráfico saía desenhado, com eixos e grade, e completamente vazio
-  // por dentro, enquanto o eixo do tempo repetia o mesmo horário cinco
-  // vezes (foi o que apareceu no primeiro teste com o dispositivo real:
-  // "16:50" cinco vezes e nenhuma linha). Um gráfico vazio parece
-  // defeito; uma frase explicando o que falta, não.
+  // Com menos de dois pontos não há linha: exibe uma frase explicativa em
+  // vez de um gráfico vazio.
   const pontosSuficientes =
     dadosTemperatura.length >= 2 || dadosUmidade.length >= 2 || dadosSolo.length >= 2;
 
@@ -323,19 +205,9 @@ interface MiniSerieProps {
   referencia: {
     valor: number;
     texto: string;
-    /** De onde o número da linha vem, o que decide o traço E o texto.
-     * Existe para o olho não ler as duas origens com o mesmo peso.
-     *
-     * 'recomendacao' = fonte publicada, na mesma unidade que o sensor
-     * mede, então a linha É a recomendação (traço curto, 4,4).
-     * 'medido' = medição feita nesta estufa, na escala deste sensor.
-     * Confiável para este vaso e não generalizável, diferente dos dois
-     * (traço longo, 8,4).
-     *
-     * Havia um terceiro, 'alerta', para quando a linha marcava só onde o
-     * alerta do sistema dispara, sem respaldo. Saiu em 2026-11-06, quando
-     * a linha do solo passou a ser a capacidade de campo medida e nenhuma
-     * série mais precisou dele. */
+    /** Origem do número da linha, que define o traço e o texto:
+     * 'recomendacao' = referência publicada na unidade do sensor (traço
+     * curto); 'medido' = medição feita no vaso monitorado (traço longo). */
     tipo: 'recomendacao' | 'medido';
   };
   /** Ressalva sobre medições que esta série descartou. Aparece abaixo da
@@ -365,10 +237,8 @@ function MiniSerie({
   const valores = dados.map((d) => d.y);
   const atual = valores[valores.length - 1];
 
-  // O domínio inclui a linha de referência SEMPRE, mesmo quando as
-  // medições estão longe dela. Sem isso a linha sai do gráfico
-  // justamente quando a leitura é confortável, que é quando o produtor
-  // mais precisa ver o quanto sobra de margem.
+  // O domínio sempre inclui a linha de referência, para mostrar a margem
+  // mesmo quando as medições estão longe dela.
   const minimo = Math.min(...valores, referencia.valor);
   const maximo = Math.max(...valores, referencia.valor);
   const folga = Math.max((maximo - minimo) * 0.12, 1);

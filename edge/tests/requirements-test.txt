@@ -1,13 +1,6 @@
-# edge/tests/requirements-test.txt
-#
-# Dependências para RODAR OS TESTES (não confundir com
-# edge/requirements.txt, que é o que vai instalado na Raspberry Pi de
-# verdade e inclui pacotes específicos de hardware que não existem fora
-# dela, como picamera2 e RPi.GPIO).
-#
-# Instalar dentro do WSL/Ubuntu com:
-#   pip install -r edge/tests/requirements-test.txt
-
+# Dependências para rodar os testes fora do Raspberry Pi.
+# edge/requirements.txt inclui pacotes de hardware que não se instalam
+# em outras máquinas.
 pytest
 Pillow
 requests

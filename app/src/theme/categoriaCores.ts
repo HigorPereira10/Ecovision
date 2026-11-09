@@ -1,9 +1,5 @@
 /**
- * app/src/theme/categoriaCores.ts
- *
- * Mapeia cada categoria de gasto a uma cor já existente em colors.ts.
- * Mantém a regra do projeto de nunca inventar hex novo dentro de
- * componentes — tudo sai da paleta central.
+ * Cor de cada categoria de gasto, sempre a partir da paleta de colors.ts.
  */
 
 import { colors } from './colors';

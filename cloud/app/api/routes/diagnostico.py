@@ -1,55 +1,21 @@
 """
-cloud/app/api/routes/diagnostico.py
+POST /diagnostico: recebe a captura e as leituras de um dispositivo,
+classifica a imagem e grava tudo.
 
-Endpoint principal de ingestão: POST /diagnostico
-Recebe do Raspberry Pi (edge/) a imagem comprimida + leituras de sensores,
-roda a inferência e persiste tudo no Supabase.
+1. Autentica a credencial do dispositivo (app/api/dispositivo_auth.py).
+2. Se a idempotency_key já existe, devolve o diagnóstico gravado.
+3. Valida os campos e lê a imagem em memória.
+4. Verifica a qualidade da imagem e classifica por janelas
+   (app/core/janelas.py), com recurso ao quadro inteiro em caso de falha.
+5. Envia a imagem ao Supabase Storage.
+6. Grava registro, leitura, diagnóstico e alertas (de doença, de imagem
+   inadequada e ambientais) em uma única transação.
 
-Fluxo completo, conforme Blueprint v3.0 Seção 4.2:
-1. Autenticar a requisição pela credencial daquele dispositivo (ver
-   app/api/dispositivo_auth.py e ADR 0009).
-2. Checar se já existe um registro com essa idempotency_key. Se existir,
-   é um reenvio: devolve o diagnóstico já existente sem reprocessar
-   (ver "Idempotência" abaixo).
-3. Ler a imagem recebida em memória (BytesIO), nunca gravar em disco.
-4. Redimensionar para 224x224 com NEAREST, rodar inferência TFLite
-   (app/core/inference.py). NÃO normalizar aqui: o modelo normaliza por
-   dentro e espera pixels crus de 0 a 255 (ver ADR 0011 para as duas
-   armadilhas desse contrato). Devolve um resultado placeholder se
-   nenhum modelo foi carregado.
-5. Fazer upload da imagem já comprimida para o Supabase Storage
-   (app/storage/supabase_storage.py) e obter o caminho salvo.
-6. Persistir no Supabase Postgres (app/db/models.py):
-   - registros_imagem (com o caminho_arquivo retornado do Storage)
-   - leituras_ambientais (temperatura, umidade do ar, umidade do solo)
-   - diagnosticos (classe prevista, confiança, recomendação)
-   - alertas: um se o diagnóstico não for "saudavel" nem "indisponivel"
-     (ver _deve_gerar_alerta abaixo), e um para cada risco ambiental
-     identificado nas leituras (ver app/core/alertas_ambientais.py e
-     docs/decisions/0005-limiares-ambientais.md para as fontes de cada
-     limiar; nenhum desses números foi inventado no código).
-7. Descartar o buffer da imagem da memória.
-
-Idempotência: edge/src/upload/uploader.py manda um `idempotency_key`
-(o UUID que edge/src/fila/offline_queue.py já gera na captura). Sem
-isso, um reenvio após uma falha parcial (API confirma 200, mas o
-processo do Pi cai antes de tirar o registro da fila local) criaria uma
-linha duplicada no banco.
-
-Contrato exato assumido do lado do dispositivo (edge/src/upload/uploader.py):
-  POST /diagnostico
-  Header: Authorization: <DEVICE_API_KEY> (sem prefixo "Bearer")
-  multipart/form-data:
-    - imagem: arquivo JPEG comprimido
-    - device_id, timestamp, idempotency_key: strings
-    - temperatura_c, umidade_ar_pct, umidade_solo_pct: opcionais. Podem
-      vir ausentes OU como a string "None" (edge/src/main.py grava None
-      no JSON quando um sensor falha; ver _campo_float_opcional abaixo).
-
-Relação com o resto do sistema:
-- Único endpoint chamado pelo edge/src/upload/uploader.py.
-- Depende de app/core/inference.py (modelo carregado em app/main.py no
-  startup) e de app/storage/supabase_storage.py.
+Formato esperado (edge/src/upload/uploader.py): cabeçalho Authorization
+com a credencial do dispositivo, sem "Bearer"; multipart/form-data com
+imagem, device_id, timestamp, idempotency_key e as leituras opcionais
+temperatura_c, umidade_ar_pct e umidade_solo_pct (ausentes ou "None"
+quando o sensor falha).
 """
 
 import logging
@@ -81,36 +47,22 @@ logger = logging.getLogger("ecovision.cloud.diagnostico")
 
 router = APIRouter()
 
-# Classes que NÃO geram alerta de doença: "saudavel" (nada a avisar),
-# "indisponivel" (placeholder de app/core/inference.py quando não há
-# modelo carregado) e "imagem_inadequada" (a foto foi reprovada na
-# guarda de qualidade, então não existe diagnóstico a anunciar). Avisar
-# o produtor de uma classe que não significa nada seria pior do que
-# simplesmente não avisar. A imagem inadequada tem alerta PRÓPRIO, de
-# câmera, gerado mais abaixo.
+# Classes que não geram alerta de doença: "saudavel", "indisponivel"
+# (modelo não carregado) e "imagem_inadequada", que tem alerta próprio.
 _CLASSES_SEM_ALERTA = {"saudavel", "indisponivel", inference.CLASSE_IMAGEM_INADEQUADA}
 
-# Teto de leituras lidas para a janela de pressão infecciosa. Com
-# captura a cada 2h, 14 dias são 168 leituras, então 500 dá folga larga
-# para intervalos menores sem virar consulta pesada a cada diagnóstico.
-# O teto existe para o custo não crescer com a idade do dispositivo.
+# Limite de leituras consultadas para a janela de pressão de infecção,
+# para que o custo não cresça com a idade do dispositivo.
 _LIMITE_LEITURAS_HISTORICO = 500
 
-# ALERTA DE SEGURANÇA (proteção contra negação de serviço): edge/src/
-# compress.py mira 150-250KB por foto, então 5MB já é uma margem bem
-# generosa (mais de 20x o esperado). Sem esse limite, um dispositivo com
-# bug (ou uma requisição forjada, já que o device_id não é validado
-# contra nenhum cadastro nesta rodada) poderia mandar um arquivo enorme
-# e esgotar a RAM do processo (só 1 worker, decisão do Blueprint) antes
-# mesmo de tentar abrir a imagem. Não remover nem aumentar sem motivo.
+# Tamanho máximo da imagem. As capturas têm de 1,3 a 1,5 MB; o limite
+# protege a memória do processo contra arquivos muito grandes.
 _TAMANHO_MAXIMO_IMAGEM_BYTES = 5 * 1024 * 1024
 
 
 def _campo_float_opcional(valor: str | None) -> float | None:
-    """edge/src/main.py grava `None` no JSON quando a leitura de um
-    sensor falha. Isso pode chegar aqui como campo ausente ou como a
-    string literal "None": os dois casos viram None, nunca um erro
-    de validação."""
+    """Converte um campo opcional em float. Campo ausente ou com o texto
+    "None" (sensor com falha) vira None, sem erro de validação."""
     if valor is None or valor == "" or valor == "None":
         return None
     return float(valor)
@@ -140,12 +92,10 @@ async def _recomendacao_com_ressalva(
     umidade_ar_pct: float | None,
 ) -> str | None:
     """Acrescenta à recomendação a ressalva de plausibilidade ambiental,
-    quando houver. Devolve a recomendação original se não houver.
+    quando houver.
 
-    NUNCA DERRUBA A ROTA: se a consulta ao histórico falhar, o
-    diagnóstico segue sem a ressalva. Vale aqui o mesmo princípio de
-    app/core/inference.py, que mantém a API de pé mesmo sem modelo:
-    uma camada acessória não pode impedir a captura de ser gravada.
+    Uma falha na consulta ao histórico não interrompe a rota: o
+    diagnóstico segue sem a ressalva.
     """
     recomendacao = resultado.get("recomendacao")
     try:
@@ -161,9 +111,8 @@ async def _recomendacao_com_ressalva(
             .limit(_LIMITE_LEITURAS_HISTORICO)
         )).all()
 
-        # A leitura desta captura ainda não está no banco (a gravação
-        # vem depois), então entra aqui à mão. Sem isso a janela perde
-        # justamente a amostra mais recente, que é a que mais pesa.
+        # A leitura desta captura ainda não foi gravada; entra aqui para a
+        # janela incluir a amostra mais recente.
         leituras = [(m, t, u) for m, t, u in linhas]
         leituras.append((capturado_em, temperatura_c, umidade_ar_pct))
 
@@ -202,11 +151,9 @@ async def receber_diagnostico(
     credencial: str = Depends(obter_credencial_dispositivo),
     sessao: AsyncSession = Depends(get_session),
 ) -> DiagnosticoOut:
-    """Recebe imagem + leituras do dispositivo IoT e retorna o diagnóstico."""
-    # A autenticação não pode ser uma dependency simples como nas outras
-    # rotas: ela precisa do `device_id`, que chega no corpo do formulário
-    # e não no header, para conferir se aquela credencial autoriza enviar
-    # COMO aquele dispositivo. Ver app/api/dispositivo_auth.py.
+    """Recebe imagem e leituras do dispositivo e devolve o diagnóstico."""
+    # A autenticação usa o device_id do formulário, por isso não é uma
+    # dependência simples (ver app/api/dispositivo_auth.py).
     await autenticar_dispositivo(sessao, device_id, credencial)
 
     logger.info(
@@ -223,12 +170,8 @@ async def receber_diagnostico(
         )
         return DiagnosticoOut.model_validate(diagnostico_existente)
 
-    # ATENÇÃO, BUG JÁ CORRIGIDO AQUI: antes, o timestamp e as leituras
-    # eram convertidos só depois do upload da imagem para o Storage, sem
-    # tratamento de exceção. Um valor malformado gerava um erro 500 cru
-    # E deixava uma imagem órfã no bucket (o upload já tinha acontecido,
-    # mas nada era gravado no banco). Por isso todo texto é validado
-    # ANTES de gastar a chamada de storage: não inverter essa ordem.
+    # Todos os campos são validados antes do upload, para que um valor
+    # inválido não deixe imagem órfã no bucket.
     try:
         capturado_em = datetime.fromisoformat(timestamp)
         temperatura_c_valor = _campo_float_opcional(temperatura_c)
@@ -269,18 +212,9 @@ async def receber_diagnostico(
             detail="Imagem inválida ou corrompida.",
         )
 
-    # GUARDA DE QUALIDADE, antes de classificar. O modelo não tem uma
-    # saída para "isto não é uma folha": ele empurra qualquer entrada
-    # para uma das três classes, e no escuro empurra para "saudavel"
-    # com confiança altíssima (ver os números medidos em
-    # app/core/inference.py). Classificar uma foto preta produziria a
-    # afirmação mais perigosa que este sistema pode fazer: "sua planta
-    # está saudável", com 95% de confiança, sobre uma imagem onde não
-    # dá para ver nada.
-    #
-    # A captura NÃO é descartada: foto, leituras e alertas ambientais
-    # são gravados igual. O que não acontece é afirmar um diagnóstico.
-    # O produtor vê a própria imagem no app, junto do motivo, e julga.
+    # Verificação de qualidade antes de classificar: o modelo atribui alta
+    # confiança a "saudavel" em imagens escuras ou sem conteúdo. A captura
+    # reprovada é gravada normalmente, mas sem diagnóstico.
     motivo_imagem_ruim = inference.avaliar_qualidade_imagem(bytes_imagem)
 
     if motivo_imagem_ruim is not None:
@@ -297,11 +231,8 @@ async def receber_diagnostico(
     else:
         interpretador = getattr(request.app.state, "modelo_tflite", None)
         if interpretador is not None and get_settings().DIAGNOSTICO_POR_JANELA:
-            # Caminho por janela deslizante. Cai no quadro inteiro se
-            # algo der errado: uma melhoria de precisão não pode ser
-            # motivo para a captura não ser diagnosticada. Mesmo
-            # princípio de app/core/inference.py, que mantém a API de pé
-            # sem modelo.
+            # Em caso de falha no caminho por janelas, classifica o quadro
+            # inteiro, para a captura não ficar sem diagnóstico.
             try:
                 resultado = janelas.diagnosticar_por_janelas(interpretador, bytes_imagem)
             except Exception:
@@ -333,36 +264,20 @@ async def receber_diagnostico(
         temperatura_c_valor, umidade_ar_pct_valor, umidade_solo_pct_valor
     )
 
-    # CRUZAMENTO COM O HISTÓRICO DA ESTUFA. O modelo de imagem não sabe
-    # duvidar de si mesmo: medido em 2026-11-01, os logits de uma planta
-    # com amarelamento nutricional ficam no mesmo patamar dos das
-    # classes conhecidas (mediana 1,70 contra 1,89), então ele acusa
-    # doença com confiança alta e nada na visão o contradiz.
-    #
-    # Fungo foliar precisa de molhamento prolongado para infectar. Se o
-    # histórico mostra que isso não houve, a suspeita merece uma
-    # ressalva. Ver app/core/pressao_infecciosa.py para os três pontos
-    # cegos que limitam o que essa ressalva pode afirmar.
-    #
-    # A ressalva vai junto da RECOMENDAÇÃO, não como alerta separado: é
-    # uma qualificação do diagnóstico e só faz sentido grudada nele.
+    # Cruzamento com o histórico ambiental (app/core/pressao_infecciosa.py):
+    # quando não houve molhamento foliar suficiente para uma infecção
+    # fúngica, a recomendação recebe uma ressalva.
     if resultado["classe"] in CLASSES_FUNGICAS:
         resultado["recomendacao"] = await _recomendacao_com_ressalva(
             sessao, device_id, resultado,
             capturado_em, temperatura_c_valor, umidade_ar_pct_valor,
         )
 
-    # ATENÇÃO, BUG JÁ CORRIGIDO AQUI (condição de corrida): a checagem de
-    # idempotency_key no início da função e a gravação abaixo não são
-    # atômicas. Se duas requisições com a MESMA idempotency_key chegarem
-    # quase juntas (ex.: o edge/ reenvia por timeout local logo depois de
-    # um envio que na verdade já tinha sido aceito), as duas podem passar
-    # pela checagem antes de qualquer uma terminar de gravar. A
-    # constraint UNIQUE de registros_imagem.idempotency_key garante que
-    # só uma delas vence. Essa violação pode aparecer já no primeiro
-    # flush() (não só no commit), por isso todo o bloco de gravação
-    # abaixo precisa ficar dentro do mesmo try: não separar em blocos
-    # menores sem entender essa consequência.
+    # A verificação de idempotency_key no início e a gravação abaixo não
+    # são atômicas: duas requisições com a mesma chave podem passar pela
+    # verificação. A restrição UNIQUE garante que só uma grava, e a
+    # violação pode surgir já no primeiro flush(), por isso toda a
+    # gravação fica no mesmo bloco try.
     try:
         registro = RegistroImagem(
             device_id=device_id,
@@ -371,14 +286,10 @@ async def receber_diagnostico(
             capturado_em=capturado_em,
         )
         sessao.add(registro)
-        await sessao.flush()  # garante registro.id antes das linhas filhas
+        await sessao.flush()  # obtém registro.id antes das linhas filhas
 
-        # device_id tambem na leitura, e nao so no registro de imagem.
-        # Desde a migration 0008 ele e coluna propria, porque GET
-        # /leituras precisa filtrar por dispositivo sem depender de um
-        # JOIN que nao existe para leitura sem foto. Gravar nos dois
-        # lugares e redundancia de proposito: a alternativa seria a
-        # consulta ter dois caminhos, um com JOIN e um sem.
+        # device_id gravado também na leitura, para que GET /leituras
+        # filtre por dispositivo sem depender do registro de imagem.
         leitura = LeituraAmbiental(
             device_id=device_id,
             registro_imagem_id=registro.id,
@@ -387,7 +298,7 @@ async def receber_diagnostico(
             umidade_solo_pct=umidade_solo_pct_valor,
         )
         sessao.add(leitura)
-        await sessao.flush()  # garante leitura.id antes de um possivel alerta ambiental
+        await sessao.flush()  # obtém leitura.id para eventual alerta ambiental
 
         diagnostico = Diagnostico(
             registro_imagem_id=registro.id,
@@ -396,15 +307,13 @@ async def receber_diagnostico(
             recomendacao=resultado["recomendacao"],
         )
         sessao.add(diagnostico)
-        await sessao.flush()  # garante diagnostico.id antes do alerta
+        await sessao.flush()  # obtém diagnostico.id antes do alerta
 
         if _deve_gerar_alerta(resultado["classe"]):
             descricao_doenca = resultado["recomendacao"] or "Verificar a planta o quanto antes."
             if riscos_ambientais:
-                # Correlação simples em texto, isso NÃO é fusão de
-                # modelo (ver ADR 0006): apenas avisa que condições
-                # ambientais desfavoráveis também foram detectadas no
-                # mesmo ciclo, sem alegar que uma causou a outra.
+                # Apenas registra que houve condições ambientais
+                # desfavoráveis no mesmo ciclo, sem relação causal.
                 titulos_ambientais = ", ".join(titulo for titulo, _, _ in riscos_ambientais)
                 descricao_doenca += (
                     f" Condições ambientais também fora do ideal neste ciclo "
@@ -413,25 +322,19 @@ async def receber_diagnostico(
             sessao.add(
                 Alerta(
                     diagnostico_id=diagnostico.id,
-                    # "Sinal de X na planta" e nao "Possivel X detectado"
-                    # por duas razoes: nao exige concordancia de genero
-                    # ("septoriose detectada" contra "estresse
-                    # detectado"), e descreve o que o sistema realmente
-                    # viu. A incidencia medida ("24 de 34 regioes") vem
-                    # na descricao, logo abaixo.
+                    # O título descreve o sinal observado; a incidência
+                    # medida vai na descrição.
                     titulo=f"Sinal de {inference.rotulo_para_produtor(resultado['classe'])} na planta",
                     descricao=descricao_doenca,
-                    # resultado["severidade"] só é None no placeholder
-                    # "indisponivel", mas esse caso nunca chega aqui
-                    # porque _deve_gerar_alerta já filtra essa classe.
+                    # severidade só é None em "indisponivel", já filtrado
+                    # por _deve_gerar_alerta.
                     severidade=resultado["severidade"],
                 )
             )
             logger.info("Alerta gerado para device_id=%s (diagnostico_id=%s)", device_id, diagnostico.id)
 
-        # Alerta de câmera, em vez do de doença. Severidade média: pede
-        # conferência do equipamento, não ação no cultivo, e é o mesmo
-        # critério usado para a suspeita de sensor de solo (ADR 0005).
+        # Imagem inadequada gera alerta de verificação do equipamento, com
+        # severidade média.
         if resultado["classe"] == inference.CLASSE_IMAGEM_INADEQUADA:
             sessao.add(
                 Alerta(
@@ -449,9 +352,7 @@ async def receber_diagnostico(
                 device_id, diagnostico.id,
             )
 
-        # Mesmo codigo que POST /leituras usa, para um limiar novo nao
-        # passar a valer em um caminho e nao no outro. Ver
-        # app/api/alertas_de_leitura.py.
+        # Mesma regra de POST /leituras (app/api/alertas_de_leitura.py).
         for alerta_ambiental in montar_alertas_ambientais(leitura):
             sessao.add(alerta_ambiental)
 
@@ -465,7 +366,7 @@ async def receber_diagnostico(
         )
         diagnostico_vencedor = await _buscar_diagnostico_por_idempotency_key(sessao, idempotency_key)
         if diagnostico_vencedor is None:
-            raise  # não deveria acontecer; melhor falhar alto do que esconder um bug diferente
+            raise  # violação inesperada: propagar em vez de ocultar
         return DiagnosticoOut.model_validate(diagnostico_vencedor)
 
     await sessao.refresh(diagnostico)

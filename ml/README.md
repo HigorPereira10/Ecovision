@@ -1,135 +1,91 @@
-# ml: Pipeline de IA (Treino Offline)
+# ml
 
-Referência arquitetural: [**Blueprint v4.0**](../docs/architecture/blueprint-v4.md),
-seção 5. O Blueprint v3.0, Fase 3, segue valendo para o planejamento do
-pipeline.
+Treinamento, avaliação e exportação do classificador de folhas de
+tomateiro. Nada desta pasta roda em produção: o resultado é um arquivo
+`.tflite` em `models/`, carregado pela API (`cloud/app/core/inference.py`).
 
-> **ESTADO EM PRODUÇÃO (2026-10-24):** `ml/models/modelo.tflite`,
-> MobileNetV2 com **ajuste fino de dois domínios**, float32, 8,5 MB,
-> **3 classes** na ordem `septoriose`, `pinta_preta`, `saudavel`.
-> Medido por validação cruzada de 5 dobras em 3577 imagens: **95,3% em
-> laboratório e 74,0% em foto de campo**, contra 90,7% e 57,0% do
-> baseline anterior, vencendo em 10 de 10 comparações pareadas. Gerado
-> por `src/training/ajuste_dois_dominios.py`, ver `models/README.md`. O recorte de três classes é uma decisão
-> registrada, com o motivo e o procedimento para reativar as outras, em
-> [ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md). O
-> aplicativo declara esse limite ao produtor na tela de Diagnóstico, em
-> vez de dar a entender que reconhece qualquer doença de tomate.
+## Modelo em produção
 
-## Papel desta camada
+`models/modelo_dominio.tflite`: MobileNetV2 com transferência de
+aprendizado, em ponto flutuante de 32 bits, com quatro saídas, na ordem
+`septoriose`, `pinta_preta`, `saudavel` e `estresse_foliar`
+(`_CLASSES_DO_MODELO` em `cloud/app/core/inference.py`).
 
-Treino **100% offline**, rodado no Google Colab (GPU T4). Nada desta
-camada roda em produção: o artefato final é um único arquivo `.tflite`
-versionado no repositório e consumido pelo backend (`cloud/app/core/inference.py`).
+O modelo foi construído em três etapas:
 
-Estratégia de dataset: **"Frankenstein Cirúrgico"** (validada nesta
-revisão como abordagem recomendada):
-- Fusão seletiva de **PlantVillage** (~14k imagens sintéticas, `rembg`
-  aplicado apenas nas 6 classes de baixo risco de corrosão de segmentação)
-  com o **Mendeley Tomato Disease Dataset** (~4k imagens em ambiente real).
-- Mais robusta que um dataset único e é um argumento de originalidade
-  acadêmica defensável na banca.
+| Etapa | Script ou notebook | Resultado |
+|---|---|---|
+| 1. Modelo base, só com imagens de laboratório (PlantVillage) | `training/baseline_hibrida.ipynb` | `training/baseline_pinta_preta.keras` |
+| 2. Ajuste simultâneo com laboratório e campo (PlantDoc), três classes | `src/training/ajuste_dois_dominios.py` | `training/modelo_hibrido_lab_campo.keras` e `models/modelo.tflite` |
+| 3. Quarta classe, estresse foliar, com janelas rotuladas no próprio dispositivo | `src/training/ajuste_dominio_proprio.py` | `training/modelo_dominio_proprio.keras` e `models/modelo_dominio.tflite` |
 
-## Metas de desempenho (dupla métrica, Blueprint Seção 3)
+Configuração de treino (Google Colab, GPU T4):
 
-| Métrica | Meta mínima | Meta ideal | Medido |
-|---|---|---|---|
-| Weighted F1, validação sintética (laboratório) | >= 75% | >= 82% | **95,3%** |
-| Weighted F1, imagens reais do Pi (estufa) | >= 65% | >= 72% | **ainda não existe** |
-| Delta sintético contra real | documentar | < 10 p.p. | **ver abaixo** |
+- **Etapa 1:** base congelada, dropout de 0,2, Adam com taxa de 0,001,
+  lotes de 32, parada antecipada com paciência de 5 épocas; aumento de
+  dados por espelhamento, rotação de até 72 graus e ampliação de até 20%.
+- **Etapas 2 e 3:** 30 últimas camadas da base descongeladas, exceto as de
+  normalização em lote, taxa de 0,00001, lotes de 16, pesos por classe e
+  por domínio (cerca de 12 imagens de laboratório para cada imagem de
+  campo).
 
-**Atenção ao ler a tabela acima.** A segunda linha fala de fotos tiradas
-pelo hardware do EcoVision, na estufa, e essas fotos ainda não existem.
-O que foi medido é um terceiro conjunto, o **PlantDoc** (foto de campo de
-outro grupo): **74,0%**. Ele é um intermediário pessimista, porque é foto
-de web com enquadramento aleatório, enquanto a captura do Pi é de perto e
-com iluminação controlada.
+## Dados
 
-O delta entre laboratório e PlantDoc é de **21,3 pontos**, acima dos 10
-desejados. Isso é esperado e tem respaldo na literatura: a queda entre
-datasets é severa nesse problema, e um MobileNetV2 treinado em
-PlantVillage cai de 99,77% para 28,57% no PlantDoc, sem ajuste de domínio,
-([TinyCNN, arXiv 2609.20290](https://arxiv.org/pdf/2609.20290)). O
-ajuste de dois domínios reduziu esse delta de 33,7 para 21,3 pontos.
+| Conjunto | Uso | Onde está |
+|---|---|---|
+| PlantVillage, 1.100 imagens por classe | Laboratório: 1.000 de treino e 100 de teste por classe | `data_prep/02_split_doenca.ipynb` monta a divisão |
+| PlantDoc, 276 imagens de tomateiro | Campo: 249 de treino e 27 de teste | `data/plantdoc_tomate_divisao.csv` |
+| Janelas do próprio dispositivo, 193 rotuladas (135 úteis) | Classe de estresse foliar | `data/estufa_rotulada/rotulos.csv` e `manifesto.csv` |
 
-**As imagens reais coletadas com o hardware do EcoVision NUNCA entram no
-treino**: são exclusivamente o conjunto de validação do mundo real.
+As imagens não ficam no repositório. As capturas do dispositivo, as
+janelas rotuladas e a divisão do PlantDoc estão publicadas no Zenodo
+([10.5281/zenodo.23646357](https://doi.org/10.5281/zenodo.23646357)).
 
-## Como o modelo em produção é gerado
+As janelas são extraídas das capturas por
+`src/dataset/extrair_janelas.py`, que descarta recortes com pouca
+cobertura verde ou pouca semelhança com as imagens de treino
+(`src/porta/`, com a referência em `models/referencia_familiaridade.npz`).
+A divisão entre treino e teste é feita por enquadramento, e não por
+janela, porque janelas da mesma captura se sobrepõem.
 
-`src/training/ajuste_dois_dominios.py`, a partir de
-`training/baseline_pinta_preta.keras`, treinando com imagem de
-laboratório e de campo ao mesmo tempo. O cabeçalho do arquivo registra as
-três decisões que fazem o ajuste funcionar (descongelamento parcial, taxa
-de aprendizado baixa, peso por classe e por domínio) e o que acontece
-quando cada uma falta.
+## Resultados
 
-A tentativa anterior, que ajustou só com foto de campo, está documentada
-no [ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md): ela
-ganhava 19 pontos em campo e perdia 12 em laboratório, ou seja, trocava
-um domínio pelo outro em vez de melhorar.
+| Avaliação | Acurácia |
+|---|---|
+| Três classes, laboratório (300 imagens de teste) | 94,3% (IC 95%: 91,1% a 96,4%) |
+| Três classes, campo (27 imagens de teste) | 74,1% (IC 95%: 55,3% a 86,8%) |
+| Validação cruzada de 5 dobras, laboratório: modelo base → ajuste em dois domínios | 90,7% → 95,3% |
+| Validação cruzada de 5 dobras, campo: modelo base → ajuste em dois domínios | 57,0% → 74,0% |
+| Modelo em produção, enquadramento retido do próprio dispositivo (18 janelas) | 94,4%, contra 55,6% da baseline trivial |
 
-## Risco estatístico do split 70/15/15 (Blueprint Seção 3)
+A avaliação do modelo em produção é reproduzida por
+`src/training/avaliar_dominio_proprio.py`, sobre o enquadramento F, que não
+participou do treino. Os mapas de ativação são gerados por
+`src/porta/gradcam_dominio.py`.
 
-Com esse split, a classe minoritária do PlantVillage (Mosaic Virus, ~299
-imagens originais) fica com ~45 imagens no teste, e o F1 dessa classe tem
-variância alta. Mitigação planejada: `class_weight`
-(`sklearn.utils.class_weight.compute_class_weight`) no treino, e uso do
-F1 ponderado (weighted) global como métrica mais estável para o sistema
-como um todo. Essa justificativa deve ser preparada **proativamente**
-para a banca (ver `docs/decisions/`).
+## Contrato do modelo com a API
 
-## Estrutura
+Três pontos precisam ser respeitados ao trocar o modelo, e os erros não
+geram exceção, apenas predições erradas:
 
-```
-ml/
-├── src/
-│   ├── dataset/
-│   │   ├── download.py              # download PlantVillage + Mendeley (Kaggle)
-│   │   ├── frankenstein_compose.py  # rembg seletivo (6 classes) + composição
-│   │   └── augmentation.py          # Albumentations
-│   ├── training/
-│   │   ├── train.py                 # MobileNetV2 (transfer learning) + class_weight
-│   │   └── evaluate.py              # matriz de confusão, F1 por classe, F1 weighted
-│   └── export/
-│       └── convert_tflite.py        # exportação do modelo final .tflite
-├── models/                # artefato .tflite versionado (destino final)
-└── requirements.txt
-```
+1. **Ordem das classes:** `_CLASSES_DO_MODELO` em
+   `cloud/app/core/inference.py` deve seguir a ordem das saídas do modelo:
+   as três classes da etapa 2 e, por último, a acrescentada na etapa 3. Trocar o
+   `.tflite` sem atualizar a lista atribui a cada predição o nome e a
+   recomendação de outra classe. A API recusa carregar um modelo cujo
+   número de saídas difira da lista.
+2. **Pixels de 0 a 255:** a normalização faz parte do modelo exportado.
+   Dividir os pixels por 255 antes da inferência leva quase tudo para
+   `saudavel`.
+3. **Redimensionamento pelo vizinho mais próximo:** com ele, as predições
+   coincidem com as do modelo Keras original; com interpolação bilinear ou
+   bicúbica, não.
 
-## Pontos de atenção herdados do Blueprint
+A exportação não usa quantização. Ao reativar uma classe no aplicativo,
+ajuste também `app/src/domain/doencas.ts`.
 
-- O pipeline de `rembg` leva 4-8h para ~7k imagens: executar **uma vez**,
-  salvar o resultado no Google Drive e reutilizar; não gerar on-the-fly
-  a cada treino.
-- Contagem de classes **do dataset**: 10, não 11 (ponto de correção do
-  TC1). Atenção para não confundir dois números diferentes: o catálogo
-  agronômico tem 10 classes, com recomendação e fonte para cada uma
-  ([ADR 0006](../docs/decisions/0006-recomendacoes-por-diagnostico.md)),
-  e o **modelo em produção reconhece 3**
-  ([ADR 0011](../docs/decisions/0011-escopo-de-tres-classes.md)). As
-  outras 7 estão no catálogo esperando dado de treino.
+## Dependências
 
-## Se o modelo for retreinado, leia isto antes
-
-Três lugares têm que concordar, e o segundo falha **em silêncio**:
-
-1. Exportar com `ml/src/export/convert_tflite.py` (sem quantização, ver
-   a justificativa medida no topo do arquivo).
-2. `_CLASSES_DO_MODELO` em `cloud/app/core/inference.py`, na **ordem
-   exata** das saídas do modelo. A ordem vem do treino, onde
-   `image_dataset_from_directory` ordena os diretórios alfabeticamente.
-   Trocar o `.tflite` sem atualizar essa lista faz cada predição sair
-   com o nome e a recomendação de **outra doença**, sem erro nenhum.
-3. `ativa: true` na classe correspondente em
-   `app/src/domain/doencas.ts`.
-
-E duas armadilhas de contrato do modelo, as duas medidas:
-
-- O modelo **normaliza por dentro** (a camada `preprocess_input` faz
-  parte do grafo exportado), então quem chama passa **pixels crus de 0 a
-  255**. Dividir por 255 antes faz tudo colapsar para "saudavel" com
-  cerca de 90% de confiança.
-- O redimensionamento tem que ser **NEAREST**. Com NEAREST, 6 de 6
-  predições batem com o Keras original; com BILINEAR ou BICUBIC, 0 de 6,
-  e duas classes mudam.
+O treino roda no Google Colab, que já traz TensorFlow, NumPy, Pillow e
+Matplotlib. Para executar os scripts localmente, instale
+`ml/requirements.txt`.

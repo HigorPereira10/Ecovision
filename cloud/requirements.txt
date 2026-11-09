@@ -1,63 +1,26 @@
-# Dependências do backend FastAPI.
-#
-# VERSÕES FIXADAS (==), e isso é decisão de segurança, não preferência.
-#
-# Até 2026-10-22 este arquivo não tinha nenhuma versão fixada: cada
-# deploy no Railway instalava o que estivesse mais recente naquele
-# minuto. Isso significa duas coisas ruins ao mesmo tempo. Primeiro, o
-# build não é reproduzível: a API que passou nos testes de ontem pode
-# subir hoje com um conjunto diferente de pacotes, e uma quebra fica
-# impossível de reproduzir. Segundo, e mais grave, uma versão
-# comprometida de QUALQUER pacote desta lista entraria em produção
-# sozinha, no próximo deploy, sem ninguém aprovar nada.
-#
-# O segundo ponto deixou de ser teórico: o Railway divulgou em
-# 2026-10-21 um incidente em que variáveis de ambiente de clientes, com
-# valores descriptografados, podem ter sido acessadas por terceiros.
-# Num cenário desses, a última coisa que se quer é um canal automático
-# por onde código novo entra em produção sem revisão.
-#
-# CONSEQUÊNCIA ACEITA: correção de segurança não chega sozinha. Subir
-# versão vira ato deliberado, com os testes rodando antes. Para um
-# projeto com data de entrega marcada, previsibilidade vale mais do que
-# atualização automática.
-#
-# As versões abaixo são as que passaram nos 128 testes em 2026-10-22.
-# Para atualizar: subir a versão aqui, rodar `pytest -q` dentro de
-# cloud/, e só então publicar.
+# Dependências da API. As versões são fixadas para que cada implantação
+# seja reproduzível; atualizar uma versão exige rodar `pytest -q` antes.
 
 fastapi==0.141.1
-uvicorn[standard]==0.52.4  # 1 worker apenas, conforme decisão do Blueprint
-python-multipart==0.0.32   # necessario para os campos Form()/UploadFile de /diagnostico
+uvicorn[standard]==0.52.4   # executado com um único processo
+python-multipart==0.0.32    # campos Form/UploadFile de POST /diagnostico
 
-# --- Inferência ---
-# ai-edge-litert é o sucessor do tflite-runtime. NUNCA trocar pelo
-# pacote `tensorflow` completo: estoura a RAM do Railway.
+# Inferência. Usar o runtime leve: o pacote tensorflow completo excede a
+# memória do plano do Railway.
 ai-edge-litert==2.3.0
 numpy==2.4.6
+pillow==13.0.0              # processa imagens recebidas de fora; manter atualizado
 
-# Pillow abre a imagem que CHEGA DE FORA, pelo POST /diagnostico. É a
-# biblioteca desta lista que mais toca entrada não confiável, então é a
-# que menos pode ficar para trás. A 12.3.0, que estava em uso, tinha
-# cerca de 30 CVEs abertas; a 13.0.0 zera todas elas.
-pillow==13.0.0
-
-# --- Banco e armazenamento ---
+# Banco de dados e armazenamento
 sqlalchemy[asyncio]==2.0.52
 asyncpg==0.31.0
-alembic==1.20.0            # migrations
-supabase==2.31.0           # cliente oficial (cobre Postgres + Storage)
+alembic==1.20.0
+supabase==2.31.0
 
-# --- Autenticação do dispositivo e do dashboard (JWT/bcrypt) ---
-# bcrypt usado diretamente (nao via passlib): passlib esta sem manutencao
-# e tem incompatibilidade conhecida com versoes recentes do pacote bcrypt.
-#
-# PyJWT valida todo token de sessão que entra na API. A 2.14.0 tinha
-# dois avisos de segurança abertos (PYSEC-2026-4141 e PYSEC-2026-4183),
-# corrigidos a partir da 2.15.0.
+# Autenticação
 pyjwt==2.15.1
-bcrypt==5.0.0
+bcrypt==5.0.0               # usado diretamente, sem passlib
 
-# --- Configuração ---
+# Configuração
 python-dotenv==1.2.3
 pydantic-settings==2.15.0

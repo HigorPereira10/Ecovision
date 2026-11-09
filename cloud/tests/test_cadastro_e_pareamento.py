@@ -1,34 +1,27 @@
 """
-cloud/tests/test_cadastro_e_pareamento.py
+Testes de cadastro, bloqueio por força bruta, pareamento e credencial por
+dispositivo.
 
-O que este arquivo verifica, em português simples:
+Cadastro (POST /auth/register):
+1. a conta criada permite login;
+2. o papel é sempre "produtor", qualquer que seja o corpo;
+3. senha fraca: 422 com todas as regras não cumpridas;
+4. senha acima de 72 bytes: 422, sem erro 500;
+5. e-mail duplicado: 409, com normalização para minúsculas.
 
-CADASTRO ABERTO (POST /auth/register)
-1. Criar conta funciona, e dá para logar com ela em seguida.
-2. O papel é sempre 'produtor', mesmo que alguém mande
-   papel='administrador' no corpo: senão bastaria um JSON para ganhar
-   acesso a todas as estufas.
-3. Senha fraca é recusada com 422, listando TODAS as regras que
-   falharam, e não só a primeira.
-4. Senha acima de 72 bytes vira 422, não erro 500 (o bcrypt levanta
-   ValueError nesse caso, e qualquer um poderia disparar isso).
-5. E-mail duplicado vira 409, e é normalizado para minúsculas.
+Bloqueio:
+6. cinco senhas erradas bloqueiam o e-mail por um período;
+7. e-mails inexistentes também são bloqueados;
+8. login bem-sucedido zera o contador.
 
-BLOQUEIO CONTRA FORÇA BRUTA
-6. Cinco senhas erradas bloqueiam o e-mail por tempo.
-7. E-mail que NEM EXISTE também é bloqueado: se só contas reais fossem
-   bloqueadas, a resposta denunciaria quais e-mails estão cadastrados,
-   anulando a proteção anti-enumeração do login.
-8. Login bem-sucedido zera o contador.
+Pareamento (POST /dispositivos/vincular):
+9. conta nova não vê dados até vincular um aparelho;
+10. código válido vincula e os dados aparecem;
+11. código inexistente: 404; aparelho de outra conta: 409.
 
-PAREAMENTO (POST /dispositivos/vincular)
-9. Conta nova não enxerga nada até vincular um aparelho.
-10. Código válido vincula, e aí os dados aparecem.
-11. Código inexistente dá 404; aparelho de outra conta dá 409.
-
-CREDENCIAL POR DISPOSITIVO
-12. O Pi autentica com o segredo dele.
-13. Segredo errado, ou segredo de OUTRO aparelho, é recusado com 401.
+Credencial por dispositivo:
+12. o dispositivo autentica com o próprio segredo;
+13. segredo errado ou de outro aparelho: 401.
 """
 
 from datetime import datetime, timezone
@@ -100,9 +93,7 @@ async def test_cadastro_recusa_senha_fraca_listando_todas_as_regras():
 
 
 async def test_cadastro_com_senha_acima_do_limite_do_bcrypt_devolve_422():
-    """Regressão: o bcrypt recusa mais de 72 BYTES levantando ValueError.
-    Sem tratar, o cadastro virava erro 500 que qualquer um podia
-    disparar sem autenticação."""
+    """Senha acima de 72 bytes resulta em 422, e não em erro 500."""
     senha_gigante = "A1@" + ("ç" * 40)  # acentos gastam 2 bytes cada
     with TestClient(app) as client:
         resposta = _registrar(client, "gigante@exemplo.com", senha=senha_gigante)
@@ -337,10 +328,8 @@ async def test_segredo_de_outro_aparelho_nao_serve(monkeypatch):
 
 
 async def test_produtor_sem_dispositivo_nao_recebe_alerta_de_inatividade():
-    """Regressão: o alerta sintético de 'dispositivo nunca reportou
-    dados' era gerado mesmo para quem não tem aparelho nenhum. Quem
-    acabava de se cadastrar via uma instrução para verificar a
-    alimentação e o Wi-Fi de um Raspberry Pi que não existe."""
+    """Usuário sem dispositivo não recebe o alerta de dispositivo que nunca
+    enviou dados."""
     with TestClient(app) as client:
         _registrar(client, "semaparelho@exemplo.com")
         token = _logar(client, "semaparelho@exemplo.com", SENHA_BOA).json()["access_token"]

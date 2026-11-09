@@ -1,36 +1,12 @@
 /**
- * app/src/screens/DiagnosticoScreen.tsx
+ * Diagnóstico mais recente da IA, com a foto classificada (URL assinada
+ * fornecida pela API).
  *
- * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
- *
- * Exibe o diagnóstico mais recente da IA, com a foto da folha que foi
- * classificada. A URL da imagem vem PRONTA da API (signed URL de bucket
- * privado): esta tela nunca fala com o Supabase Storage diretamente.
- *
- * DADO REAL desde 2026-10-11: consome services/diagnosticos.ts, que
- * chama GET /diagnosticos. Antes, os JSONs de src/mocks/ faziam a tela
- * mostrar seis folhas inventadas, com nomes de doenças que o modelo em
- * produção nem reconhece. Com o Pi ainda sem captura ligada, o normal
- * é esta tela aparecer VAZIA, e isso é o comportamento correto: vazio
- * diz a verdade, mock não.
- *
- * O rótulo da doença não vem pronto da API. A API devolve o nome
- * técnico da classe ('pinta_preta') e src/domain/doencas.ts traduz para
- * o texto da tela. É lá também que está a lista do que o modelo
- * reconhece hoje, resumida no pé desta tela para deixar o limite da IA
- * explícito ao produtor, em vez de dar a entender que ela identifica
- * qualquer doença de tomate.
- *
- * NOTA: "MobileNetV2 (TFLite)" está fixo no código porque a tabela
- * `diagnosticos` não guarda qual modelo gerou cada predição. Enquanto
- * houver um único modelo em produção isso é verdade; quando houver
- * versionamento de modelo, o campo precisa vir do banco.
- *
- * NOTA: esta tela é raiz de aba (Tab.Navigator), não faz parte de um
- * stack empilhado, por isso não tem botão de voltar. headerShown está
- * como false na definição da aba em AppNavigator.tsx, e o header abaixo
- * (logo + título) segue o mesmo padrão do DashboardScreen.
+ * A API devolve o nome técnico da classe, e src/domain/doencas.ts o
+ * traduz e fornece a lista das condições reconhecidas, resumida no rodapé
+ * para deixar claro o limite do modelo. "MobileNetV2 (TFLite)" é fixo
+ * porque a tabela de diagnósticos não registra o modelo usado. A tela é
+ * raiz de aba, sem botão de voltar.
  */
 
 import React, { useState } from 'react';
@@ -161,10 +137,8 @@ export default function DiagnosticoScreen() {
           )}
         </View>
 
-        {/* Planta sadia não tem recomendação de manejo no catálogo
-            agronômico (ADR 0006), então `recomendacao` chega nula. Sem
-            esta guarda o card apareceria vazio, dando a impressão de
-            que o texto não carregou. */}
+        {/* Planta sadia não tem recomendação de manejo; sem esta verificação
+            o cartão apareceria vazio. */}
         {diagnostico.recomendacao && (
           <View
             style={[

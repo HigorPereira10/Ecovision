@@ -1,21 +1,9 @@
 """
-edge/tests/conftest.py
+Configuração compartilhada dos testes de edge/src.
 
-Configuração compartilhada dos testes automatizados de edge/src/.
-
-edge/src/config.py exige algumas variáveis de ambiente (URL da API,
-chave do dispositivo) assim que é importado. No dispositivo real elas
-vêm do arquivo edge/.env. Para os testes rodarem sem precisar desse
-arquivo nem de um Raspberry Pi de verdade, este conftest define valores
-de teste ANTES de qualquer teste ser coletado.
-
-Como rodar (dentro do WSL/Ubuntu, já que edge/src/fila/offline_queue.py
-usa fcntl, um recurso que só existe em Linux/Unix, não no Python do
-Windows):
-
-    cd Ecovision
-    pip install -r edge/tests/requirements-test.txt
-    pytest edge/tests -v
+Define as variáveis de ambiente exigidas por edge/src/config.py e
+substitui as bibliotecas de hardware (RPi.GPIO, board, adafruit_dht,
+smbus2) por dublês, para a suíte rodar fora do Raspberry Pi.
 """
 
 import os
@@ -38,13 +26,8 @@ os.environ.setdefault("DEVICE_ID", "pi-teste-automatizado")
 class EstadoAds1115:
     """Valor bruto que o ADS1115 falso devolve na próxima conversão.
 
-    Os testes de soil_moisture.py escrevem aqui em vez de simular a
-    leitura inteira, mas o código sob teste continua montando a
-    configuração e decodificando os dois bytes de verdade. Isso é
-    proposital: o dublê anterior substituía a conversão inteira, e por
-    isso não pegou que a API da Adafruit tinha mudado de `ads1115.P0`
-    para `ads1x15.Pin.A0`, deixando os testes verdes enquanto o
-    Raspberry Pi quebrava.
+    O código sob teste continua montando a configuração e decodificando os
+    dois bytes reais, o que cobre o protocolo e não só a conversão final.
     """
 
     valor_bruto = 0
@@ -63,11 +46,10 @@ class _MensagemI2cFalsa:
 
 
 def _montar_smbus2_falso() -> types.ModuleType:
-    """ADS1115 falso que responde pelo barramento I2C.
+    """ADS1115 falso no barramento I2C.
 
-    O smbus2 real só funciona onde existe /dev/i2c-N com o módulo
-    conectado. Este dublê devolve EstadoAds1115.valor_bruto codificado
-    em complemento de dois, big-endian, como o chip faria.
+    Devolve EstadoAds1115.valor_bruto em complemento de dois, big-endian,
+    como o chip.
     """
 
     class _I2cMsgFalso:
@@ -102,12 +84,8 @@ def _montar_smbus2_falso() -> types.ModuleType:
 
 
 def _instalar_fakes_de_hardware() -> None:
-    """Substitui RPi.GPIO, board, adafruit_dht e smbus2 por dublês em
-    sys.modules, ANTES de qualquer teste importar os módulos de
-    edge/src/actuators e edge/src/sensors. Essas libs só existem de
-    verdade (e só instalam) em hardware Raspberry Pi com os componentes
-    físicos conectados; sem esse dublê, os testes desses módulos nem
-    conseguiriam importar o código fora do Pi."""
+    """Registra os dublês de RPi.GPIO, board, adafruit_dht e smbus2 em
+    sys.modules antes de os módulos de edge/src serem importados."""
     fake_gpio = MagicMock(name="RPi.GPIO")
     fake_gpio.BCM = "BCM"
     fake_gpio.OUT = "OUT"
@@ -137,7 +115,7 @@ _instalar_fakes_de_hardware()
 
 @pytest.fixture
 def fake_gpio():
-    """RPi.GPIO falso, usado pelos testes de edge/src/actuators/led_flash.py."""
+    """RPi.GPIO falso, usado pelos testes de led_flash.py."""
     modulo = sys.modules["RPi.GPIO"]
     modulo.reset_mock()
     yield modulo
@@ -145,7 +123,7 @@ def fake_gpio():
 
 @pytest.fixture
 def fake_dht22_classe():
-    """adafruit_dht.DHT22 falso, usado pelos testes de edge/src/sensors/dht22.py."""
+    """adafruit_dht.DHT22 falso, usado pelos testes de dht22.py."""
     classe = sys.modules["adafruit_dht"].DHT22
     classe.reset_mock(return_value=True, side_effect=True)
     yield classe
@@ -153,11 +131,10 @@ def fake_dht22_classe():
 
 @pytest.fixture
 def fake_ads1115():
-    """ADS1115 falso, usado pelos testes de edge/src/sensors/soil_moisture.py.
+    """ADS1115 falso, usado pelos testes de soil_moisture.py.
 
-    O teste define `fake_ads1115.valor_bruto`, e o código sob teste faz
-    a conversão para porcentagem passando pela decodificação real dos
-    dois bytes devolvidos pelo chip.
+    O teste define fake_ads1115.valor_bruto; o código sob teste decodifica
+    os bytes devolvidos pelo chip simulado.
     """
     EstadoAds1115.valor_bruto = 0
     yield EstadoAds1115

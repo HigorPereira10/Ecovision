@@ -1,12 +1,5 @@
-# cloud/tests/requirements-test.txt
-#
-# Dependências para RODAR OS TESTES (além de cloud/requirements.txt).
-# aiosqlite substitui o Postgres real por um arquivo SQLite local nos
-# testes, ver cloud/tests/conftest.py.
-#
-# Instalar com:
-#   pip install -r requirements.txt -r tests/requirements-test.txt
-
+# Dependências para rodar os testes, além de cloud/requirements.txt.
+# aiosqlite substitui o PostgreSQL por um SQLite em memória.
 pytest
 pytest-asyncio
 httpx

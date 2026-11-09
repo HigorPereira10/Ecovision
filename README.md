@@ -1,150 +1,161 @@
-# EcoVision
+<h1 align="center">EcoVision</h1>
 
-> **Sistema de Monitoramento IoT e Visão Computacional para o Controle Fitossanitário em Estufas**
+<p align="center">
+  Monitoramento fitossanitário de estufas de tomateiro com Internet das Coisas e visão computacional
+</p>
 
-Este é o repositório centralizado do projeto EcoVision, um sistema inteligente focado na detecção precoce de pragas e anomalias em culturas protegidas (estufas de tomate) utilizando Inteligência Artificial e Internet das Coisas (IoT).
+<p align="center">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.11%20%7C%203.13-3776AB?logo=python&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white">
+  <img alt="TensorFlow Lite" src="https://img.shields.io/badge/TensorFlow%20Lite-MobileNetV2-FF6F00?logo=tensorflow&logoColor=white">
+  <img alt="Expo" src="https://img.shields.io/badge/Expo-SDK%2057-000020?logo=expo&logoColor=white">
+  <img alt="Raspberry Pi" src="https://img.shields.io/badge/Raspberry%20Pi-3%20Model%20B%2B-A22846?logo=raspberrypi&logoColor=white">
+  <a href="https://doi.org/10.5281/zenodo.23646357"><img alt="DOI" src="https://zenodo.org/badge/DOI/10.5281/zenodo.23646357.svg"></a>
+</p>
 
-**Documento técnico de referência:** [**Blueprint v4.0**](docs/architecture/blueprint-v4.md), que consolida o estado real do sistema implantado e é o documento a ler primeiro. Ele substitui o *Tech Stack - Ecovision (revisado)* v3.0 como referência de consulta; o v3.0 continua válido como registro histórico do que foi planejado, e o índice por seção dele está em [`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md). Onde os dois divergem, vale o v4.0, e a divergência está explicada lá.
+<p align="center">
+  <img src="docs/figuras/app/apresentacao.png" height="300" alt="Apresentação">
+  <img src="docs/figuras/app/inicio-condicoes-estufa.png" height="300" alt="Condições da estufa">
+  <img src="docs/figuras/app/diagnostico-estresse.png" height="300" alt="Diagnóstico">
+  <img src="docs/figuras/app/alertas.png" height="300" alt="Alertas">
+</p>
 
-**Estado atual:** API no ar em `https://ecovision-production.up.railway.app`, aplicativo Android instalável com atualização por EAS Update, modelo de IA de 3 classes em produção (95,3% em laboratório e 74,0% em foto de campo, validação cruzada de 5 dobras), 128 testes automatizados no backend.
+Um dispositivo instalado junto da planta fotografa as folhas e mede a
+temperatura, a umidade do ar e a umidade do solo. As imagens são
+classificadas em nuvem por uma rede neural convolucional, e o produtor
+acompanha diagnósticos, leituras e alertas em um aplicativo Android.
 
-> ⚠️ O hardware de borda usado na prática é o **Raspberry Pi 3 Model B+ (Anatel)**, não o Pi Zero 2 W especificado no Blueprint; ver [ADR 0004](docs/decisions/0004-raspberry-pi-3b-plus.md).
+## Sumário
 
----
+- [Destaques](#destaques)
+- [Arquitetura](#arquitetura)
+- [Estrutura do repositório](#estrutura-do-repositório)
+- [Início rápido](#início-rápido)
+- [Resultados](#resultados)
+- [Dados](#dados)
+- [Testes](#testes)
+- [Autores](#autores)
+- [Licença](#licença)
 
-## 📌 Links Úteis do Projeto
-* **Quadro de Tarefas (Kanban):** [GitHub Projects](https://github.com/users/HigorPereira10/projects/1)
-* **Comunicação da Equipa:** [Servidor do Discord](https://discord.gg/3R8CkSaxx)
-* **Documentação de Texto (TCC):** [Pasta Partilhada no Google Drive](https://drive.google.com/drive/folders/1x9B_vlEw8Yn10jC9kYOUhRTUJoWjrQXT?usp=drive_link)
-* **Protótipos de UI (Figma):** *(link a preencher; Igor é responsável por organizar e manter este link atualizado)*
+## Destaques
 
----
+- **Diagnóstico por janela deslizante.** A captura de 4608 × 2592 pixels é
+  recortada em janelas de 896 pixels, e o diagnóstico é a classe mais
+  severa presente em pelo menos 20% das janelas, o que mantém a folha na
+  mesma escala em que o modelo foi treinado.
+- **Classe de estresse foliar construída no próprio domínio.** Além de
+  saudável, septoriose e pinta-preta, o modelo reconhece alterações
+  abióticas da folha, a partir de 193 janelas rotuladas à mão nas capturas
+  do dispositivo e publicadas no Zenodo.
+- **Verificação de qualidade da imagem.** Capturas escuras ou sem textura
+  são armazenadas sem diagnóstico, em vez de receberem um "saudável" com
+  alta confiança.
+- **Tolerância a quedas de rede.** Cada captura é gravada em uma fila local
+  antes do envio e reenviada quando a conexão volta; reenvios não geram
+  registros duplicados.
+- **Segurança por dispositivo e por dono.** Cada aparelho tem credencial
+  própria, e cada conta vê apenas os dispositivos que vinculou pelo código
+  de pareamento.
 
-## 🏗️ Visão Geral da Arquitetura
+## Arquitetura
 
-O sistema é dividido em cinco camadas, cada uma com um papel isolado,
-a mesma separação de responsabilidades que orienta a estrutura de
-pastas deste monorepo. Padrão de arquitetura declarado: **Arquitetura
-em Camadas (Layered)**, ver o diagrama completo e a justificativa em
-[`docs/architecture/blueprint-reference.md`](docs/architecture/blueprint-reference.md#diagrama-de-arquitetura).
+<p align="center">
+  <img src="docs/figuras/arquitetura/arquitetura-cinco-camadas.png" width="70%" alt="Arquitetura em cinco camadas">
+</p>
 
-```
-┌──────────────┐      HTTPS POST /diagnostico       ┌──────────────────┐
-│  edge/       │ (imagem + leituras, credencial)    │  cloud/           │
-│  Raspberry   │ ──────────────────────────────────▶│  FastAPI          │
-│  Pi 3 B+     │                                     │  no Railway       │
-│              │                                     │  (TFLite Runtime  │
-│  captura,    │                                     │   em memória,     │
-│  compressão, │                                     │   sem gravação    │
-│  fila        │                                     │   em disco)       │
-│  offline     │                                     └─────────┬─────────┘
-└──────────────┘                                               │
-                                                    grava imagem + dados
-                                                                │
-                                                                ▼
-                                                     ┌────────────────────┐
-                                                     │  Supabase          │
-                                                     │  Postgres (dados)  │
-                                                     │  + Storage         │
-                                                     │  (imagens)         │
-                                                     └─────────┬──────────┘
-                                                                │
-                                                    consultado apenas
-                                                    através da API
-                                                                │
-                                                                ▼
-                                                     ┌────────────────────┐
-                                                     │  app/              │
-                                                     │  Dashboard/App     │
-                                                     │  (produtor rural)  │
-                                                     │  JWT + refresh     │
-                                                     └────────────────────┘
-```
-
-O modelo de IA usado pela API (`.tflite`) é treinado **offline**, fora
-deste fluxo em tempo real, na camada `ml/` (Google Colab), e chega ao
-Railway versionado no Git via deploy automático (GitHub Actions), nunca
-por upload manual.
-
-Regras que atravessam todas as camadas (ver Blueprint, Seção 4.4):
-- **Zero gravação em disco no Railway**: tudo em memória (`BytesIO`) até ser persistido no Supabase.
-- **O frontend nunca fala diretamente com o Supabase**: sempre através da API.
-- **Duas autenticações diferentes, deliberadamente**: credencial por dispositivo para o IoT ([ADR 0009](docs/decisions/0009-credencial-por-dispositivo.md)); JWT + bcrypt para o login do produtor ([ADR 0010](docs/decisions/0010-cadastro-aberto-e-rbac.md)).
-- **Todo dado de consulta é filtrado por dono**: uma conta só vê os dispositivos que ela vinculou, e vincular exige o código de pareamento que vem colado no aparelho.
-
----
-
-## 📁 Estrutura de Pastas (Monorepo), Índice
-
-O projeto adota uma arquitetura de *monorepo*. Cada pasta tem um README
-próprio, com a justificativa técnica detalhada e a referência à seção
-correspondente do Blueprint:
-
-* [`app/`](app/README.md): Dashboard/app do produtor rural. Framework: **Expo (React Native), decisão confirmada**: ver [ADR 0002](docs/decisions/0002-frontend-framework-pendente.md).
-* [`cloud/`](cloud/README.md): Backend FastAPI no Railway, integração com Supabase (Postgres + Storage), autenticação.
-* [`docs/`](docs/README.md): Documentação técnica (ADRs, atas) e escrita acadêmica do TCC.
-* [`edge/`](edge/README.md): Software do Raspberry Pi 3 Model B+: captura, sensores, fila offline.
-* [`infra/`](infra/README.md): Deploy (Railway), schema/políticas do Supabase, variáveis de ambiente, calendário de sincronização.
-* [`ml/`](ml/README.md): Pipeline de treino de IA (Google Colab), dataset "Frankenstein Cirúrgico", exportação `.tflite`.
-
-Decisões arquiteturais relevantes, incluindo as ainda em aberto, estão
-registradas como ADRs em [`docs/decisions/`](docs/decisions/README.md).
-
----
-
-## 🛠️ Metodologia de Trabalho & Gestão
-
-O desenvolvimento é guiado por um framework ágil baseado num Scrum Simplificado, estruturado em sprints de 2 semanas.
-
-### GitHub Projects
-Toda a distribuição de atividades é centralizada no **GitHub Projects** através de um quadro Kanban composto por três esteiras principais:
-1. **Todo (A Fazer):** Lista de tarefas priorizadas para a sprint atual.
-2. **In Progress (Em Progresso):** Atividades ativas sendo desenvolvidas por um membro da equipa.
-3. **Done (Concluído):** Tarefas finalizadas e validadas.
-
-Cada atividade é mapeada como uma *Issue* e deve obrigatoriamente conter um responsável (*Assignee*) e uma etiqueta (*Label*) correspondente ao seu componente (`edge`, `cloud`, `app`, `ml` ou `docs`).
-
----
-
-## 🌿 Fluxo de Desenvolvimento (Branch Policy)
-
-Para garantir a estabilidade do sistema e evitar conflitos no código principal, adotamos uma política rigorosa de branches ("Acordo de Cavalheiros"):
-
-1. **A branch `main` é sagrada:** É estritamente proibido realizar commits diretos na branch `main`. **Exceção acordada:** o líder do grupo (Higor) pode publicar direto na `main`, porque o gate de CI cumpre a função de barreira automática (ver [ADR 0014](docs/decisions/0014-deploy-railway-e-gate-de-ci.md)): código com teste quebrado não chega a produção, com ou sem revisor.
-2. **Criação de Branches:** Toda e qualquer tarefa iniciada a partir do quadro Kanban deve possuir uma branch isolada utilizando o padrão de nomenclatura do componente (ex: `feature/edge-camera-capture`, `feature/cloud-fastapi-inference`).
-3. **Pull Requests & Code Review:** Ao concluir uma funcionalidade, o desenvolvedor deve abrir um *Pull Request* direcionado à `main`. O merge só será realizado após a revisão e aprovação de, pelo menos, **1 outro integrante da equipa**.
-
----
-
-## 👥 Equipe
-
-| Pessoa | Responsabilidade |
+| Camada | Implementação |
 |---|---|
-| João | `ml/`: pipeline de IA completo |
-| Amanda | `app/`: frontend/dashboard (Expo/React Native, decisão confirmada) |
-| Higor | `cloud/` + `infra/` + `edge/`: banco de dados, backend/API, scripts do Raspberry Pi |
-| Igor | Documentação do projeto (ADRs, atas, organização do Drive e do Figma, pautas/decisões de reunião); nas primeiras semanas, também apoia a Amanda no `app/`, alinhando diretamente com ela |
+| Borda | Raspberry Pi 3 Model B+ com Camera Module 3, LED, DHT22 e sensor de solo com ADS1115; leituras a cada 15 minutos e foto a cada 2 horas |
+| Conectividade | Wi-Fi e HTTPS, credencial por dispositivo, chave de idempotência |
+| Inteligência | API FastAPI no Railway: verificação de qualidade, janelas e classificação com MobileNetV2 em TensorFlow Lite; regras de limiar ambiental |
+| Persistência | PostgreSQL e Supabase Storage, com bucket privado e URLs assinadas |
+| Interface | Aplicativo Android em Expo e React Native, com acesso somente pela API |
 
-Detalhes e cronograma passo a passo em
-[`docs/planejamento/divisao-equipe-e-roadmap.md`](docs/planejamento/divisao-equipe-e-roadmap.md).
+O modelo é treinado fora desse fluxo, na pasta `ml/`, e chega à API como
+um arquivo `.tflite` versionado no repositório.
 
-## ✅ Decisões que estavam em aberto e foram fechadas
+## Estrutura do repositório
 
-- ~~**Signed URL × bucket público**~~: decidido por **signed URL**, bucket privado, URL gerada sob demanda por `GET /diagnosticos`. Ver [`infra/supabase/storage_policies.md`](infra/supabase/storage_policies.md).
-- ~~**API Key única e global do dispositivo**~~: substituída por **credencial por dispositivo** com pareamento por código, ver [ADR 0009](docs/decisions/0009-credencial-por-dispositivo.md).
-- ~~**Hospedagem**~~: Railway no plano Hobby, com gate de CI, ver [ADR 0014](docs/decisions/0014-deploy-railway-e-gate-de-ci.md).
-- ~~**Quantas classes o modelo reconhece**~~: três, com o limite declarado dentro do app, ver [ADR 0011](docs/decisions/0011-escopo-de-tres-classes.md).
+| Pasta | Conteúdo |
+|---|---|
+| [`app/`](app/README.md) | Aplicativo Android (Expo, React Native, TypeScript) |
+| [`cloud/`](cloud/README.md) | API, banco de dados, migrações e testes |
+| [`edge/`](edge/README.md) | Software do Raspberry Pi, lista de materiais e pinagem |
+| [`ml/`](ml/README.md) | Treinamento, avaliação e modelos exportados |
+| [`infra/`](infra/) | Modelos de variáveis de ambiente e políticas do Storage |
+| [`docs/figuras/`](docs/figuras/README.md) | Diagramas, esquemático, resultados e telas |
 
-## ⚠️ Riscos e pendências que seguem abertos
+## Início rápido
 
-- **O IoT está na estufa com os fios sendo ajustados**, e a captura
-  automática está desativada. Enquanto isso, as telas de diagnóstico
-  aparecem vazias, que é o comportamento correto.
-- **Limiar de umidade do solo** é convenção prática, não fonte
-  agronômica, e precisa de recalibração com o sensor físico ([ADR 0005](docs/decisions/0005-limiares-ambientais.md)).
-- **O desempenho em foto tirada pelo próprio Pi** ainda não existe: os
-  números atuais vêm de datasets públicos, e a captura real fica entre
-  os dois ([ADR 0011](docs/decisions/0011-escopo-de-tres-classes.md)).
-- **Notificação só funciona com o app aberto**, por decisão registrada ([ADR 0012](docs/decisions/0012-notificacao-local-sem-push.md)).
-- **Calendário de sincronização** entre coleta de campo e data da banca: [`infra/calendar/sincronizacao.md`](infra/calendar/sincronizacao.md), ainda com datas "A DEFINIR".
-- **Lista de compras final** (cotação em conjunto, atenção à compatibilidade elétrica): ver [`docs/planejamento/lista-compras-hardware.md`](docs/planejamento/lista-compras-hardware.md).
+**API**
+
+```bash
+cd cloud
+pip install -r requirements.txt
+cp ../infra/env/cloud.env.example .env    # preencher as variáveis
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+**Aplicativo**
+
+```bash
+cd app
+npm install
+cp .env.example .env                      # definir EXPO_PUBLIC_API_URL
+npx expo start
+```
+
+**Dispositivo** (Raspberry Pi OS Lite, 64 bits)
+
+```bash
+bash edge/scripts/install.sh              # dependências, ambiente virtual e cron
+# em seguida, preencher edge/.env com API_BASE_URL, DEVICE_ID e DEVICE_API_KEY
+```
+
+Os detalhes de cada camada, incluindo a implantação no Railway e a
+calibração dos sensores, estão nos READMEs das pastas.
+
+## Resultados
+
+| Avaliação | Resultado |
+|---|---|
+| Modelo de três classes, imagens de laboratório (PlantVillage, 300 imagens) | 94,3% de acurácia |
+| Modelo de três classes, imagens de campo (PlantDoc, 27 imagens) | 74,1% de acurácia |
+| Modelo em produção, enquadramento do próprio dispositivo retido do treino (18 janelas) | 94,4% de acurácia, contra 55,6% da baseline trivial |
+| Diagnóstico de uma captura completa, em computador de desenvolvimento | 654 ms no percentil 95 |
+
+O protocolo de avaliação e as demais métricas estão em
+[`ml/README.md`](ml/README.md).
+
+## Dados
+
+As capturas do dispositivo, as leituras ambientais e as janelas rotuladas
+estão publicadas no Zenodo, sob a licença CC BY 4.0:
+
+> OLIVEIRA, A. C. de et al. **EcoVision**: imagens de folhas de tomateiro e
+> leituras ambientais para monitoramento fitossanitário em estufa. Zenodo,
+> 2026. DOI: [10.5281/zenodo.23646357](https://doi.org/10.5281/zenodo.23646357).
+
+## Testes
+
+| Camada | Testes | Execução |
+|---|---|---|
+| API | 210 | `cd cloud && pytest -q` |
+| Dispositivo | 32 (8 exigem Linux) | `python -m pytest edge/tests -q` |
+| Aplicativo | verificação de tipos | `cd app && npx tsc --noEmit` |
+
+Os testes da API e do dispositivo rodam no GitHub Actions a cada push, e a
+implantação no Railway aguarda a aprovação deles.
+
+## Autores
+
+Amanda Camille de Oliveira, Higor Pereira dos Santos, Igor Rodrigues
+Alves e João Paulo Magalhães, sob orientação da Prof.ª M.ª Stephany
+Mendes Oliveira. Trabalho de conclusão de curso de Ciência da Computação
+da Universidade Paulista (UNIP), 2026.
+
+## Licença
+
+Todos os direitos reservados. Consulte o arquivo [LICENSE](LICENSE). O
+conjunto de dados publicado no Zenodo tem licença própria (CC BY 4.0).

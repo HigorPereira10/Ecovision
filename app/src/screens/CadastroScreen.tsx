@@ -1,17 +1,7 @@
 /**
- * app/src/screens/CadastroScreen.tsx
- *
- * Tela de cadastro do produtor. Mesmo visual da LoginScreen
- * (topo verde com gradiente + card creme).
- *
- * Campos: nome completo, e-mail, senha, confirmar senha.
- * Consome registrar() de app/src/services/auth.ts, que chama
- * POST /auth/register no FastAPI.
- *
- * A data de nascimento foi removida: nenhuma funcionalidade do sistema
- * usa a idade do produtor, e a LGPD manda coletar apenas o
- * indispensavel para a finalidade declarada (principio da
- * necessidade). Guardar essa data criaria obrigacao sem entregar nada.
+ * Cadastro do usuário (nome, e-mail, senha e confirmação), por
+ * registrar() de src/services/auth.ts (POST /auth/register). Coleta
+ * apenas os dados necessários ao funcionamento do sistema.
  */
 
 import React, { useState } from "react";
@@ -109,10 +99,8 @@ export default function CadastroScreen() {
         senha,
       });
 
-      // `email_verificado` vem false quando o servidor enviou um código
-      // de confirmação, e true quando ele está sem e-mail configurado e
-      // já ativou a conta. Sem olhar isso, o produtor seria mandado ao
-      // login e tomaria "confirme seu e-mail" sem saber onde fazer isso.
+      // `email_verificado` false: abre a tela de código; true (servidor
+      // sem envio de e-mail): segue para o login.
       if (conta.email_verificado) {
         Alert.alert("Conta criada!", "Agora é só entrar com seu e-mail e senha.", [
           { text: "OK", onPress: () => navigation.goBack() },

@@ -1,6 +1,4 @@
 /**
- * app/src/theme/colors.ts
- *
  * Paleta central do EcoVision, extraída do design (logo + telas de
  * carregamento/login). Usada por todas as telas para manter consistência
  * visual sem repetir valores hexadecimais espalhados pelo código.

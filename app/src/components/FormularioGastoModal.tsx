@@ -1,6 +1,4 @@
 /**
- * app/src/components/FormularioGastoModal.tsx
- *
  * Formulário de registro de gasto (categoria, valor, data), aberto via
  * botão "+ Registrar novo gasto" na tela Financeiro. Salva chamando
  * registrarGasto() do services/gastos.ts.

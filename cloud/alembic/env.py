@@ -1,14 +1,7 @@
 """
-cloud/alembic/env.py
-
-Gerado por `alembic init`, adaptado para:
-- Usar a MetaData real dos modelos (app/db/models.py), o que habilita
-  `alembic revision --autogenerate` a partir daqui em diante.
-- Ler a URL do banco de app/config.py (settings.DATABASE_URL) em vez de
-  alembic.ini, para não duplicar/desalinhar configuração.
-- Rodar as migrations com um engine assíncrono (asyncpg), já que o
-  projeto inteiro usa SQLAlchemy async (app/db/session.py). Ver
-  https://alembic.sqlalchemy.org/en/latest/cookbook.html#using-asyncio-with-alembic.
+Ambiente do Alembic, adaptado para usar a MetaData de app/db/models.py
+(habilitando --autogenerate), ler DATABASE_URL de app/config.py e executar
+as migrações com engine assíncrono (asyncpg).
 """
 
 import asyncio
@@ -20,9 +13,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
-# Garante que "app" (cloud/app/) é importável independente de onde o
-# comando `alembic` é chamado (mesmo padrão de ancoragem usado em
-# edge/src/config.py).
+# Torna o pacote app importável independentemente de onde o alembic é chamado.
 import sys
 from pathlib import Path
 

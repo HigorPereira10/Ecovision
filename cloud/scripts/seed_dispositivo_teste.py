@@ -1,30 +1,16 @@
 """
-cloud/scripts/seed_dispositivo_teste.py
+Vincula um dispositivo diretamente à conta de teste, sem pareamento, para
+desenvolvimento local. Para dispositivos reais, use
+scripts/provisionar_dispositivo.py e o pareamento pelo aplicativo.
 
-LEGADO: para um dispositivo NOVO, use scripts/provisionar_dispositivo.py,
-que gera a credencial propria e o codigo de pareamento, e deixe o
-produtor reivindicar o aparelho pelo app. Este script continua aqui
-porque vincula direto, sem pareamento, o que ajuda em teste local.
+DEVICE_ID_REAL deve ser igual ao DEVICE_ID do .env do dispositivo; caso
+contrário, as capturas ficam sem dono e não aparecem em nenhuma tela.
 
-Cadastra o Raspberry Pi real na tabela `dispositivos`, vinculado à
-conta de produtor semeada por seed_usuario_teste.py. Sem essa linha,
-GET /dispositivos sempre devolve uma lista vazia (a tabela existe, mas
-ninguém grava nela: o /diagnostico não exige um cadastro prévio em
-`dispositivos`, ver app/core/security.py).
-
-ANTES DE RODAR: troque DEVICE_ID_REAL abaixo pelo mesmo valor
-configurado em DEVICE_ID no .env do Raspberry Pi (edge/src/config.py).
-Se os dois valores não baterem, o dispositivo aparece cadastrado mas
-sempre como "inativo" (o status é calculado batendo esse device_id
-contra o device_id que chega em cada /diagnostico).
-
-Como rodar (dentro de cloud/, com o venv ativado e as variáveis de
-ambiente reais carregadas):
+Uso (em cloud/, com o ambiente configurado):
 
     python -m scripts.seed_dispositivo_teste
 
-Idempotente: rodar de novo só atualiza o nome se o device_id já
-existir, não cria duplicata (device_id é UNIQUE em app/db/models.py).
+Idempotente: se o device_id existir, apenas atualiza o nome.
 """
 
 import asyncio
@@ -37,11 +23,7 @@ from app.db.session import _SessionLocal
 
 logger = logging.getLogger("ecovision.cloud.seed")
 
-# Decidido com o grupo em 2026-10-10. Tem que bater EXATAMENTE com o
-# DEVICE_ID do edge/.env no cartao do Raspberry (edge/src/config.py
-# exige a variavel e nao tem valor padrao). Se os dois divergirem, as
-# capturas chegam ao banco mas ficam sem dono e, com o filtro de
-# app/api/escopo.py, invisiveis em todas as telas.
+# Deve ser igual ao DEVICE_ID do .env do dispositivo.
 DEVICE_ID_REAL = "pi-estufa-01"
 NOME_TESTE = "Estufa 1"
 EMAIL_DONO = "produtor@ecovision.app"  # mesma conta de seed_usuario_teste.py

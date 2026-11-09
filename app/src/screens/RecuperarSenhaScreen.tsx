@@ -1,22 +1,10 @@
 /**
- * app/src/screens/RecuperarSenhaScreen.tsx
+ * Redefinição de senha em dois passos na mesma tela: o usuário informa o
+ * e-mail e recebe um código; depois digita o código e a nova senha
+ * (POST /auth/forgot-password e POST /auth/reset-password).
  *
- * Redefinição de senha em dois passos, na mesma tela:
- *   1. o produtor informa o e-mail e recebe um código de 6 dígitos;
- *   2. digita o código e a senha nova.
- *
- * Os dois passos ficam juntos de propósito: o código chega por e-mail,
- * então o produtor volta ao app em seguida, e mandá-lo navegar de novo
- * até outra tela só criaria uma chance a mais de se perder no caminho.
- *
- * Esta tela era MOCKADA: dizia "confira seu e-mail" sem que e-mail
- * nenhum saísse. Agora consome POST /auth/forgot-password e
- * POST /auth/reset-password de verdade.
- *
- * A mensagem do primeiro passo é a mesma exista ou não conta com aquele
- * endereço, e a API responde igual nos dois casos: diferenciar
- * permitiria descobrir quais e-mails estão cadastrados testando
- * endereços.
+ * A mensagem do primeiro passo é a mesma, exista ou não conta com o
+ * e-mail informado.
  */
 
 import React, { useState } from "react";

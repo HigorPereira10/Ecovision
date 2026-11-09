@@ -1,22 +1,9 @@
 """
-edge/src/actuators/led_flash.py
+Acionamento do LED de iluminação pelo MOSFET de canal N.
 
-Acionamento do Ring LED (flash dominante, 5V) através do MOSFET de
-canal N, NUNCA ligar o LED diretamente ao GPIO.
-
-Motivo (Blueprint v3.0, Fase 1, correção crítica): os pinos GPIO do
-Raspberry Pi suportam no máximo ~16mA, e o Ring LED de 5V exige mais
-corrente do que isso. O MOSFET funciona como chave digital: o GPIO
-comanda o gate (baixa corrente), e o MOSFET permite a passagem da
-corrente maior exigida pelo LED a partir da fonte 5V/3A dedicada.
-
-API: ligar_led()/desligar_led() são as primitivas usadas por main.py para
-abraçar exatamente a chamada de captura da foto (sincronismo real com a
-câmera). acionar_led() é um atalho bloqueante (liga, espera, desliga) para
-uso avulso/teste manual do LED sem câmera.
-
-Relação com o resto do sistema:
-- Chamado por edge/src/main.py, imediatamente antes/durante a captura.
+O LED nunca deve ser ligado diretamente ao GPIO, que fornece no máximo
+cerca de 16 mA. ligar_led() e desligar_led() envolvem a captura da foto;
+acionar_led() liga, espera e desliga, para testes manuais.
 """
 
 import time
@@ -35,13 +22,13 @@ def _garantir_configurado(pino: int) -> None:
 
 
 def ligar_led(pino: int) -> None:
-    """Coloca o gate do MOSFET em nível alto, ligando o Ring LED."""
+    """Coloca a porta do MOSFET em nível alto, ligando o LED."""
     _garantir_configurado(pino)
     GPIO.output(pino, GPIO.HIGH)
 
 
 def desligar_led(pino: int) -> None:
-    """Coloca o gate do MOSFET em nível baixo, desligando o Ring LED."""
+    """Coloca a porta do MOSFET em nível baixo, desligando o LED."""
     _garantir_configurado(pino)
     GPIO.output(pino, GPIO.LOW)
 

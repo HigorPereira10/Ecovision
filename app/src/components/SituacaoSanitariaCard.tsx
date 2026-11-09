@@ -3,35 +3,12 @@ import { View, Text, StyleSheet } from 'react-native';
 import { colors } from '../theme/colors';
 
 /**
- * Distribuição dos diagnósticos recentes, por estado da planta.
+ * Distribuição dos diagnósticos recentes por estado da planta, em barra
+ * empilhada ordenada por severidade (verde, âmbar, vermelho).
  *
- * POR QUE BARRA EMPILHADA E NÃO ROSCA
- * -----------------------------------
- * Era um VictoryPie com duas fatias. Com todos os diagnósticos numa
- * categoria só, o que aconteceu em 2026-11-03, ele vira um anel sólido
- * de uma cor, que parece defeito de renderização. Uma barra cheia de
- * uma cor só parece intencional.
- *
- * A barra também permite ordem por severidade da esquerda para a
- * direita, verde para âmbar para vermelho, que se lê sem consultar
- * legenda.
- *
- * POR QUE TRÊS ESTADOS E NÃO DOIS
- * -------------------------------
- * O card contava "saudáveis" contra "com doença", sendo "com doença"
- * tudo que não fosse saudável. Quando a classe `estresse_foliar` entrou
- * em produção, o card passou a exibir "Com doença (10)" para uma planta
- * que o próprio app descreve, na tela de Diagnóstico, como "alteração na
- * folha que NÃO corresponde às doenças que o sistema reconhece".
- *
- * Estresse pede atenção, não tratamento. Chamar de doença manda o
- * produtor pulverizar uma planta que não tem doença.
- *
- * AS NÃO ANALISADAS FICAM FORA DA BARRA
- * -------------------------------------
- * Foto reprovada na guarda de qualidade não diz nada sobre a planta.
- * Colocá-la na barra misturaria "o que a planta tem" com "o que não deu
- * para ver". Ela vai numa linha abaixo, como nota.
+ * São três estados: saudável, com estresse (pede atenção, não tratamento)
+ * e com doença. As fotos não analisadas ficam fora da barra, em uma nota,
+ * pois não dizem nada sobre a planta.
  */
 
 interface SituacaoSanitariaCardProps {
@@ -42,16 +19,8 @@ interface SituacaoSanitariaCardProps {
   semAnalise: number;
 }
 
-/** O subtítulo descreve a AMOSTRA, não uma janela de tempo.
- *
- * Ele dizia "Diagnósticos das últimas 48 horas", com 48 fixo no código,
- * enquanto a busca real era de outra janela. O número no texto e o
- * número na consulta viviam em arquivos diferentes e, na primeira vez
- * que a consulta mudou, o rótulo passou a mentir sem que nada quebrasse.
- *
- * Contar o que está no próprio card elimina a possibilidade: seja qual
- * for a janela que services/diagnosticos.ts usar amanhã, esta frase
- * continua verdadeira. */
+/** O subtítulo descreve a amostra exibida, e não uma janela de tempo fixa,
+ * para continuar correto se a consulta mudar. */
 function descreverAmostra(total: number): string {
   if (total === 0) return 'Nenhuma foto analisada ainda';
   if (total === 1) return 'Baseado na última foto analisada';

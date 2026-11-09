@@ -1,44 +1,16 @@
 """
-ml/src/porta/gradcam_dominio.py
+Mapas de ativação Grad-CAM do modelo em produção, separados por classe.
 
-Gera os mapas de Grad-CAM do modelo de DOMÍNIO PRÓPRIO (4 classes),
-separados POR CLASSE.
+O Grad-CAM indica as regiões que mais pesaram na decisão: calor sobre o
+tecido alterado é evidência de que o modelo aprendeu o sintoma, e calor
+sobre o fundo indicaria um atalho. Não é prova de acerto. As janelas de
+cada classe são ordenadas por foco em tecido texturado, e não por
+confiança, que favorece janelas de fundo ou de fruto.
 
-POR QUE SEPARADO POR CLASSE, E NÃO PELAS MAIS CONFIANTES
---------------------------------------------------------
-A primeira versão disto escolhia as janelas de maior confiança, e o
-resultado veio enviesado: cinco das seis eram `saudavel`, porque é
-nelas que o modelo é mais confiante. O mapa ficava bonito e não
-respondia a pergunta que importa, que é onde ele olha para dizer
-ESTRESSE.
+O preprocess_input da MobileNetV2 faz parte do grafo, mas não aparece em
+modelo.layers; a travessia manual precisa aplicá-lo.
 
-Aqui cada classe tem a sua linha, com as janelas mais confiantes
-daquela classe. É o que permite comparar o comportamento entre elas.
-
-O QUE O GRAD-CAM SERVE PARA PROVAR, E O QUE NÃO SERVE
-------------------------------------------------------
-Serve como evidência contra memorização: se o calor cai sobre a lesão
-ou sobre o tecido alterado, o modelo aprendeu o sintoma; se cai no
-fundo, no fio da bancada ou na borda da foto, ele aprendeu um atalho do
-conjunto de dados e a acurácia alta não significa nada.
-
-NÃO serve como prova de acerto. Um modelo pode olhar o lugar certo e
-classificar errado.
-
-Medido com o modelo anterior em 2026-11-02: uma janela acendia sobre o
-fio vermelho da bancada e outra sobre os frutos. Com o modelo treinado
-em seis enquadramentos, o calor passou a cair sobre o limbo.
-
-ARMADILHA DO PREPROCESS_INPUT
------------------------------
-O `preprocess_input` da MobileNetV2 está no grafo do modelo mas NÃO
-aparece em `modelo.layers`. A travessia manual precisa aplicá-lo
-explicitamente, senão a base recebe pixels 0-255 quando espera [-1, 1]
-e tudo sai como "saudavel" com cerca de 90%, sem erro nenhum. Ver
-ml/models/README.md, quarta regra.
-
-USO
----
+Uso:
     python -m ml.src.porta.gradcam_dominio <captura.jpg> <pasta_de_saida>
 """
 
@@ -70,17 +42,9 @@ POR_CLASSE = 4
 
 
 def foco_em_tecido(recorte, mapa):
-    """Quanto do calor cai sobre tecido TEXTURADO (folha) e nao sobre
-    superficie lisa (fruto, vaso, fundo).
-
-    Folha tem nervura e tricoma, entao gradiente alto. Fruto de tomate
-    e liso e arredondado, vaso e fundo idem. Medindo o gradiente medio
-    ponderado pelo calor, da para ordenar as janelas em que o modelo
-    olhou folha de verdade.
-
-    Isto NAO corrige o modelo, so escolhe exemplos para figura. O vies
-    de fruto medido em 2026-11-02 continua existindo e esta registrado
-    no ADR 0018."""
+    """Fração do calor sobre tecido texturado (folha), e não sobre
+    superfícies lisas (fruto, vaso, fundo), medida pelo gradiente médio
+    ponderado pelo calor. Usado só para escolher exemplos."""
     cinza = recorte.mean(axis=2)
     gy, gx = np.gradient(cinza)
     textura = np.hypot(gx, gy)
@@ -142,10 +106,7 @@ def main() -> int:
     )
     for linha, indice in enumerate(presentes):
         desta = np.where(probabilidades.argmax(1) == indice)[0]
-        # Ordena por FOCO EM TECIDO, nao por confianca: escolher as mais
-        # confiantes trouxe janelas de vaso e de fruto, porque e nelas
-        # que o modelo e mais confiante, e a figura nao respondia a
-        # pergunta que ela existe para responder.
+        # Ordena por foco em tecido, não por confiança.
         focos = [foco_em_tecido(recortes[j], gradcam(modelo, recortes[j], indice))
                  for j in desta]
         escolhidas = desta[np.argsort(focos)[::-1]][:POR_CLASSE]

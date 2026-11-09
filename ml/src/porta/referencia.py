@@ -1,59 +1,21 @@
 """
-ml/src/porta/referencia.py
+Gera a referência da verificação de familiaridade: os vetores de atributos
+(1280 dimensões, saída do GlobalAveragePooling) das imagens de treino.
 
-Gera o artefato de referência da PORTA DE FAMILIARIDADE: os vetores de
-atributos (1280 dimensões, saída do GlobalAveragePooling) de todas as
-imagens de treino. É contra eles que uma captura nova é comparada para
-decidir se o modelo já viu algo parecido.
+Uma janela nova é comparada a esses vetores por similaridade de cosseno
+com o vizinho mais próximo; valores baixos indicam conteúdo diferente de
+tudo o que o modelo viu (fundo, parede, vaso). Na extração de janelas para
+rotulagem, a referência descarta recortes sem folha. O limiar padrão é o
+percentil 5 da familiaridade no conjunto de teste do PlantDoc (0,604).
 
-POR QUE ISTO EXISTE
--------------------
-O classificador tem três saídas e um softmax. Toda entrada é
-distribuída entre septoriose, pinta_preta e saudável, inclusive
-entrada que não é folha. Medido em 2026-10-31 sobre uma captura real
-do dispositivo: de 158 janelas que não continham folha nenhuma
-(cobertura de verde abaixo de 2%), 45% foram classificadas como
-doença. Parede, chão e vaso viram diagnóstico.
+O preprocess_input da MobileNetV2 faz parte do grafo salvo, mas não
+aparece em model.layers; ao montar o submodelo manualmente, ele precisa
+ser aplicado de forma explícita.
 
-A porta resolve isso sem rótulo novo e sem retreinar: em vez de
-perguntar "qual das três classes é esta?", pergunta antes "isto se
-parece com algo que o modelo aprendeu?".
-
-COMO A FAMILIARIDADE É DEFINIDA
--------------------------------
-Similaridade de cosseno entre o vetor da entrada e o vetor mais
-próximo do conjunto de treino. Valor alto significa que existe pelo
-menos uma imagem de treino parecida; valor baixo significa que a
-entrada é estranha ao que o modelo conhece.
-
-VALORES MEDIDOS EM 2026-10-31
------------------------------
-Referência: 249 imagens de treino do PlantDoc.
-
-    PlantDoc teste (dentro da distribuição) .... mediana 0,664
-    Folha danificada, bem enquadrada .......... 0,711
-    Folha limpa, bem enquadrada ............... 0,643
-    Janelas do dispositivo, em geral .......... mediana 0,571
-    Fundo sem folha (controle negativo) ....... mediana 0,391
-
-O limiar padrão é o percentil 5 da familiaridade do conjunto de teste,
-que deu 0,604. Com ele, 100% das janelas de fundo são recusadas e os
-dois recortes de folha verificáveis a olho passam.
-
-ATENÇÃO AO PRÉ-PROCESSAMENTO
-----------------------------
-O `preprocess_input` da MobileNetV2 está dentro do grafo do modelo
-salvo, mas NÃO aparece em `model.layers`. Ao montar um sub-modelo por
-travessia manual, como é feito aqui, ele precisa ser aplicado
-explicitamente. Sem isso as predições colapsam para "saudavel" com
-cerca de 90% em qualquer imagem (ver ml/models/README.md, quarta
-regra).
-
-USO
----
+Uso:
     python -m ml.src.porta.referencia
 
-Grava ml/models/referencia_familiaridade.npz, de cerca de 1,3 MB.
+Grava ml/models/referencia_familiaridade.npz.
 """
 
 from __future__ import annotations
@@ -93,9 +55,8 @@ def _carregar_modelo():
 
 
 def extrator(mobilenet, pooling):
-    """Devolve uma função que mapeia um lote de imagens cruas de 0 a 255
-    para os vetores de 1280 dimensões, aplicando o preprocess_input que
-    o grafo espera mas que a travessia manual não traz junto."""
+    """Devolve uma função que mapeia um lote de imagens (pixels de 0 a 255)
+    para os vetores de 1280 dimensões, aplicando o preprocess_input."""
     import keras
     import tensorflow as tf
 

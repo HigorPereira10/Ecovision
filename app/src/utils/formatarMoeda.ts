@@ -1,6 +1,4 @@
 /**
- * app/src/utils/formatarMoeda.ts
- *
  * Helper central de formatação monetária (pt-BR), usado por qualquer
  * tela que exiba valores em Real. Evita repetir a mesma lógica de
  * formatação em vários componentes (Financeiro, Histórico, etc.).

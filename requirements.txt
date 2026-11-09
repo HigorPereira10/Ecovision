@@ -1,18 +1,6 @@
-# requirements.txt (raiz do repositorio)
-#
-# Existe por causa do deploy no Railway, nao para desenvolvimento local
-# (para isso, use cloud/requirements.txt direto).
-#
-# O Railway monta o ambiente com Nixpacks, que decide a linguagem do
-# projeto olhando a RAIZ do repositorio. Sem um requirements.txt aqui,
-# ele nao reconhece o projeto como Python e o build falha.
-#
-# Por que o deploy nao aponta a raiz do servico para cloud/, que seria o
-# obvio: quando o Railway recebe um root directory, ele baixa SOMENTE os
-# arquivos daquela pasta, e diretorios irmaos ficam de fora. Como o
-# modelo de IA vive em ml/models/ (irmao de cloud/), ele desapareceria
-# do container e a API responderia "indisponivel" em toda captura, sem
-# erro visivel. O proprio Railway chama esse caso de "shared monorepo" e
-# recomenda nao definir root directory, usando um start command que
-# entra na pasta certa (ver railway.json).
+# Usado pelo Railway (Nixpacks), que identifica a linguagem pela raiz do
+# repositório. O serviço não define diretório raiz porque o modelo em
+# ml/models/ precisa estar no contêiner; o comando de inicialização em
+# railway.json entra em cloud/. Para desenvolvimento, use
+# cloud/requirements.txt.
 -r cloud/requirements.txt

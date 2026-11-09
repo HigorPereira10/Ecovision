@@ -1,23 +1,6 @@
-# .gitattributes
-#
-# Controla como o GitHub Linguist (o componente que gera a barra de
-# "Languages" do repositorio) classifica os arquivos.
-#
-# Motivo: os notebooks de experimento do time de ML guardam os graficos
-# e as imagens de saida embutidos em base64 dentro do proprio .ipynb.
-# Isso faz um unico notebook pesar quase 20 MB, contra ~210 KB de todo o
-# codigo Python do projeto. Como o Linguist mede por BYTES, o repositorio
-# aparecia como 98% Jupyter Notebook, escondendo Python, TypeScript e o
-# resto do trabalho.
-#
-# "linguist-documentation" tira os notebooks da estatistica sem esconder
-# nem apagar nada: eles continuam versionados, visiveis e renderizados
-# normalmente na interface do GitHub.
+# Estatística de linguagens do GitHub: notebooks e binários de modelo
+# não contam como código-fonte.
 *.ipynb linguist-documentation
-
-# O modelo treinado e um binario, nao codigo-fonte.
 *.keras linguist-generated
 *.tflite linguist-generated
-
-# Imagens de dataset e de validacao tambem nao sao codigo.
-ml/validacao_externa/** linguist-documentation
+*.npz linguist-generated

@@ -1,6 +1,4 @@
 /**
- * app/src/services/tokens.ts
- *
  * Guarda os tokens de sessão do produtor e avisa quem estiver ouvindo
  * quando o estado de autenticação muda.
  *

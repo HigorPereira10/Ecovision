@@ -1,30 +1,14 @@
 """
-edge/src/fila/offline_queue.py
+Fila local em disco, em JSON Lines, para tolerar quedas de rede.
 
-Fila offline em disco (formato JSON Lines) para tolerar quedas de rede
-no ambiente de estufa (Blueprint v3.0, Fase 2).
+Cada linha guarda os metadados da captura (id, device_id, timestamp,
+leituras e caminho da imagem); a imagem fica em
+edge/data/queue/images/{id}.jpg, sem base64, para não ocupar mais espaço
+no cartão. O acesso ao arquivo é protegido por fcntl.flock, pois captura e
+drenagem podem rodar ao mesmo tempo.
 
-NÃO renomear esta pasta de volta para `queue`: esse é o nome de um
-módulo da biblioteca padrão do Python. Como o cron chama
-`python edge/src/main.py`, o Python coloca `edge/src/` no início do
-caminho de busca, e aí qualquer `import queue` feito por uma biblioteca
-de terceiros encontra esta pasta em vez da original. Na prática isso
-quebrava o picamera2 e derrubava o ciclo inteiro de captura, falha
-descoberta rodando o ciclo completo no Raspberry Pi.
-
-Decisão de implementação: cada linha da fila guarda só METADADOS (id,
-device_id, timestamp, leituras dos sensores e o caminho do arquivo de
-imagem). A imagem comprimida é salva como arquivo separado em
-edge/data/queue/images/{id}.jpg, não em base64 dentro do JSON, para não
-inflar em ~33% o tamanho num SD card já limitado (Blueprint, BoM:
-microSD 32GB compartilhado com o OS).
-
-`fcntl.flock` protege o arquivo da fila contra corrupção se a captura
-(escreve) e a drenagem (lê/remove) rodarem ao mesmo tempo via cron.
-
-Relação com o resto do sistema:
-- Escrito por edge/src/main.py a cada ciclo de captura.
-- Drenado por edge/src/upload/uploader.py, agendado a cada 15min via cron.
+A pasta não se chama "queue" para não sombrear o módulo queue da
+biblioteca padrão, já que o cron coloca edge/src/ no caminho de importação.
 """
 
 import fcntl
@@ -47,8 +31,9 @@ def enfileirar(
     caminho_fila: Path = config.QUEUE_FILE,
     caminho_imagens: Path = config.QUEUE_IMAGES_DIR,
 ) -> str:
-    """Salva a imagem comprimida em disco e adiciona um registro de
-    metadados como nova linha JSON na fila. Retorna o id gerado."""
+    """Salva a imagem em disco e acrescenta seus metadados à fila.
+
+    Devolve o id gerado."""
     _garantir_diretorios(caminho_fila, caminho_imagens)
 
     registro_id = uuid.uuid4().hex
@@ -89,8 +74,7 @@ def ler_pendentes(caminho_fila: Path = config.QUEUE_FILE) -> list:
 
 
 def remover_enviados(ids_enviados: list, caminho_fila: Path = config.QUEUE_FILE) -> None:
-    """Remove da fila os registros já confirmados como enviados (HTTP 2xx)
-    e apaga o arquivo de imagem correspondente de cada um."""
+    """Remove da fila os registros confirmados pela API e apaga suas imagens."""
     if not ids_enviados or not caminho_fila.exists():
         return
 

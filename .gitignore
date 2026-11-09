@@ -1,123 +1,45 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
+*.py[co]
+*.egg-info/
 .venv/
 venv/
-*.egg-info/
 .pytest_cache/
 
-# Segredos reais (nunca versionar, usar os .example em infra/env/)
+# Variáveis de ambiente (os modelos ficam em *.env.example)
 .env
 *.env
 !*.env.example
 
-# Dados em runtime (fila offline do edge/, cache local)
+# Material interno do grupo: documentação acadêmica, referências e rascunhos
+/interno/
+
+# Dados gravados pelo dispositivo em operação
 edge/data/
 
-# Documentos de referência internos (não sobem para o GitHub)
-/Referencia/
-
-# Documentos de trabalho do TCC: sao internos do grupo e vivem na pasta
-# compartilhada do Google Drive, nao aqui.
-#
-# POR QUE: sao o texto em revisao, com comentario de orientadora, marca
-# de correcao e versao intermediaria. Word nao faz diff legivel, entao
-# cada salvamento entra no git como um binario novo inteiro, e o git
-# guarda todos para sempre. O repositorio e o lugar do codigo e das
-# figuras que o documento consome, nao do documento em si.
-#
-# O material-pronto-para-o-tcc.docx chegou a ser versionado em c0ab5f4 e
-# 3cfc18f, antes desta regra, e foi destrackeado depois.
-docs/tcc/*.docx
-docs/tcc/*.doc
-docs/tcc/referencias-consolidadas.txt
-docs/tcc/roteiro-apresentacao-higor.md
-
-# app/ (Expo/React Native)
-/ecovision-app
-/app/node_modules
+# Aplicativo (Expo / React Native)
+/app/node_modules/
 /app/package-lock.json
 /app/.expo/
-# Saida do bundle gerada por `eas update` / `expo export`. E artefato de
-# build: o que vale e o update publicado nos servidores do Expo.
 /app/dist/
 
-# Configuracao local de servidores MCP (Claude Code). E preferencia de
-# ferramenta de quem desenvolve, nao do projeto.
-.mcp.json
+# Dados de treino: as imagens ficam fora do repositório (publicadas no
+# Zenodo, DOI 10.5281/zenodo.23646357); só os manifestos em CSV entram.
+ml/data/*
+!ml/data/*.csv
+!ml/data/estufa_rotulada/
+ml/data/estufa_rotulada/*
+!ml/data/estufa_rotulada/rotulos.csv
+!ml/data/estufa_rotulada/manifesto.csv
 
-# IDE / SO
+*.zip
+
+# Ferramentas e sistema operacional
+.mcp.json
+.claude/
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
-
-# Machine Learning / Datasets locais (Ignorar imagens e arquivos pesados)
-# Nota de sintaxe: precisa ser "ml/data/*" e nao "ml/data/". Com a pasta
-# inteira excluida o git nem entra nela, e a excecao abaixo nao teria efeito.
-ml/data/*
-# Excecao: o manifesto da divisao treino/teste. As imagens do PlantDoc sao
-# publicas e qualquer um baixa; o que e insubstituivel e QUAL imagem foi
-# para treino e qual foi para teste, que e decisao nossa. Sao 33 KB e
-# tornam a avaliacao reproduzivel sem carregar 110 MB de binario no git.
-!ml/data/*.csv
-*.zip
-
-# Artefatos da abordagem REJEITADA do ADR 0018 (quarta classe vinda do
-# OLID I). Mesmo raciocinio da excecao acima, aplicado ao outro lado: o
-# que e insubstituivel e pequeno fica versionado, o que e grande e
-# regeneravel nao fica.
-#
-# Estes dois arquivos somam 29 MB e sao a SAIDA de scripts que estao no
-# repositorio: ml/src/training/ajuste_quatro_classes.py grava os dois
-# (linhas 344 e 426) a partir de ml/data/olid_divisao.csv, que esta
-# versionado, e do OLID I, que e publico (Zenodo 8105154, CC BY 4.0).
-# Quem quiser conferir os numeros do ADR 0018 roda o script.
-#
-# POR QUE ESTES NAO E OS OUTROS: ml/models/modelo.tflite,
-# ml/models/modelo_dominio.tflite e os .keras de ml/training/ CONTINUAM
-# versionados de proposito. Aqueles estao ou estiveram em producao, e um
-# modelo que gerou diagnostico para o produtor tem que poder ser
-# recuperado byte a byte, porque reproduzir o treino nao reproduz os
-# pesos. Estes nunca rodaram em producao: foram medidos, falharam e a
-# medicao esta no ADR.
-ml/models/modelo_4c.tflite
-ml/training/modelo_quatro_classes.keras
-
-# Saidas locais de analise do modelo (mapas de calor Grad-CAM)
-ml/validacao_externa/gradcam/
-ml/validacao_externa/gradcam_depois/
-
-# Capturas CRUAS da validacao de campo.
-#
-# O que sobe para o git e a ANALISE: os mapas de janela, os Grad-CAM, as
-# grades de oclusao, os JSON de resultado e os README que explicam cada
-# experimento. Sao cerca de 18 MB e e o que alguem precisa para entender
-# e conferir a conclusao.
-#
-# O que NAO sobe sao os JPEG originais do dispositivo, de 1 a 2 MB cada.
-# Sao 146 MB, quase o dobro do repositorio inteiro hoje (83 MB), e o git
-# guarda binario para sempre: um "git clone" pagaria esse preco em cada
-# maquina do grupo, para sempre, mesmo depois de a pasta ser apagada.
-# Eles seguem para o deposito do Zenodo (ver docs/tcc/zenodo-deposito.md),
-# que e o lugar certo para dado bruto citavel, e continuam na maquina de
-# quem rodou o experimento.
-#
-# Excecao: as quatro capturas de 2026-10-31-planta-inteira ficam
-# versionadas, porque sao a evidencia do achado positivo (folha unica bem
-# enquadrada e classificada corretamente) e sao so 6 MB.
-ml/validacao_campo/**/*.jpg
-ml/validacao_campo/**/*.jpeg
-!ml/validacao_campo/2026-10-31-planta-inteira/*.jpg
-
-# Coleta noturna de 2026-11-01: 120 MB de captura crua, mais de 20 MB
-# deles duplicados entre as subpastas. Ficam de fora inteiros, inclusive
-# a analise, porque sao bancada de trabalho e nao tem README.
-# A pasta "fora-de-mira" e a copia de seguranca dos registros 87 a 124,
-# apagados do banco em 2026-11-01 (camera caida).
-ml/validacao_campo/2026-11-01-noite/
-ml/validacao_campo/2026-11-01-fora-de-mira/
-# Arquivos temporarios do Word (aparecem enquanto um .docx esta aberto)
 ~$*
 ~WRL*.tmp

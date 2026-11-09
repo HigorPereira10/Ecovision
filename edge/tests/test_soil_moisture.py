@@ -1,21 +1,7 @@
 """
-edge/tests/test_soil_moisture.py
-
-O que este arquivo verifica, em português simples:
-
-Que a conversão do valor bruto do ADC (ADS1115) para uma porcentagem de
-umidade do solo (edge/src/sensors/soil_moisture.py) está matematicamente
-correta nos dois extremos (seco/saturado) e no meio da faixa, que o
-resultado nunca sai do intervalo 0-100% mesmo com um valor bruto fora da
-faixa calibrada (ex.: sensor descalibrado ou ruído elétrico), que uma
-calibração inválida (seco e molhado com o mesmo valor bruto) dá um erro
-claro em vez de uma divisão por zero, e que um canal inexistente é
-recusado antes de tocar no barramento.
-
-O smbus2 só conversa de verdade com o chip em hardware Raspberry Pi com
-o ADS1115 conectado; edge/tests/conftest.py substitui a lib por um
-dublê que devolve os dois bytes como o chip faria. A decodificação
-desses bytes (big-endian, complemento de dois) roda de verdade aqui.
+Testes de edge/src/sensors/soil_moisture.py: conversão do valor bruto em
+porcentagem, limite de 0 a 100%, recusa de calibração inválida e de canal
+inexistente, e decodificação dos bytes do ADS1115.
 """
 
 import pytest
@@ -58,9 +44,8 @@ def test_valor_fora_da_faixa_fica_limitado_entre_0_e_100(fake_ads1115):
 
 
 def test_valor_negativo_do_adc_e_decodificado_como_negativo(fake_ads1115):
-    """O ADS1115 devolve complemento de dois em 16 bits. Sem a conversão
-    de sinal, -500 viraria 65036 e a umidade sairia como 0% (seco) em
-    vez de 100% (saturado), invertendo a leitura."""
+    """O ADS1115 devolve complemento de dois em 16 bits; sem a conversão
+    de sinal, a umidade sairia invertida."""
     fake_ads1115.valor_bruto = -500
 
     assert soil_moisture.ler_umidade_solo() == 100.0

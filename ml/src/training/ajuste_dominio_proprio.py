@@ -1,45 +1,15 @@
 """
-ml/src/training/ajuste_dominio_proprio.py
+Acrescenta ao modelo a classe de estresse foliar, rotulada nas capturas do
+próprio dispositivo, gerando o modelo em produção
+(ml/models/modelo_dominio.tflite).
 
-Acrescenta ao modelo as classes rotuladas NA PROPRIA ESTUFA.
+A classe é descritiva: indica alteração visível da folha que não
+corresponde às doenças reconhecidas, sem afirmar a causa. Septoriose e
+pinta-preta vêm só das bases públicas, e o estresse foliar só da estufa;
+avaliar_dominio_proprio.py mede quantas janelas da estufa caem nas
+classes fúngicas para acompanhar esse viés de origem.
 
-POR QUE ESTE SCRIPT EXISTE, E NAO O DO OLID
--------------------------------------------
-Medido em 2026-11-01, tres caminhos falharam no mesmo ponto, que e a
-distancia entre o dado de treino e esta estufa:
-
-  quarta classe do OLID .......... 83,3% dentro do OLID, ZERO janelas
-                                   vencidas nas capturas do dispositivo
-  porta de familiaridade ......... recusa fundo, nao recusa folha
-                                   estranha (e post-hoc)
-  geometria da lesao ............. separa entre fontes (AUC 0,849) e
-                                   nao dentro (0,627), e muda com a
-                                   distancia da camera
-
-O unico dominio com acesso ilimitado e o proprio, e desde 2026-11-01
-ele e consistente: foco fixo em 20 cm, LED estavel, janela de 896 px
-levando o foliolo ao modelo com 222 px.
-
-AS CLASSES NOVAS SAO DESCRITIVAS
---------------------------------
-`amarelecimento_difuso` e `tecido_seco` dizem o que se ve, nao o que se
-supoe. Nao da para afirmar "deficiencia de potassio" de uma foto sem
-saber a adubacao, e rotulo visual com nome etiologico e o tipo de coisa
-que cai numa pergunta de banca.
-
-ASSIMETRIA DE FONTE QUE PRECISA ESTAR DECLARADA
------------------------------------------------
-`septoriose` e `pinta_preta` vem SO do PlantDoc e do PlantVillage;
-`amarelecimento_difuso` e `tecido_seco` vem SO da estufa. `saudavel`
-vem dos dois, o que atenua, mas o modelo ainda pode usar a origem para
-separar fungo do resto.
-
-Nao da para resolver enquanto a planta nao tiver doenca fungica de
-verdade para fotografar. Fica declarado aqui e no texto, e e por isso
-que avaliar_dominio_proprio.py mede quantas janelas da estufa caem nas
-classes fungicas.
-
-Como rodar:
+Uso:
 
     python ml/src/training/ajuste_dominio_proprio.py \\
         --laboratorio ml/data/plantvillage_tomate \\
@@ -65,9 +35,8 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 MODELO_BASE = os.path.join(RAIZ, "training", "modelo_hibrido_lab_campo.keras")
 PLANTDOC = os.path.join(RAIZ, "data", "plantdoc_tomate")
 
-# As TRES primeiras nao mudam de posicao, nunca: a ordem tem que bater
-# com _CLASSES_DO_MODELO em cloud/app/core/inference.py. Trocar nao
-# quebra nada visivelmente, so passa a mandar fungicida para folha sa.
+# As três primeiras classes mantêm a posição: a ordem precisa coincidir com
+# _CLASSES_DO_MODELO em cloud/app/core/inference.py.
 CLASSES = [
     "septoriose",
     "pinta_preta",
@@ -103,15 +72,14 @@ def coletar(raiz, splits, mapa):
 
 
 def coletar_estufa(raiz):
-    """Le as janelas rotuladas na estufa, guardando a POSICAO de cada
-    uma. A posicao e o que impede vazamento: a mesma posicao da grade
-    aparece em varias capturas e as imagens sao quase identicas."""
+    """Lê as janelas rotuladas na estufa com a posição de cada uma, que
+    impede vazamento entre treino e teste (a mesma posição aparece em
+    várias capturas quase idênticas)."""
     itens = []
     for pasta in PASTAS_ESTUFA:
         for caminho in sorted(glob.glob(os.path.join(raiz, pasta, "*.png"))):
-            # A chave inclui a SESSAO (o enquadramento), nao so a
-            # celula da grade: mover o vaso faz a mesma celula mostrar
-            # outras folhas. Ver ml/src/dataset/extrair_janelas.py.
+            # A chave inclui o enquadramento, não só a célula da grade
+            # (ver ml/src/dataset/extrair_janelas.py).
             posicao = chave_posicao(os.path.basename(caminho))
             itens.append((caminho, INDICE[pasta], posicao))
     if not itens:
@@ -123,23 +91,12 @@ def coletar_estufa(raiz):
 
 
 def separar_por_sessao(itens, sessao_teste: str):
-    """Separa um ENQUADRAMENTO inteiro para teste, e nao uma amostra
-    aleatoria de janelas.
+    """Separa enquadramentos inteiros para teste, e não uma amostra
+    aleatória de janelas.
 
-    POR QUE ASSIM: todas as janelas vem de UMA planta, num vaso, sob a
-    mesma luz. Uma divisao aleatoria, ou mesmo por posicao da grade,
-    mediria memorizacao da cena, porque o modelo ja teria visto aquele
-    fundo, aquele vaso e aquelas folhas de outro angulo.
-
-    Reservando o enquadramento B inteiro, a pergunta do teste passa a
-    ser "funciona num enquadramento que nunca viu". Isso ainda NAO
-    prova que funciona em outra planta, e o texto tem que dizer isso.
-    Prova que o modelo nao decorou o fundo.
-
-    A sessao B foi escolhida por ser a mais desbalanceada das quatro
-    (13 saudaveis e quase nenhum estresse), o que torna o teste mais
-    duro: se o modelo aprendeu "enquadramento = classe", ele quebra
-    aqui.
+    Como todas as janelas vêm da mesma planta, uma divisão aleatória
+    mediria memorização da cena. Reservar enquadramentos inteiros testa o
+    desempenho em um enquadramento nunca visto (não em outra planta).
     """
     sessoes = {x.strip() for x in sessao_teste.split(",") if x.strip()}
     treino, teste = [], []
@@ -155,12 +112,8 @@ def separar_por_sessao(itens, sessao_teste: str):
 
 
 def separar_validacao_estufa(itens, por_classe, rng):
-    """Validacao da estufa separada POR POSICAO, nao por imagem.
-
-    Se a posicao x0672_y0224 for para a validacao, TODAS as capturas
-    dela vao junto. Separar por imagem colocaria quase-duplicatas dos
-    dois lados e a val_loss mediria memorizacao, nao generalizacao.
-    """
+    """Validação da estufa separada por posição, e não por imagem, para
+    não colocar quase-duplicatas nos dois lados."""
     por_posicao = {}
     for caminho, rotulo, posicao in itens:
         por_posicao.setdefault(posicao, []).append((caminho, rotulo))
@@ -205,11 +158,9 @@ def montar_ds(itens, embaralhar):
 
 
 def expandir_cabeca(modelo, n_classes):
-    """Liga uma densa maior ao tensor que JA existe no grafo, copiando
-    as colunas treinadas. Nao recriar a entrada: reaproveitar camadas
-    num grafo novo as deixa com dois nos e o modelo com duas entradas de
-    mesmo nome, e o erro so aparece ao salvar ou ao montar submodelo
-    (ver ajuste_quatro_classes.py)."""
+    """Liga uma camada densa maior ao tensor já existente no grafo,
+    copiando as colunas treinadas. A entrada não é recriada: reaproveitar
+    camadas em um grafo novo duplicaria nós e entradas."""
     densa_antiga = modelo.get_layer("dense")
     kernel_antigo, bias_antigo = densa_antiga.get_weights()
     antigas = kernel_antigo.shape[1]
@@ -245,9 +196,7 @@ def main() -> None:
     campo = coletar(PLANTDOC, ("train",), PASTA_CAMPO)
     estufa = coletar_estufa(argumentos.estufa)
     treino_estufa, teste_estufa = separar_por_sessao(estufa, argumentos.sessao_teste)
-    # A validacao sai do TREINO, nunca do teste: o teste so e olhado no
-    # fim, uma vez. Usar o teste para parar o treino o transformaria em
-    # parte do ajuste, e a metrica final ficaria otimista.
+    # A validação sai do treino; o teste só é avaliado uma vez, no fim.
     _teste = {x.strip() for x in argumentos.sessao_teste.split(",") if x.strip()}
     triplas = [(c, r, p) for (c, r), p in
                zip(treino_estufa, [p for _, _, p in estufa
@@ -266,10 +215,8 @@ def main() -> None:
           f"{len(teste_estufa)} janelas (nunca vistas no treino)")
     print(f"  validacao (tirada do treino): {len(val_estufa)} janelas")
 
-    # Validacao: so a estufa. O laboratorio tem 3000 imagens e
-    # dominaria a val_loss, que foi o erro que travou o treino do OLID
-    # na epoca 2 e deixou a classe nova sem influencia nenhuma na
-    # decisao de parar. Aqui a validacao mede o que o treino quer mudar.
+    # Validação só com a estufa: o laboratório, muito maior, dominaria a
+    # val_loss e a classe nova não influenciaria a parada antecipada.
     treino = lab + campo + list(treino_estufa)
     rng.shuffle(treino)
 

@@ -1,40 +1,11 @@
 """
-cloud/app/api/routes/historico.py
+Consultas históricas: GET /leituras e GET /diagnosticos.
 
-Endpoints de consulta histórica: leituras ambientais e diagnósticos
-passados, para as telas de Histórico/Diagnóstico do frontend (app/).
-
-Regra importante (Blueprint Seção 4.2, passo 5): o frontend NUNCA acessa
-o Supabase diretamente. Este endpoint é quem busca os dados no Supabase
-e devolve a resposta já pronta para exibição.
-
-Rotas definidas como /leituras e /diagnosticos (nível raiz, sem prefixo
-/historico), pela mesma convenção dos demais endpoints (/diagnostico,
-/alertas): mantém a API com um único namespace de recursos, em vez de
-misturar rotas com e sem prefixo.
-
-Escopo por dono: estes endpoints devolvem apenas os dados dos
-dispositivos vinculados ao produtor autenticado, via
-app/api/escopo.py. A simplificação anterior (devolver os dados de
-TODOS os dispositivos, por só existir 1 Pi físico) deixou de valer
-quando POST /auth/register abriu o cadastro: sem o filtro, qualquer
-pessoa criaria uma conta e veria a estufa alheia.
-
-Consequência: captura cujo device_id não esteja vinculado a um usuário
-em `dispositivos` não aparece para ninguém. Ver a nota em
-app/api/escopo.py e cloud/scripts/seed_dispositivo_teste.py.
-
-Relação com o resto do sistema:
-- Consumido pelo frontend (app/) nas telas de Histórico e Diagnóstico.
-- Depende de app/db/models.py (leituras_ambientais, diagnosticos) e
-  app/core/security.py (obter_produtor_atual, exige login).
-- POST /leituras, a ESCRITA do mesmo recurso, mora em
-  app/api/routes/leituras.py: quem escreve autentica por credencial de
-  dispositivo e quem le autentica por login de produtor, e sao fluxos
-  sem nada em comum. Ver o cabecalho daquele modulo.
-- `url_imagem` em DiagnosticoHistoricoOut vem de
-  app/storage/supabase_storage.py (signed URL, bucket privado, decisão
-  em infra/supabase/storage_policies.md).
+Devolvem apenas os dados dos dispositivos vinculados ao usuário
+(app/api/escopo.py); capturas de dispositivos sem dono não aparecem para
+ninguém. As imagens são entregues por URLs assinadas
+(app/storage/supabase_storage.py). A escrita de leituras (POST /leituras)
+fica em app/api/routes/leituras.py, com autenticação de dispositivo.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -52,10 +23,8 @@ from app.storage.supabase_storage import gerar_urls_assinadas_imagens
 
 router = APIRouter()
 
-# Limite defensivo: evita uma consulta sem filtro devolver a tabela
-# inteira depois de meses de captura a cada 2h (ver ADR 0008 para o
-# valor do intervalo padrão). Ajustável se a validação em campo (Sprint
-# 9) mostrar que o histórico real precisa de mais.
+# Limite de itens por consulta, para que uma consulta sem filtro não
+# devolva a tabela inteira.
 _LIMITE_MAXIMO_ITENS = 1000
 
 
@@ -65,24 +34,13 @@ async def listar_leituras(
     produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """Lista leituras ambientais, mais antiga primeiro (série temporal
-    para gráfico). Sem `horas`, devolve as últimas _LIMITE_MAXIMO_ITENS
-    leituras disponíveis.
+    """Lista leituras ambientais em ordem cronológica (série para gráfico).
+    Sem `horas`, devolve as últimas _LIMITE_MAXIMO_ITENS leituras.
 
-    ATENÇÃO: os dois ramos abaixo NÃO podem ser escritos como uma única
-    query com dois `.order_by()` encadeados (asc, depois desc): no
-    SQLAlchemy isso ACRESCENTA cláusulas de ordenação em vez de
-    substituir, e como é a mesma coluna, o segundo `.order_by()` é
-    ignorado (a primeira cláusula já decide o empate). Isso já causou
-    um bug real aqui: o `.reverse()` do ramo sem filtro invertia uma
-    lista que já estava em ordem crescente, devolvendo a ordem errada."""
-    # SEM JOIN com registros_imagem, de proposito. Era um INNER JOIN, a
-    # unica forma de descobrir o dispositivo da leitura antes de
-    # `device_id` virar coluna propria (migration 0008). Mantido, ele
-    # descartaria silenciosamente toda leitura sem foto, que e justamente
-    # a maioria desde que o Pi passou a medir o ambiente a cada 15 min: o
-    # grafico da tela inicial voltaria a mostrar so os pontos de 2 em 2
-    # horas, sem nenhum erro aparente.
+    Os dois ramos usam consultas separadas: encadear dois .order_by() no
+    SQLAlchemy acrescenta cláusulas em vez de substituir."""
+    # Sem JOIN com registros_imagem: device_id é coluna da leitura, e o
+    # JOIN descartaria as leituras sem foto.
     base = select(LeituraAmbiental)
 
     device_ids = await device_ids_visiveis(sessao, produtor)
@@ -96,9 +54,8 @@ async def listar_leituras(
         )
         leituras = list((await sessao.execute(consulta)).scalars().all())
     else:
-        # sem filtro: pega as N mais recentes (DESC + limit) e so depois
-        # inverte para ordem cronologica, senao limitar uma consulta ASC
-        # pegaria as N MAIS ANTIGAS em vez das N mais recentes.
+        # Sem filtro: busca as N mais recentes (DESC + limit) e inverte
+        # para a ordem cronológica.
         consulta = base.order_by(LeituraAmbiental.criado_em.desc()).limit(_LIMITE_MAXIMO_ITENS)
         leituras = list((await sessao.execute(consulta)).scalars().all())
         leituras.reverse()
@@ -132,16 +89,10 @@ async def listar_diagnosticos(
     produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> list[dict]:
-    """Lista diagnósticos, mais recente primeiro (feed de histórico).
+    """Lista diagnósticos, do mais recente ao mais antigo.
 
-    POR QUE `limite` EXISTE: esta rota gera uma signed URL por imagem,
-    e cada uma é uma chamada de rede ao Supabase. Com captura a cada 2h,
-    a janela padrão de 7 dias do app dá cerca de 84 itens, ou seja, 84
-    idas ao Supabase numa única requisição. A tela de Diagnóstico mostra
-    só os resultados mais recentes, então ela pede poucos e a resposta
-    chega rápido; a de Histórico pede a janela inteira, porque é para
-    isso que ela serve. Sem o parâmetro, as duas pagariam o preço da
-    segunda.
+    `limite` existe porque cada item exige uma URL assinada: a tela de
+    Diagnóstico pede poucos itens, e a de Histórico, a janela inteira.
     """
     consulta = (
         select(Diagnostico, RegistroImagem.caminho_arquivo, RegistroImagem.device_id)
@@ -161,10 +112,7 @@ async def listar_diagnosticos(
     resultado = await sessao.execute(consulta)
     linhas = resultado.all()
 
-    # As signed URLs saem numa única ida ao Supabase, não uma por
-    # imagem (ver gerar_urls_assinadas_imagens: era este laço, em
-    # sequência, que fazia a tela de Histórico estourar o timeout do
-    # app quando o banco passou de 2 para 124 registros).
+    # As URLs assinadas são geradas em lote, em uma única chamada ao Supabase.
     urls = await gerar_urls_assinadas_imagens(
         [caminho_arquivo for _, caminho_arquivo, _ in linhas]
     )

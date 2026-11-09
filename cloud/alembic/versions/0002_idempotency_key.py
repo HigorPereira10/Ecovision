@@ -1,18 +1,9 @@
 """adiciona idempotency_key em registros_imagem
 
-Corrige um problema real: o edge/ não mandava nenhum identificador
-estável por captura, então a API não conseguia distinguir uma foto nova
-de um reenvio (ex.: a API confirma HTTP 200, mas o processo do
-Raspberry Pi cai antes de tirar o registro da fila local; no próximo
-ciclo o mesmo registro seria enviado de novo e viraria uma linha
-duplicada). Ver edge/src/upload/uploader.py e
-cloud/app/api/routes/diagnostico.py.
-
-CUIDADO se for reaproveitar este padrão em outra migration: aqui foi
-seguro adicionar a coluna já como NOT NULL diretamente (sem passo
-intermediário nullable + backfill) porque a tabela estava vazia naquele
-momento do projeto, sem nenhuma linha de produção para migrar. Se a
-tabela já tiver dados, isso quebraria a migration.
+Identificador estável de cada captura, gerado pela fila local do
+dispositivo, que permite descartar reenvios. A coluna foi criada como
+NOT NULL diretamente porque a tabela estava vazia; com dados existentes,
+seria necessário um passo intermediário nullable com preenchimento.
 
 Revision ID: 0002
 Revises: 0001

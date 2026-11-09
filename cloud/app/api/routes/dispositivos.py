@@ -1,32 +1,9 @@
 """
-cloud/app/api/routes/dispositivos.py
-
-GET /dispositivos: lista os dispositivos IoT cadastrados (tabela
-`dispositivos`), para a tela de Perfil do app.
-
-Decisão do grupo em 2026-09-14: o projeto tem só 1 Raspberry Pi físico
-até agora, mas a tela de Perfil já foi desenhada para exibir uma lista
-(pensando num produtor com mais de uma estufa no futuro). Esta rota
-devolve a lista de verdade (hoje, na prática, sempre com 0 ou 1 item);
-o app não precisa saber se é 1 ou N, só itera a lista normalmente.
-
-`status` ('ativo' | 'inativo') é computado sob demanda a partir da
-última captura recebida daquele device_id, reaproveitando
-app/core/alertas_dispositivo.py (ADR 0008) em vez de duplicar os
-limiares de atraso numa segunda lógica.
-
-Escopo por dono: devolve apenas os dispositivos cujo `usuario_id` é o
-do produtor autenticado (ver app/api/escopo.py). Produtor recém
-cadastrado, sem nenhum dispositivo vinculado, recebe lista vazia.
-Campos de localização (campo/setor) e limiares configuráveis por
-dispositivo, que a tela de Perfil já desenha, ficam só como
-funcionalidade visual do app por enquanto (ver DispositivoOut em
-app/db/schemas.py) até existir mais de 1 dispositivo físico de verdade.
-
-Relação com o resto do sistema:
-- Consumido por app/src/services/dispositivos.ts.
-- Depende de app/db/models.py (tabelas dispositivos e registros_imagem)
-  e app/core/security.py (obter_produtor_atual, exige login).
+Rotas de dispositivos:
+- GET /dispositivos: dispositivos vinculados ao usuário, com `status`
+  ("ativo" ou "inativo") calculado a partir da última captura
+  (app/core/alertas_dispositivo.py);
+- POST /dispositivos/vincular: vínculo pelo código de pareamento.
 """
 
 import logging
@@ -68,9 +45,7 @@ async def listar_dispositivos(
     produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> list[DispositivoOut]:
-    # Filtra pelo dono direto em vez de usar device_ids_visiveis():
-    # aqui a entidade consultada JÁ é `dispositivos`, então dá para
-    # comparar o usuario_id sem passar pelos device_ids.
+    # A entidade consultada já é `dispositivos`: filtra direto pelo dono.
     consulta = select(Dispositivo).order_by(Dispositivo.criado_em)
     if produtor.get("papel") != PAPEL_IRRESTRITO:
         consulta = consulta.where(Dispositivo.usuario_id == produtor["usuario_id"])
@@ -82,8 +57,8 @@ async def listar_dispositivos(
 
 
 async def _montar_saida(sessao: AsyncSession, dispositivo: Dispositivo) -> DispositivoOut:
-    """Monta o DispositivoOut calculando o status sob demanda a partir
-    da última captura recebida daquele device_id (ADR 0008)."""
+    """Monta o DispositivoOut com o status calculado a partir da última
+    captura do dispositivo."""
     ultima_captura = await _ultima_captura_do_device(sessao, dispositivo.device_id)
     inativo = avaliar_inatividade_dispositivo(ultima_captura) is not None
     return DispositivoOut(
@@ -95,9 +70,7 @@ async def _montar_saida(sessao: AsyncSession, dispositivo: Dispositivo) -> Dispo
         campo=dispositivo.campo,
         setor=dispositivo.setor,
         intervalo_captura_min=dispositivo.intervalo_captura_min,
-        # Valores reais da lógica de alerta, não configuráveis por
-        # dispositivo. Ver a nota em DispositivoOut sobre o limiar do
-        # solo ser o limite inferior.
+        # Limiares usados pela lógica de alertas (ver DispositivoOut).
         limiar_temperatura=TEMPERATURA_MAX_C,
         limiar_umidade_ar=UMIDADE_AR_MAX_PCT,
         limiar_umidade_solo=UMIDADE_SOLO_MIN_PCT,
@@ -110,20 +83,12 @@ async def vincular_dispositivo(
     produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> DispositivoOut:
-    """Vincula um dispositivo à conta do produtor autenticado, a partir
-    do código de pareamento que vem com o aparelho (ECO-XXXX-XXXX).
+    """Vincula um dispositivo à conta do usuário pelo código de pareamento
+    (ECO-XXXX-XXXX).
 
-    É isto que permite o cadastro ser aberto: qualquer um cria conta,
-    mas só enxerga dados depois de provar a posse física de um
-    equipamento, digitando um código que só está impresso nele.
-
-    O código vale uma única vez, na prática: ele só funciona enquanto
-    `usuario_id` for nulo, então um aparelho já reivindicado não pode
-    ser tomado por outra conta, nem mesmo por quem viu a etiqueta.
-
-    Sem tratamento especial de corrida: se duas contas enviarem o mesmo
-    código ao mesmo tempo, o `UPDATE` condicional abaixo faz uma delas
-    gravar e a outra encontrar `usuario_id` já preenchido na releitura.
+    O código só vale enquanto o dispositivo não tem dono, o que impede
+    reivindicar um aparelho já vinculado. Em envios simultâneos do mesmo
+    código, o UPDATE condicional garante que só uma conta grava.
     """
     codigo = dados.codigo.strip().upper()
 
@@ -139,8 +104,7 @@ async def vincular_dispositivo(
 
     if dispositivo.usuario_id is not None:
         if dispositivo.usuario_id == produtor["usuario_id"]:
-            # Reenvio do mesmo produtor (ex.: tocou duas vezes no botão).
-            # Devolver o estado atual em vez de erro é mais útil.
+            # Reenvio pelo próprio dono: devolve o estado atual.
             return await _montar_saida(sessao, dispositivo)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

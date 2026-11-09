@@ -1,14 +1,4 @@
-"""
-cloud/app/api/routes/usuarios.py
-
-Endpoint de perfil do produtor logado, para a tela de Perfil do
-dashboard (app/).
-
-Relação com o resto do sistema:
-- Consumido por app/src/services/perfil.ts.
-- Depende de app/db/models.py (tabela usuarios) e app/core/security.py
-  (obter_produtor_atual, exige login).
-"""
+"""GET /usuarios/me: dados do usuário autenticado."""
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,9 +16,8 @@ async def obter_perfil(
     produtor: dict = Depends(obter_produtor_atual),
     sessao: AsyncSession = Depends(get_session),
 ) -> Usuario:
-    """Retorna nome e email do produtor autenticado (usuario_id vem do
-    JWT, não de um parâmetro de rota, evitando que um produtor consulte
-    o perfil de outro)."""
+    """Devolve nome, e-mail e papel do usuário autenticado; o id vem do
+    token, não da rota."""
     usuario = await sessao.get(Usuario, produtor["usuario_id"])
     if usuario is None:
         raise HTTPException(

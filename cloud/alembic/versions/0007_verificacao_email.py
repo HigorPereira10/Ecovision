@@ -1,19 +1,10 @@
-"""verificacao de email e codigos de uso unico
+"""verificação de e-mail e códigos de uso único
 
-Duas mudancas que vem juntas porque usam a mesma infraestrutura de envio
-de email:
+1. usuarios.email_verificado: enquanto False, o login é recusado.
+2. codigos_email: códigos de uso único, guardados como hash, para
+   confirmar o cadastro e redefinir a senha.
 
-1. `usuarios.email_verificado`: enquanto False, o login e recusado. Sem
-   isso, qualquer um enchia o banco com contas de emails inventados, e
-   quem digitasse o proprio email errado ficava trancado para sempre,
-   porque nao existia recuperacao de senha.
-2. `codigos_email`: codigos de uso unico, guardados como HASH, para
-   confirmar cadastro e redefinir senha.
-
-As contas que ja existem entram como verificadas (server_default 'true'
-na criacao da coluna, trocado para 'false' em seguida para as novas).
-Trancar fora do sistema quem ja estava usando seria o pior resultado
-possivel desta migration.
+As contas existentes são marcadas como verificadas.
 
 Revision ID: 0007
 Revises: 0006
@@ -34,14 +25,14 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # server_default 'true' para as linhas EXISTENTES nascerem verificadas
+    # Padrão 'true' para que as linhas existentes nasçam verificadas...
     op.add_column(
         "usuarios",
         sa.Column(
             "email_verificado", sa.Boolean(), nullable=False, server_default=sa.text("true")
         ),
     )
-    # e 'false' daqui em diante, para conta nova precisar confirmar
+    # ...e 'false' a partir daqui, para contas novas.
     op.alter_column("usuarios", "email_verificado", server_default=sa.text("false"))
 
     op.create_table(

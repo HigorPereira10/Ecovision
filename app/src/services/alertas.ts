@@ -1,35 +1,11 @@
 /**
- * app/src/services/alertas.ts
+ * Alertas do usuário, a partir de GET /alertas e PATCH /alertas/{id}/lido.
  *
- * Camada de dados do painel de Alertas. Consome GET /alertas e
- * PATCH /alertas/{id}/lido da API real (ver
- * cloud/app/api/routes/alertas.py).
- *
- * Até 2026-10-11 este módulo lia de src/mocks/alertas.json e guardava o
- * estado "lido" num array em memória, que se perdia a cada reinício do
- * app. Agora o backend é a fonte da verdade: o PATCH persiste no
- * Postgres e vale em qualquer aparelho que entre na mesma conta.
- *
- * DUAS COISAS AQUI NÃO SÃO ÓBVIAS, E AS DUAS QUEBRAM A TELA SE FOREM
- * IGNORADAS:
- *
- * 1. SEVERIDADE TEM VOCABULÁRIO DIFERENTE NAS DUAS PONTAS. O backend
- *    grava 'alta' e 'media' (ver cloud/app/core/alertas_ambientais.py e
- *    o catálogo de cloud/app/core/inference.py); a tela foi construída
- *    com 'critico', 'cuidado' e 'informativo', que é o vocabulário do
- *    design da Amanda. A tela indexa um Record por esse valor, então
- *    uma severidade desconhecida viraria `undefined` e a tela quebraria
- *    ao ler a cor. A tradução acontece aqui, e o `default` do mapa é o
- *    que garante que uma severidade nova inventada no backend degrade
- *    para 'informativo' em vez de derrubar a lista.
- *
- * 2. ALERTA SINTÉTICO NÃO TEM id. O item de "dispositivo inativo" (ADR
- *    0008) é calculado a cada requisição e não existe na tabela
- *    `alertas`: ele chega com id=null e sintetico=true. Não dá para
- *    marcá-lo como lido, porque não há linha para atualizar, e o
- *    backend responde 404 a quem tentar. A tela usa `sintetico` para
- *    esconder o botão, e `chave` para ter um identificador estável de
- *    lista mesmo sem id.
+ * A API grava a severidade como 'alta' ou 'media', e a tela usa 'critico',
+ * 'cuidado' e 'informativo'; a tradução fica aqui, e valores desconhecidos
+ * viram 'informativo'. O alerta sintético de dispositivo inativo chega com
+ * id null e sintetico=true: não pode ser marcado como lido, e `chave`
+ * fornece um identificador estável para a lista.
  */
 
 import { get, patch } from './api';
@@ -84,13 +60,8 @@ function traduzir(bruto: AlertaDaApi): Alerta {
   };
 }
 
-/** Alertas do produtor logado, do mais recente para o mais antigo.
- *
- * O alerta sintético de dispositivo inativo, quando existe, vem
- * primeiro da API. A ordenação por data é aplicada depois de propósito
- * apenas sobre a data: o sintético carrega a data da última captura,
- * então ele se posiciona no tempo junto com o resto, sem precisar de
- * tratamento especial. */
+/** Alertas do usuário, do mais recente ao mais antigo; o alerta sintético
+ * usa a data da última captura e se posiciona junto com os demais. */
 export async function getAlertas(): Promise<Alerta[]> {
   const brutos = await get<AlertaDaApi[]>('/alertas');
   return brutos

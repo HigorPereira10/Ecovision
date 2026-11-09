@@ -1,18 +1,7 @@
 """
-cloud/tests/test_alertas_dispositivo.py
-
-O que este arquivo verifica, em português simples:
-
-A detecção de "dispositivo inativo" (falha silenciosa: sem novas
-capturas por muito tempo). Ver
-docs/decisions/0008-deteccao-dispositivo-inativo.md para de onde vieram
-os limiares de 4h/8h. Este teste confere que a função:
-- não gera nada enquanto o atraso está dentro do esperado (inclusive
-  exatamente 1 ciclo perdido, que a fila offline do edge resolveria
-  sozinha);
-- gera severidade "media" num atraso moderado (entre 4h e 8h);
-- gera severidade "alta" num atraso grande (mais de 8h);
-- gera severidade "alta" quando o dispositivo nunca reportou nada.
+Testes de app/core/alertas_dispositivo.py: nenhum alerta dentro do
+esperado (incluindo um ciclo perdido), severidade "media" entre 4 h e 8 h
+de atraso, "alta" acima de 8 h ou quando o dispositivo nunca enviou dados.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -62,9 +51,7 @@ def test_limiar_exato_de_8h_ainda_nao_e_alta():
 
 
 def test_funciona_com_timestamp_sem_timezone():
-    # SQLite (usado nos testes de integracao, ver conftest.py) devolve
-    # DateTime(timezone=True) como "naive" na leitura; a funcao precisa
-    # aceitar isso sem quebrar (ver alertas_dispositivo.py).
+    # O SQLite devolve datas sem fuso; a função precisa aceitá-las.
     ultima_sem_tz = (AGORA - timedelta(hours=10)).replace(tzinfo=None)
     resultado = avaliar_inatividade_dispositivo(ultima_sem_tz, AGORA)
     assert resultado is not None

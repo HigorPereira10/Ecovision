@@ -1,29 +1,19 @@
 """
-cloud/tests/test_email_verificacao.py
+Testes de confirmação de cadastro e recuperação de senha.
 
-O que este arquivo verifica, em português simples:
+Confirmação:
+1. com envio configurado, a conta nasce pendente e recebe um código;
+2. o login é recusado até a confirmação;
+3. o código correto confirma a conta;
+4. código errado, expirado ou esgotado é recusado com a mesma mensagem;
+5. sem envio configurado, a conta nasce ativa.
 
-CONFIRMAÇÃO DE CADASTRO
-1. Com SMTP configurado, a conta nasce PENDENTE e um código é enviado.
-2. O login é recusado enquanto o e-mail não for confirmado.
-3. O código certo confirma a conta e libera o login.
-4. Código errado, expirado ou com tentativas esgotadas é recusado, e
-   sempre com a MESMA mensagem: diferenciar confirmaria que existe um
-   pedido em andamento para aquele endereço.
-5. Sem SMTP configurado, a conta nasce ATIVA. Criá-la bloqueada seria
-   pior: o produtor ficaria preso numa conta que ninguém consegue
-   confirmar, porque o e-mail nunca sairia.
+Recuperação:
+6. resposta idêntica para e-mail cadastrado e inexistente;
+7. o código troca a senha e a antiga deixa de valer;
+8. a nova senha segue as regras do cadastro.
 
-RECUPERAÇÃO DE SENHA
-6. A resposta é idêntica para e-mail cadastrado e inexistente, para não
-   entregar quais endereços têm conta.
-7. O código troca a senha de verdade, e a senha antiga para de valer.
-8. A nova senha passa pelas mesmas regras de força do cadastro, senão a
-   recuperação viraria um atalho para burlar essa exigência.
-
-EM TODAS
-9. O CÓDIGO NUNCA aparece na resposta da API. Se aparecesse, bastaria
-   olhar a resposta no navegador para assumir a conta de qualquer um.
+Em todas, o código nunca aparece na resposta da API.
 """
 
 import re
@@ -299,9 +289,8 @@ async def test_codigo_fica_guardado_como_hash_e_nao_em_claro(smtp_ligado):
 # ------------------------------------------------------- reenvio de código
 
 async def test_reenvio_manda_codigo_novo_e_invalida_o_antigo(smtp_ligado, monkeypatch):
-    """O caso que motivou a rota: o primeiro e-mail não chegou (ou foi
-    apagado junto com o spam) e a conta ficaria presa sem isto."""
-    # Sem a trava de intervalo o teste teria que esperar 60s de verdade.
+    """Uma conta pendente pode pedir novo código."""
+    # O intervalo mínimo é desativado para o teste não esperar 60 s.
     monkeypatch.setattr("app.api.routes.auth._INTERVALO_REENVIO", timedelta(seconds=0))
 
     with TestClient(app) as client:
@@ -346,15 +335,8 @@ async def test_reenvio_responde_igual_para_conta_inexistente_e_ja_confirmada(smt
 
 
 async def test_reenvio_respeita_intervalo_minimo(smtp_ligado):
-    """A cota do Brevo é de 300 e-mails por dia. Sem a trava, um toque
-    repetido no botão esgotaria a cota e derrubaria o cadastro de todo
-    mundo.
-
-    O PRÓPRIO CADASTRO conta como primeiro envio. Então pedir reenvio
-    logo depois de se cadastrar não manda nada, e é justamente por isso
-    que a tela de confirmação mantém o botão em contagem regressiva:
-    sem ela, o produtor leria "código reenviado" sem que e-mail nenhum
-    tivesse saído."""
+    """Reenvios respeitam o intervalo mínimo, que protege a cota diária de
+    e-mails. O próprio cadastro conta como primeiro envio."""
     with TestClient(app) as client:
         _registrar(client, "flood@exemplo.com")
         assert len(smtp_ligado) == 1  # o e-mail do cadastro

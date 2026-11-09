@@ -1,35 +1,13 @@
 """
-cloud/app/core/inference.py
+Carregamento e execução do modelo .tflite, verificação de qualidade da
+imagem e catálogo de recomendações por classe.
 
-Carregamento e execução do modelo .tflite via TFLite Runtime, a peça
-central da camada de backend (Blueprint v3.0, Fase 4).
-
-Regras não negociáveis (Blueprint Seção 4.4 e Pontos de Atenção):
-- Instalar/usar apenas o pacote `tflite-runtime`, NUNCA `tensorflow`
-  completo (estoura a RAM de 1GB do Railway).
-- O modelo é carregado em memória UMA VEZ (no startup de app/main.py),
-  não a cada requisição.
-- O modelo .tflite deve estar versionado no repositório (ver ml/models/)
-  e chegar ao servidor via deploy do GitHub Actions, nunca por upload
-  manual em volume stateful.
-
-Estado em 2026-10-10: o modelo real está em ml/models/modelo.tflite,
-com 3 classes (ver _CLASSES_DO_MODELO). Mesmo assim, a API nunca
-recusa subir por causa dele: em 3 situações ela sobe normalmente e a
-inferência devolve um resultado placeholder, com aviso no log. São
-elas: (a) nenhum runtime TFLite instalado, (b) o arquivo do modelo não
-existe no caminho configurado, (c) o arquivo existe mas falha ao
-carregar. Isso mantém o resto do pipeline (storage + banco) de pé
-mesmo com problema no modelo.
-
-ATENÇÃO: nenhum desses 3 casos derruba a API. Se algo aqui for alterado
-no futuro, manter esse comportamento é importante: uma falha no modelo
-nunca pode impedir o resto do sistema (upload da imagem, gravação no
-banco) de funcionar.
-
-Relação com o resto do sistema:
-- Chamado por app/api/routes/diagnostico.py a cada requisição do Pi.
-- O modelo consumido aqui é o artefato exportado por ml/src/export/convert_tflite.py.
+O modelo é carregado uma vez, na inicialização, com um runtime leve
+(ai-edge-litert ou tflite-runtime); o pacote tensorflow completo excede a
+memória do servidor. A API nunca deixa de iniciar por causa do modelo: sem
+runtime, sem arquivo ou com falha de carregamento, a inferência devolve um
+resultado provisório e o restante do fluxo (armazenamento e banco)
+continua funcionando.
 """
 
 import io
@@ -55,68 +33,31 @@ RESULTADO_INDISPONIVEL = {
 
 CLASSE_IMAGEM_INADEQUADA = "imagem_inadequada"
 
-# POR QUE ESTA GUARDA EXISTE, com os números que a motivaram.
-#
-# O modelo tem três saídas e nenhuma delas é "isto não é uma folha".
-# Toda entrada é distribuída entre as três classes, e medindo em
-# 2026-10-17 descobrimos para onde ele empurra o que não entende:
-#
-#   imagem preta      -> saudavel  0.93
-#   quase preta       -> saudavel  0.97
-#   ruído aleatório   -> saudavel  0.94
-#   verde liso        -> saudavel  0.90
-#
-# E, pior, a confiança CRESCE conforme a foto escurece. A mesma imagem
-# de folha sadia, escurecida artificialmente:
-#
-#   100% de luz -> saudavel 0.69
-#    50% de luz -> saudavel 0.91
-#    25% de luz -> saudavel 0.97
-#
-# A consequência prática é grave: numa estufa à noite, ou com o Ring LED
-# fraco, o sistema afirmaria "saudável" com 95% de confiança mesmo com a
-# planta doente. É falso negativo sistemático, o pior erro possível para
-# o propósito do projeto, porque o produtor não tem como desconfiar.
-#
-# Por isso a imagem é avaliada ANTES de classificar. Reprovada, a
-# captura é gravada normalmente (foto, leituras, alerta ambiental), mas
-# NENHUM diagnóstico de doença é afirmado: o produtor vê a própria foto
-# e o motivo, e decide o que fazer. Decisão do grupo em 2026-10-17:
-# guardar a foto é o que permite conferir se o aviso estava certo e
-# identificar o problema (lente suja, LED queimado, captura noturna)
-# olhando a imagem.
+# O modelo não tem uma saída para "não é folha": toda entrada é
+# distribuída entre as classes conhecidas. Imagens pretas, ruído ou verde
+# liso saem como "saudavel" com mais de 0,90 de confiança, e a confiança
+# aumenta conforme a foto escurece. Sem esta verificação, capturas
+# noturnas ou com o LED falhando produziriam falsos negativos com alta
+# confiança. Uma captura reprovada é gravada normalmente (foto, leituras e
+# alerta), mas nenhum diagnóstico é afirmado.
 
-# Limiares medidos, não arbitrados. Sobre as 6 fotos reais de
-# ml/validacao_externa/, que o modelo classifica de forma utilizável:
-#
-#   brilho médio:  74,6 a 207,1
+# Limiares medidos em fotos reais classificáveis:
+#   brilho médio:            74,6 a 207,1
 #   textura (desvio padrão): 35,2 a 71,4
-#
-# Contra a mesma foto escurecida e contra imagens sem conteúdo:
-#
-#   25% de luz          -> brilho  51,4   textura 17,8
-#   15% de luz          -> brilho  30,6   textura 10,7
-#   parede/lente tampada-> brilho qualquer textura  0,0
-#
-# A textura separa melhor que o brilho: ela cai junto com a luz e vai a
-# zero em imagem lisa. O piso de 25 mantém margem sobre a pior foto boa
-# (35,2) sem deixar passar a de 25% de luz.
+# e em fotos inadequadas:
+#   25% de luz:              brilho 51,4, textura 17,8
+#   lente tampada ou parede: textura 0,0
+# A textura separa melhor: cai junto com a luz e vai a zero em imagem lisa.
 BRILHO_MINIMO = 40.0
 TEXTURA_MINIMA = 25.0
 
-# LIMITAÇÃO CONHECIDA: ruído aleatório puro passa nos dois testes
-# (brilho 127, textura 49). Não é um modo de falha de câmera real (uma
-# câmera com defeito produz foto escura, borrada ou lisa, não ruído
-# uniforme), e inventar um terceiro teste para cobrir um caso que não
-# acontece custaria mais do que entrega.
+# Limitação conhecida: ruído aleatório passa nos dois testes, mas não é um
+# modo de falha real de câmera.
 
 
 def avaliar_qualidade_imagem(bytes_imagem: bytes) -> str | None:
-    """Devolve o motivo pelo qual a imagem não serve para diagnóstico,
-    ou None quando ela serve.
-
-    O texto devolvido vai direto para o produtor, então ele diz o que
-    fazer, não o que mediu."""
+    """Devolve o motivo pelo qual a imagem não serve para diagnóstico, ou
+    None quando ela serve. O texto é exibido ao produtor."""
     imagem = Image.open(io.BytesIO(bytes_imagem)).convert("L")
     cinza = np.asarray(imagem, dtype=np.float32)
     brilho = float(cinza.mean())
@@ -145,59 +86,23 @@ def avaliar_qualidade_imagem(bytes_imagem: bytes) -> str | None:
 
     return None
 
-# Frase fixa que entra no final de toda recomendação de doença/praga.
-# O sistema dá apenas orientação agronômica GERAL (pesquisada, com fonte,
-# ver ADR 0006), nunca prescrição de produto ou dosagem: isso exige
-# responsabilidade técnica de um engenheiro agrônomo.
+# Frase acrescentada a toda recomendação de doença ou praga: o sistema dá
+# orientação agronômica geral, nunca prescrição de produto ou dose.
 _SUFIXO_RECOMENDACAO = " Consulte um engenheiro agrônomo para definir produto e dosagem específicos."
 
-# Mapeamento índice -> (classe, recomendação, severidade). As 10 classes
-# são as do dataset PlantVillage (tomate) usado em ml/ ("Frankenstein
-# Cirúrgico", ver ml/README.md). As recomendações e a severidade de cada
-# classe foram pesquisadas com fontes citadas em
-# docs/decisions/0006-recomendacoes-por-diagnostico.md.
+# Catálogo agronômico: classe -> (recomendação, severidade), indexado por
+# nome. Cobre as classes de tomateiro do PlantVillage e a classe de
+# estresse foliar; o modelo em produção usa só parte delas, na ordem de
+# _CLASSES_DO_MODELO.
 #
-# Severidade ("alta" | "media"): "alta" é para doenças sem cura (só dá
-# pra controlar o vetor ou prevenir) ou com risco de perda total da
-# lavoura segundo a fonte citada. "media" é para as demais, que têm
-# tratamento ou controle disponível e progressão mais lenta.
-#
-# Esta lista é o CATÁLOGO agronômico, indexado por NOME, não pela
-# saída do modelo. A ordem aqui não tem mais significado: quem define
-# qual índice do modelo é qual classe é _CLASSES_DO_MODELO, logo abaixo.
-# Separar os dois foi necessário porque o modelo entregue tem 3 classes
-# e este catálogo tem 10: enquanto o índice do modelo era lido direto
-# aqui, a saída 2 (que no modelo é "saudavel") virava "pinta_preta", e
-# o produtor recebia instrução de pulverizar fungicida numa folha sã.
+# Severidade "alta": doença sem cura ou com risco de perda total segundo a
+# fonte; "media": doença com controle disponível e progressão mais lenta.
 _CATALOGO_AGRONOMICO: list[tuple[str, str | None, str | None]] = [
     ("saudavel", None, None),
-    # ESTA CLASSE NÃO É DO PlantVillage, é do domínio próprio (ADR 0018).
-    #
-    # O texto NÃO nomeia a causa, de propósito: afirmar "deficiência de
-    # potássio" a partir de uma foto exige saber a adubação, e isso o
-    # sistema não sabe. O que ele faz é devolver ao produtor o critério
-    # de localização que a Embrapa publica, para ele mesmo estreitar a
-    # hipótese olhando a planta.
-    #
-    # "Distúrbio fisiológico" é o termo da própria Embrapa para este
-    # quadro, e vem de um documento sobre tomate em AMBIENTE PROTEGIDO,
-    # que é a condição desta estufa:
-    #
-    #   LOPES, C.A.; REIS, A. Doenças do tomateiro cultivado em ambiente
-    #   protegido. Circular Técnica, 2. ed. Brasília: Embrapa Hortaliças,
-    #   dez. 2011. ISSN 1415-3033, p.1: "Podem ser também provocadas por
-    #   fatores abióticos, como deficiência ou excesso de nutrientes,
-    #   fitotoxicidez por agrotóxicos e luminosidade inadequada, entre
-    #   outros; neste caso, são também conhecidas como distúrbios
-    #   fisiológicos ou doenças abióticas."
-    #
-    # É a 2a edição (2011), não a 1a (Circular Técnica 53, 2007), e é a
-    # que o TCC já referencia. A 2a acrescenta "ou doenças abióticas",
-    # que é justamente o que esta classe representa.
-    #
-    # A localização de cada sintoma vem de EMBRAPA HORTALIÇAS, Cultivo
-    # de Tomate para Industrialização, Sistemas de Produção 1, 2a ed.,
-    # dez. 2006, seção "Deficiências nutricionais".
+    # A recomendação não nomeia a causa: identificar uma deficiência
+    # específica exigiria conhecer a adubação. A Embrapa chama esse quadro
+    # de distúrbio fisiológico (LOPES; REIS, Doenças do tomateiro cultivado
+    # em ambiente protegido, Circular Técnica 100, 2. ed., 2011).
     (
         "estresse_foliar",
         "Alteração na folha que não corresponde às doenças que o sistema "
@@ -205,9 +110,8 @@ _CATALOGO_AGRONOMICO: list[tuple[str, str | None, str | None]] = [
         "pode vir de falta ou excesso de nutriente, de fitotoxicidez por "
         "agrotóxico ou de luz inadequada. Confira a planta de perto e "
         "verifique também a irrigação."
-        # O sufixo padrão fala em "produto e dosagem", e aqui não se
-        # recomenda produto nenhum. O que falta ao produtor é a CAUSA,
-        # não a dose, então a frase muda para pedir isso.
+        # Sem o sufixo padrão: não há produto a recomendar, e sim a causa a
+        # confirmar.
         " Consulte um engenheiro agrônomo para confirmar a causa.",
         "media",
     ),
@@ -292,23 +196,8 @@ _INFO_POR_CLASSE: dict[str, tuple[str | None, str | None]] = {
 }
 
 
-# Nome de cada classe em linguagem de produtor, para o TÍTULO do alerta.
-#
-# Existe porque o título era montado com o nome técnico da classe, e o
-# alerta do ciclo de 2026-11-03 chegou ao aplicativo escrito
-# literalmente "Possível estresse_foliar detectado", com o sublinhado à
-# vista. A descrição do alerta sempre esteve correta, porque vem do
-# catálogo acima; só o título interpolava a chave crua.
-#
-# O app tem a sua própria tabela de rótulos (app/src/domain/doencas.ts),
-# mas ela não resolve este caso: o título do alerta é TEXTO GRAVADO na
-# coluna alertas.titulo, não uma classe que a tela traduz na hora. Quem
-# escreve o texto é quem precisa do rótulo.
-#
-# Sem nome científico de propósito. No corpo do diagnóstico ele cabe e
-# dá credibilidade; num título de alerta, "Possível Pinta preta
-# (Alternaria solani) detectada" quebra a linha no celular e enterra a
-# informação que importa.
+# Nome de cada classe para textos gravados, como o título dos alertas,
+# sem sublinhados e sem nome científico (que alongaria o título no celular).
 _ROTULO_PARA_PRODUTOR: dict[str, str] = {
     "saudavel": "planta sadia",
     "estresse_foliar": "estresse foliar",
@@ -325,38 +214,21 @@ _ROTULO_PARA_PRODUTOR: dict[str, str] = {
 
 
 def rotulo_para_produtor(classe: str) -> str:
-    """Nome da classe em linguagem de produtor, para texto exibido.
+    """Nome da classe para texto exibido.
 
-    Classe fora da tabela cai no nome técnico com os sublinhados
-    trocados por espaço. Acontece se o modelo for retreinado e esta
-    tabela não acompanhar: rótulo imperfeito é melhor do que erro, e o
-    sublinhado some, que era o pior do defeito original.
+    Uma classe fora da tabela usa o nome técnico com espaços no lugar dos
+    sublinhados.
     """
     rotulo = _ROTULO_PARA_PRODUTOR.get(classe)
     if rotulo is not None:
         return rotulo
     return classe.replace("_", " ").strip() or "condição desconhecida"
 
-# Ordem EXATA das saídas do modelo em ml/models/modelo.tflite. Vem do
-# treino, onde tf.keras.utils.image_dataset_from_directory ordena os
-# diretórios de classe alfabeticamente. Tem que bater com a lista
-# CLASSES de ml/src/export/convert_tflite.py.
-#
-# O índice 0 é "distrator_septoria" no treino do ml/: a pasta nasceu
-# com esse nome por ter sido incluída como distrator (evitar que tudo
-# vire pinta_preta). Aqui ele é publicado como "septoriose", que é o
-# nome da doença no catálogo acima, decisão do grupo em 2026-10-10
-# depois de o Carlos validar a classe. Assim o diagnóstico chega ao
-# produtor com a recomendação agronômica de septoriose (ADR 0006).
-#
-# SE O MODELO FOR RETREINADO: trocar o .tflite não basta se a
-# quantidade ou a ordem das classes mudar. Esta lista tem que
-# acompanhar, senão cada predição sai com o rótulo de outra doença e
-# nada falha de forma visível.
-# A ordem e a do treino (ml/src/training/ajuste_dominio_proprio.py) e
-# NAO pode mudar: trocar nao quebra nada visivelmente, so passa a
-# mandar fungicida para folha sa. Ja aconteceu neste projeto, ver o
-# comentario de _CATALOGO_AGRONOMICO.
+# Ordem exata das saídas do modelo em produção, definida no treino
+# (ml/src/training/ajuste_dominio_proprio.py). Trocar o .tflite sem
+# atualizar esta lista atribui a cada predição o nome e a recomendação de
+# outra classe, sem erro visível. "septoriose" corresponde à pasta
+# "distrator_septoria" do treino.
 _CLASSES_DO_MODELO: list[str] = [
     "septoriose",
     "pinta_preta",
@@ -366,22 +238,14 @@ _CLASSES_DO_MODELO: list[str] = [
 
 
 def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
-    """Carrega o interpretador TFLite uma única vez, no startup da API.
+    """Carrega o interpretador TFLite uma vez, na inicialização da API.
 
-    IMPORTANTE: nunca levanta exceção. Se o runtime não estiver
-    instalado ou o modelo não puder ser carregado, retorna None e a API
-    continua funcionando normalmente, só que com resultado placeholder.
+    Nunca levanta exceção: sem runtime ou sem modelo, devolve None e a API
+    segue com resultado provisório.
     """
-    # Dois runtimes, na ordem de preferência. O `tflite-runtime` é o que
-    # o Blueprint cita e o que roda no Linux do Railway. O
-    # `ai-edge-litert` é o sucessor oficial do mesmo projeto e existe
-    # para Windows e ARM64, plataformas onde o `tflite-runtime` não tem
-    # wheel. Sem esse segundo caminho, rodar a API localmente no Windows
-    # caía no resultado placeholder EM SILÊNCIO, dando a impressão de
-    # que a inferência tinha sido testada quando não tinha.
-    #
-    # Nenhum dos dois é o pacote `tensorflow` completo, que continua
-    # proibido aqui (estoura a RAM de 1GB do Railway).
+    # Runtimes em ordem de preferência: tflite-runtime e ai-edge-litert (o
+    # sucessor, com pacotes também para Windows e ARM64). O pacote
+    # tensorflow completo não deve ser usado.
     Interpreter = None
     for modulo in ("tflite_runtime.interpreter", "ai_edge_litert.interpreter"):
         try:
@@ -400,9 +264,8 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
     if not Path(caminho_modelo).is_file():
         logger.warning(
             "Modelo .tflite não encontrado em %s: a inferência vai devolver "
-            "resultado placeholder. O modelo DEVERIA estar versionado em "
-            "ml/models/modelo.tflite; se a API subiu sem ele, o deploy não "
-            "trouxe o diretório ml/ (ver ADR 0014).",
+            "resultado provisório. Confira TFLITE_MODEL_PATH e se o diretório "
+            "ml/models/ foi incluído na implantação.",
             caminho_modelo,
         )
         return None
@@ -411,21 +274,9 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
         interpretador = Interpreter(model_path=caminho_modelo)
         interpretador.allocate_tensors()
 
-        # CONFERE AS SAÍDAS CONTRA A LISTA DE CLASSES, NO CARREGAMENTO.
-        #
-        # ATENÇÃO, BUG REAL PEGO EM 2026-11-02: o padrão de
-        # TFLITE_MODEL_PATH foi trocado em config.py para o modelo de 4
-        # classes, mas cloud/.env define a mesma variável, e variável de
-        # ambiente ganha do padrão. O sistema rodou o modelo ANTIGO, de
-        # 3 saídas, com _CLASSES_DO_MODELO listando 4 nomes.
-        #
-        # Não houve erro nenhum: a votação por janela elegeu
-        # "septoriose" com severidade alta numa planta sem doença. A
-        # proteção que já existia em rodar_inferencia só dispara quando
-        # o índice ULTRAPASSA a lista, ou seja, modelo maior que a
-        # lista. O caso inverso, lista maior que o modelo, passava
-        # despercebido e é o mais perigoso dos dois, porque o nome
-        # errado sai com confiança alta.
+        # Confere o número de saídas contra _CLASSES_DO_MODELO: um modelo
+        # com menos saídas do que nomes listados não geraria erro, apenas
+        # rótulos errados com alta confiança.
         saidas = int(interpretador.get_output_details()[0]["shape"][-1])
         if saidas != len(_CLASSES_DO_MODELO):
             logger.error(
@@ -450,53 +301,26 @@ def carregar_modelo_tflite(caminho_modelo: str) -> Any | None:
 
 
 def preprocessar_imagem(bytes_imagem: bytes) -> np.ndarray:
-    """Prepara a imagem recebida do Pi para entrar no modelo: 224x224,
-    RGB, pixels float32 CRUS de 0 a 255. Tudo em memória, sem gravar
-    nada em disco (o Pillow resolve isso lendo do BytesIO).
+    """Prepara a imagem para o modelo: 224 × 224, RGB, float32 com pixels
+    de 0 a 255, em memória.
 
-    NÃO dividir por 255 e NÃO aplicar preprocess_input aqui. O modelo
-    exportado por ml/src/export/convert_tflite.py já tem a camada de
-    normalização da MobileNetV2 dentro do grafo. Normalizar de novo por
-    fora não levanta erro nenhum: as predições simplesmente colapsam
-    para "saudavel" com cerca de 90% de confiança em qualquer foto,
-    inclusive em folha visivelmente doente.
-
-    O método de redimensionamento também não é detalhe: trocar a
-    interpolação MUDA DIAGNÓSTICO. Medido nas 6 imagens de
-    ml/validacao_externa/, com NEAREST a saída bate com o script de
-    comparação em Keras nas 6, casa decimal por casa decimal; com
-    BILINEAR ou BICUBIC (este último é o padrão do Pillow, o que estava
-    em uso aqui) nenhuma das 6 bate, e DUAS trocam de classe.
-
-    QUESTÃO RESOLVIDA EM 2026-10-24, e a resposta não era a esperada.
-    Havia um descasamento: o treino usou image_dataset_from_directory
-    (padrão BILINEAR) e a produção usa NEAREST, então parecia que
-    alinhar os dois melhoraria o resultado. Medido nos conjuntos de
-    teste intocados, a preferência depende do DOMÍNIO da foto, não do
-    modelo:
-
-        laboratório (300 imagens): BILINEAR ganha de 1 ponto
-        campo (28 imagens):        NEAREST  ganha de 7 pontos
-
-    Como o sistema opera sobre foto de estufa, NEAREST é o certo, e
-    continua. Ver docs/decisions/0011-escopo-de-tres-classes.md.
-
-    Uma lição de método, que vale registrar: numa amostra de 6 imagens
-    BILINEAR parecia melhor, e só com 277 ficou claro que não era. Seis
-    imagens levaram à conclusão errada.
+    Não dividir por 255 nem aplicar preprocess_input: a normalização faz
+    parte do modelo exportado, e normalizar de novo leva quase todas as
+    predições a "saudavel". O redimensionamento usa o vizinho mais próximo:
+    é o que reproduz as predições do modelo Keras original e, nas imagens
+    de campo, deu melhor resultado do que a interpolação bilinear.
     """
     import io
 
     imagem = Image.open(io.BytesIO(bytes_imagem)).convert("RGB")
     imagem = imagem.resize(TAMANHO_ENTRADA, Image.Resampling.NEAREST)
     array = np.asarray(imagem, dtype=np.float32)
-    return np.expand_dims(array, axis=0)  # adiciona a dimensão de "lote" (batch) de 1 imagem
+    return np.expand_dims(array, axis=0)  # dimensão de lote
 
 
 def rodar_inferencia(interpretador: Any | None, imagem_preprocessada: np.ndarray) -> dict:
-    """Retorna {'classe': str, 'confianca': float, 'recomendacao': str | None,
-    'severidade': str | None}. Sem modelo carregado, devolve o placeholder
-    em vez de falhar."""
+    """Devolve {'classe', 'confianca', 'recomendacao', 'severidade'}; sem
+    modelo carregado, devolve o resultado provisório."""
     if interpretador is None:
         return dict(RESULTADO_INDISPONIVEL)
 
@@ -514,11 +338,8 @@ def rodar_inferencia(interpretador: Any | None, imagem_preprocessada: np.ndarray
         classe = _CLASSES_DO_MODELO[indice_previsto]
         recomendacao, severidade = _INFO_POR_CLASSE.get(classe, (None, None))
     else:
-        # O modelo devolveu mais saídas do que _CLASSES_DO_MODELO
-        # descreve, ou seja, o .tflite foi trocado sem atualizar a
-        # lista. Não dá para adivinhar o nome, então registra o índice
-        # cru e não emite recomendação: melhor um diagnóstico sem texto
-        # do que o texto da doença errada.
+        # Índice além de _CLASSES_DO_MODELO: o .tflite foi trocado sem
+        # atualizar a lista. Registra o índice e não emite recomendação.
         logger.error(
             "Modelo devolveu indice %s, fora de _CLASSES_DO_MODELO (%s classes). "
             "O .tflite provavelmente foi trocado sem atualizar a lista.",

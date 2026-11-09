@@ -1,27 +1,10 @@
 /**
- * app/src/screens/VerificarEmailScreen.tsx
+ * Confirmação do cadastro pelo código de 6 dígitos enviado por e-mail. O
+ * e-mail chega por parâmetro de rota, vindo do cadastro.
  *
- * Confirmação do cadastro pelo código de 6 dígitos enviado por e-mail.
- * Mesmo visual da CadastroScreen (topo verde com gradiente + card creme).
- *
- * Por que esta tela existe: sem confirmar o endereço, qualquer um
- * encheria o banco com contas de e-mails inventados, e quem digitasse o
- * próprio e-mail errado ficaria sem conta e sem como recuperá-la. O
- * login é recusado até a confirmação (ver cloud/app/api/routes/auth.py).
- *
- * Recebe o e-mail por parâmetro de rota, vindo da CadastroScreen, para
- * o produtor não precisar digitá-lo de novo e não errar justamente o
- * endereço que acabou de cadastrar.
- *
- * REENVIO COM CONTAGEM REGRESSIVA: sem o botão de reenviar, um e-mail
- * que não chegasse (caiu no spam e foi apagado, falha momentânea do
- * provedor) deixava a conta inacessível para sempre, porque o login
- * recusa quem não confirmou e o cadastro recusa o e-mail por já
- * existir. O botão fica travado por SEGUNDOS_PARA_REENVIO porque a API
- * ignora pedidos feitos dentro desse intervalo (para não esgotar a cota
- * diária de e-mails) e responde a mesma coisa de qualquer jeito. Sem a
- * contagem visível, o produtor leria "código reenviado" sem que e-mail
- * nenhum tivesse saído, e esperaria por um e-mail que não vem.
+ * O botão de reenvio fica bloqueado por SEGUNDOS_PARA_REENVIO, com
+ * contagem regressiva, porque a API ignora pedidos dentro desse intervalo
+ * e responde da mesma forma em qualquer caso.
  */
 
 import React, { useEffect, useState } from "react";
@@ -43,10 +26,9 @@ import { useNavigation, useRoute } from "@react-navigation/native";
 import { reenviarCodigo, verificarEmail } from "../services/auth";
 import { colors } from "../theme/colors";
 
-/** Tem que ser >= _INTERVALO_REENVIO de cloud/app/api/routes/auth.py.
- * Se ficar menor, o botão libera antes de a API aceitar e o reenvio
- * falha em silêncio. Os 5 segundos de folga cobrem a diferença entre o
- * relógio do celular e o do servidor. */
+/** Deve ser maior ou igual a _INTERVALO_REENVIO em
+ * cloud/app/api/routes/auth.py; a folga de 5 segundos cobre diferenças de
+ * relógio. */
 const SEGUNDOS_PARA_REENVIO = 65;
 
 /** Mantém só dígitos e corta em 6: o código é numérico, e deixar o
@@ -71,10 +53,8 @@ export default function VerificarEmailScreen() {
   const codigoCompleto = codigo.length === 6;
   const podeReenviar = segundosRestantes === 0 && !reenviando;
 
-  // Um único intervalo de 1s, criado na montagem e desfeito na
-  // desmontagem. O guarda `anterior <= 1` para o contador em zero em
-  // vez de deixá-lo negativo, e a dependência vazia evita recriar o
-  // intervalo a cada tique.
+  // Um único intervalo de 1 s, criado na montagem e desfeito na
+  // desmontagem; o contador para em zero.
   useEffect(() => {
     const timer = setInterval(() => {
       setSegundosRestantes((anterior) => (anterior <= 1 ? 0 : anterior - 1));

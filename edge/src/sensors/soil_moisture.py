@@ -1,49 +1,14 @@
 """
-edge/src/sensors/soil_moisture.py
+Leitura do sensor capacitivo de umidade do solo pelo conversor ADS1115 (I2C, 16 bits).
 
-Leitura do sensor capacitivo de umidade do solo, via ADC ADS1115
-(I2C, 16-bit). O Raspberry Pi não tem ADC nativo, por isso o ADS1115 é
-obrigatório (Blueprint, Fase 1).
+O acesso ao ADS1115 é feito diretamente pelos registradores, com smbus2:
+a pilha I2C da Adafruit (Blinka/Adafruit-PureIO) falha com
+"OSError: [Errno 5]" neste Raspberry Pi (Raspberry Pi OS trixie, 64 bits).
+O protocolo é simples: grava-se a configuração no registrador 0x01,
+aguarda-se a conversão e lê-se o resultado no registrador 0x00.
 
-Sensor capacitivo foi escolhido (não resistivo) por evitar corrosão por
-eletrólise em uso contínuo no solo úmido.
-
-POR QUE smbus2 E NÃO A BIBLIOTECA DA ADAFRUIT
----------------------------------------------
-Este módulo conversa com o ADS1115 escrevendo direto nos registradores
-dele, em vez de usar adafruit-circuitpython-ads1x15 como antes.
-
-Motivo: a pilha da Adafruit (Blinka -> Adafruit-PureIO 1.1.11) monta a
-chamada ioctl do I2C manualmente com ctypes, e essa montagem falha no
-Raspberry Pi 3B+ com Raspberry Pi OS trixie (Python 3.13, kernel 6.18,
-ARM 64 bits). Toda leitura de registrador levanta
-`OSError: [Errno 5] Input/output error`.
-
-Medido no dispositivo real, com o mesmo módulo e a mesma fiação:
-
-    adafruit_ads1x15 ......  0 sucessos em 3 tentativas
-    smbus2 ................ 10 sucessos em 10 tentativas
-
-O smbus2 usa o caminho padrão do kernel para I2C, então não depende de
-reimplementação de ioctl. A troca também remove uma dependência que já
-havia quebrado este projeto uma vez, quando as constantes de canal
-mudaram de `ads1115.P0` para `ads1x15.Pin.A0` entre versões.
-
-O protocolo do ADS1115 é simples o suficiente para justificar isso:
-escreve-se a configuração desejada no registrador 0x01, espera-se a
-conversão e lê-se o resultado no registrador 0x00.
-
-CALIBRAÇÃO
-----------
-SOIL_DRY_RAW / SOIL_WET_RAW (edge/src/config.py) são os valores brutos
-do ADC com o sensor seco e submerso. Precisam ser medidos com o sensor
-físico; valores de fabricante não refletem a umidade real do solo.
-
-Relação com o resto do sistema:
-- Chamado por edge/src/main.py em cada ciclo de captura.
-- A leitura resultante entra no pacote enviado para o endpoint
-  /diagnostico e é persistida na tabela leituras_ambientais
-  (cloud/app/db/models.py).
+SOIL_DRY_RAW e SOIL_WET_RAW (config.py) são os valores brutos dos extremos
+da escala e precisam ser medidos em cada sensor.
 """
 
 import time
@@ -52,13 +17,11 @@ from smbus2 import SMBus, i2c_msg
 
 from edge.src import config
 
-# Barramento I2C exposto nos pinos 3 (SDA/GPIO2) e 5 (SCL/GPIO3) do
-# header de 40 pinos. O /dev/i2c-0 existe, mas é o barramento interno
-# usado pela câmera, não pelo header.
+# Barramento I2C dos pinos 3 (SDA) e 5 (SCL); /dev/i2c-0 é o barramento
+# interno da câmera.
 _BARRAMENTO = 1
 
-# 0x48 é o endereço padrão do ADS1115, válido com o pino ADDR ligado ao
-# GND. Solto, o endereço fica indefinido e o módulo some do barramento.
+# Endereço padrão do ADS1115, com o pino ADDR ligado ao GND.
 _ENDERECO = 0x48
 
 _REG_CONVERSAO = 0x00
@@ -66,17 +29,17 @@ _REG_CONFIG = 0x01
 
 # Bits do registrador de configuração que não dependem do canal:
 #   0x8000  OS=1, dispara uma conversão
-#   0x0200  PGA=001, fundo de escala +-4.096V (3,3V lê 26400)
-#   0x0100  MODE=1, disparo único em vez de contínuo
+#   0x0200  PGA=001, fundo de escala de ±4,096 V
+#   0x0100  MODE=1, disparo único
 #   0x0080  DR=100, 128 amostras por segundo
-#   0x0003  COMP_QUE=11, comparador desligado (não usamos o pino ALERT)
+#   0x0003  COMP_QUE=11, comparador desligado
 _CONFIG_BASE = 0x8000 | 0x0200 | 0x0100 | 0x0080 | 0x0003
 
 # Bits MUX, que selecionam a entrada analógica contra o GND.
 _MUX_POR_CANAL = {0: 0x4000, 1: 0x5000, 2: 0x6000, 3: 0x7000}
 
-# A 128 amostras por segundo cada conversão leva 7,8ms. A margem evita
-# ler o resultado da conversão anterior.
+# Cada conversão leva 7,8 ms a 128 amostras por segundo; a margem evita
+# ler o resultado anterior.
 _ESPERA_CONVERSAO_SEGUNDOS = 0.010
 
 
@@ -114,18 +77,13 @@ def _ler_bruto(canal: int) -> int:
 
 
 def converter_para_pct(valor_bruto: int) -> float:
-    """Converte um valor bruto do ADC no percentual de 0 a 100.
+    """Converte um valor bruto do ADC em percentual de 0 a 100.
 
-    Separada de ler_umidade_solo() para edge/scripts/calibrar_solo.py
-    poder mostrar "que porcentagem a calibração vigente daria para este
-    bruto" sem ler o sensor de novo, num instante diferente.
-
-    O script tinha esta conta copiada, e conta copiada diverge: bastaria
-    alguém trocar o clamp ou o arredondamento aqui para a ferramenta de
-    calibração passar a mostrar um número que o sistema não produz, que
-    é o pior defeito possível numa ferramenta de calibração.
+    Separada de ler_umidade_solo() para ser reutilizada por
+    edge/scripts/calibrar_solo.py, que mostra a porcentagem correspondente
+    a cada leitura bruta.
     """
-    # Sensor capacitivo: valor bruto CAI conforme a umidade AUMENTA.
+    # Sensor capacitivo: o valor bruto diminui quando a umidade aumenta.
     faixa = config.SOIL_DRY_RAW - config.SOIL_WET_RAW
     if faixa == 0:
         raise RuntimeError(
@@ -138,15 +96,10 @@ def converter_para_pct(valor_bruto: int) -> float:
 
 
 def ler_umidade_solo() -> float:
-    """Lê o canal analógico do sensor de solo via ADS1115 e retorna um
-    percentual (0-100), onde 0% = seco (SOIL_DRY_RAW) e 100% = saturado
+    """Lê o sensor de solo e devolve um percentual de 0 (SOIL_DRY_RAW) a 100
     (SOIL_WET_RAW).
 
-    ATENÇÃO AO QUE ESSE PERCENTUAL SIGNIFICA: os dois extremos foram
-    medidos no AR e SUBMERSO EM ÁGUA PURA, e nenhum dos dois é um estado
-    em que solo existe. Medido em 367 leituras de campo, a consequência é
-    que o vaso opera entre 60% e 80% e o alerta de seca de 20% nunca
-    disparou. Ver docs/decisions/0005-limiares-ambientais.md e
-    edge/scripts/calibrar_solo.py.
+    O percentual é relativo aos extremos de calibração do sensor e não
+    equivale a umidade volumétrica.
     """
     return converter_para_pct(_ler_bruto(config.SOIL_ADS1115_CHANNEL))

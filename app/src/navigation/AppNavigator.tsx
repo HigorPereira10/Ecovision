@@ -1,25 +1,14 @@
 /**
- * app/src/navigation/AppNavigator.tsx
+ * Navegação do aplicativo (React Navigation): Welcome, Login e Cadastro,
+ * depois as abas Dashboard, Alertas, Diagnóstico, Histórico, Financeiro e
+ * Perfil, com guarda de rota baseada no token guardado
+ * (src/services/tokens.ts). A tela reage a login e logout por
+ * subscribeAuthChanges().
  *
- * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Navegação do app (React Navigation): Welcome -> Login -> Cadastro ->
- * (Dashboard | Alertas | Diagnóstico | Histórico | Financeiro | Perfil),
- * com guarda de rota baseada na presença de um JWT válido
- * (app/src/services/auth.ts).
- *
- * VincularDispositivo fica empilhada sobre as abas, acessada pelo
- * Perfil. Vincular NÃO é obrigatório depois do login: o módulo
- * Financeiro funciona sem dispositivo, e quem ainda espera o
- * equipamento chegar não pode ficar preso numa tela sem saída.
- *
- * isAuthenticated() checa se existe um token guardado no SecureStore
- * (app/src/services/tokens.ts); quem o emite e a API real.
- * O AppNavigator se inscreve em subscribeAuthChanges() para reagir
- * automaticamente a login()/logout(), trocando de tela sem reload.
- *
- * Todas as abas usam headerShown: false porque cada tela desenha seu
- * próprio header customizado (logo + título). Sem isso, aparecem dois
- * headers sobrepostos (o nativo do Tab.Navigator + o da tela).
+ * VincularDispositivo é empilhada sobre as abas e acessada pelo Perfil; o
+ * vínculo não é obrigatório, já que o módulo financeiro funciona sem
+ * dispositivo. As abas usam headerShown: false porque cada tela desenha o
+ * próprio cabeçalho.
  */
 
 import React, { useEffect, useState } from "react";

@@ -1,6 +1,4 @@
 /**
- * app/src/components/DiagnosticoHistoricoCard.tsx
- *
  * Card de diagnóstico na lista do Histórico: imagem (ou placeholder),
  * data, classificação (verde para sadia, vermelho para doença) e
  * confiança.

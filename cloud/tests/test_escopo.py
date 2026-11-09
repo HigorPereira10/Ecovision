@@ -1,23 +1,14 @@
 """
-cloud/tests/test_escopo.py
+Testes do escopo por dono (app/api/escopo.py), com duas estufas de donos
+diferentes:
 
-O que este arquivo verifica, em português simples:
-
-Depois que POST /auth/register abriu o cadastro, qualquer pessoa pode
-criar uma conta. Estes testes provam que criar uma conta NÃO dá acesso
-aos dados de outro produtor. Montam duas estufas de donos diferentes e
-conferem que cada um só enxerga a sua:
-
-1. /leituras só devolve as leituras dos dispositivos do produtor.
-2. /diagnosticos idem.
-3. /alertas idem, nos dois caminhos possíveis (alerta ligado a um
-   diagnóstico e alerta ligado a uma leitura ambiental).
-4. /dispositivos só lista as estufas do próprio produtor.
-5. PATCH /alertas/{id}/lido em alerta alheio responde 404 e NÃO marca
-   o alerta como lido.
-6. Quem tem papel 'administrador' continua vendo tudo.
-
-O filtro em si vive em app/api/escopo.py.
+1. /leituras devolve só as leituras dos dispositivos do usuário;
+2. /diagnosticos, idem;
+3. /alertas, idem, para alertas de diagnóstico e de leitura;
+4. /dispositivos lista só os dispositivos do usuário;
+5. PATCH /alertas/{id}/lido em alerta de outro dono responde 404 sem
+   alterar o alerta;
+6. o administrador vê tudo.
 """
 
 from datetime import datetime, timezone
@@ -96,9 +87,8 @@ async def _montar_estufa(sessao: AsyncSession, *, email: str, device_id: str) ->
     sessao.add_all([alerta_doenca, alerta_ambiental])
     await sessao.flush()
 
-    # Os ids sao lidos ANTES do commit de proposito: depois dele os
-    # atributos ficam expirados, e ler qualquer um deles dispararia um
-    # carregamento preguicoso fora do contexto async (MissingGreenlet).
+    # Os ids são lidos antes do commit: depois dele os atributos expiram e
+    # o acesso dispararia carregamento fora do contexto async.
     dados = {
         "usuario_id": usuario.id,
         "token": criar_access_token(usuario.id, "produtor"),

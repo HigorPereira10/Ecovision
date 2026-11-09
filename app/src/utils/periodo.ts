@@ -1,6 +1,4 @@
 /**
- * app/src/utils/periodo.ts
- *
  * Opções de filtro por período, usadas tanto na tela de Histórico
  * quanto (futuramente) em qualquer outra lista com timestamp.
  */

@@ -1,27 +1,13 @@
 """
-cloud/tests/test_leituras.py
+Testes de POST /leituras, o ciclo de leitura sem foto:
 
-O que este arquivo verifica, em português simples:
-
-POST /leituras, o ciclo de sensor SEM foto que o Pi manda a cada 15
-minutos (ver app/api/routes/leituras.py e edge/src/sensores.py):
-
-1. Sem credencial de dispositivo, a API recusa com 401, igual a
-   POST /diagnostico.
-2. Uma leitura aceita é gravada sem registro de imagem, e aparece em
-   GET /leituras para o dono do dispositivo.
-3. O JOIN que foi removido de GET /leituras: se ele voltar, a leitura
-   sem foto desaparece da resposta sem nenhum erro aparente. É a
-   regressão mais perigosa deste conjunto, porque o sintoma seria
-   apenas "o gráfico voltou a ter poucos pontos".
-4. Reenvio com a mesma idempotency_key não cria linha duplicada.
-5. Leitura fora de faixa gera alerta ambiental pelo MESMO caminho de
-   POST /diagnostico, porque os dois usam
-   app/api/alertas_de_leitura.py.
-6. Requisição com as três medições nulas é aceita: "o ciclo rodou e
-   nenhum sensor respondeu" é informação diferente de "não houve
-   ciclo", e é o que impede a tela de mostrar a leitura de duas horas
-   atrás como se fosse a atual.
+1. sem credencial de dispositivo: 401;
+2. a leitura é gravada sem registro de imagem e aparece em GET /leituras;
+3. GET /leituras inclui as leituras sem foto;
+4. reenvio com a mesma idempotency_key não duplica;
+5. leitura fora da faixa gera alerta ambiental pelo mesmo código de
+   POST /diagnostico;
+6. requisição com as três medições nulas é aceita.
 """
 
 from datetime import datetime, timezone
@@ -78,15 +64,8 @@ async def test_leitura_e_gravada_sem_registro_de_imagem():
 
 
 async def test_leitura_sem_foto_aparece_em_get_leituras(token_produtor: str):
-    """A regressao mais perigosa deste arquivo.
-
-    GET /leituras usava INNER JOIN com registros_imagem, porque era a
-    unica forma de saber o dispositivo da leitura antes de `device_id`
-    virar coluna propria. Com o JOIN de volta, TODA leitura sem foto
-    sai da resposta e nada falha: o sintoma e so o grafico da tela
-    inicial voltar a ter um ponto a cada 2 horas, que e exatamente o
-    que o desacoplamento foi feito para resolver.
-    """
+    """GET /leituras não pode depender do registro de imagem: um JOIN com
+    registros_imagem excluiria todas as leituras sem foto."""
     with TestClient(app) as client:
         envio = client.post("/leituras", json=_corpo(), headers=CREDENCIAL)
         assert envio.status_code == 201
@@ -120,12 +99,8 @@ async def test_reenvio_com_mesma_chave_nao_duplica():
 
 
 async def test_leitura_fora_de_faixa_gera_alerta_ambiental():
-    """Mesmo comportamento de POST /diagnostico, pelo mesmo codigo.
-
-    Se este teste falhar e o equivalente em test_diagnostico.py passar,
-    os dois caminhos divergiram, que e justamente o que
-    app/api/alertas_de_leitura.py existe para impedir.
-    """
+    """Os alertas ambientais de POST /leituras seguem a mesma regra de
+    POST /diagnostico."""
     with TestClient(app) as client:
         resposta = client.post(
             "/leituras",
@@ -147,13 +122,8 @@ async def test_leitura_fora_de_faixa_gera_alerta_ambiental():
 
 
 async def test_ciclo_em_que_nenhum_sensor_respondeu_e_aceito():
-    """Tres medicoes nulas e um registro valido, nao um erro.
-
-    "O ciclo rodou as 14:15 e nenhum sensor respondeu" e informacao
-    diferente de "nao houve ciclo". Sem ela, a tela nao distingue sensor
-    quebrado de Pi desligado, e continuaria exibindo a ultima leitura
-    boa como se fosse a atual.
-    """
+    """Três medições nulas geram um registro válido, que indica ciclo sem
+    resposta dos sensores."""
     with TestClient(app) as client:
         resposta = client.post(
             "/leituras",
@@ -176,15 +146,8 @@ async def test_ciclo_em_que_nenhum_sensor_respondeu_e_aceito():
 
 
 async def test_leitura_recebe_horario_de_chegada():
-    """criado_em e preenchido pelo default do modelo, nao pelo Pi.
-
-    Diferente de POST /diagnostico, que recebe `timestamp` do
-    dispositivo porque a foto pode ficar horas na fila offline antes de
-    subir. Leitura de sensor nao passa pela fila (ver o cabecalho de
-    app/api/routes/leituras.py), entao a hora de chegada e a hora da
-    medicao, e confiar no relogio do Pi seria introduzir uma fonte de
-    erro sem ganho nenhum.
-    """
+    """criado_em é definido pelo servidor: as leituras não passam pela
+    fila local, então o momento de chegada é o momento da medição."""
     antes = datetime.now(timezone.utc)
     with TestClient(app) as client:
         resposta = client.post("/leituras", json=_corpo(), headers=CREDENCIAL)

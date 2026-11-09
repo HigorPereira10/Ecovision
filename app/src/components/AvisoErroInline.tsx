@@ -1,6 +1,4 @@
 /**
- * app/src/components/AvisoErroInline.tsx
- *
  * Aviso compacto e não-bloqueante, usado quando um pull-to-refresh (ou
  * outra atualização em segundo plano) falha, mas a tela ainda tem os
  * últimos dados válidos pra mostrar. Diferente de EstadoErro (que

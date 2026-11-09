@@ -1,24 +1,12 @@
 """
-cloud/tests/test_janelas.py
+Testes de app/core/janelas.py:
 
-O que este arquivo verifica, em português simples:
-
-1. Que a janela é recortada na geometria certa. Se ela mudar, o modelo
-   passa a receber uma escala diferente daquela em que foi treinado, e
-   a acurácia cai sem que nada quebre.
-2. Que a guarda de qualidade roda POR JANELA. Sem isso, uma janela
-   quase preta sai como "saudavel" com confiança alta, que é a
-   afirmação mais perigosa que este sistema pode fazer. Medido por
-   Grad-CAM em 2026-11-02: aconteceu.
-3. Que a agregação é por INCIDÊNCIA e não por maioria. Uma planta com
-   um quinto das folhas doentes está doente, e esperar a doença
-   dominar o quadro é esperar tarde demais.
-4. Que a ordem de severidade é respeitada: doença vence estresse, que
-   vence saudável, quando as duas passam do limiar.
-5. Que nenhuma janela aproveitável devolve imagem_inadequada, em vez
-   de inventar um diagnóstico sobre nada.
-6. Que o contrato devolvido é o MESMO de inference.rodar_inferencia,
-   para o aplicativo não precisar de alteração.
+1. geometria das janelas igual à do treino;
+2. verificação de qualidade aplicada a cada janela;
+3. agregação por incidência, e não por maioria;
+4. ordem de severidade: doença, estresse, saudável;
+5. sem janela aproveitável, resultado "imagem_inadequada";
+6. mesmo contrato de inference.rodar_inferencia.
 """
 
 import io
@@ -32,12 +20,9 @@ from app.core.inference import CLASSE_IMAGEM_INADEQUADA
 
 
 class _InterpretadorFalso:
-    """Devolve uma sequência fixa de probabilidades, uma por chamada.
-
-    Imita a API do tflite-runtime (set_tensor/invoke/get_tensor) em vez
-    de simular o resultado inteiro: assim o teste exercita o laço de
-    verdade, inclusive a ordem em que as janelas entram.
-    """
+    """Devolve uma sequência fixa de probabilidades, uma por chamada,
+    imitando a API do tflite-runtime (set_tensor/invoke/get_tensor) para
+    exercitar o laço real."""
 
     def __init__(self, respostas):
         self._respostas = list(respostas)
@@ -62,33 +47,21 @@ class _InterpretadorFalso:
 
 
 def _textura(forma, rng, amplitude=70):
-    """Textura em BLOCOS, não ruído por pixel.
-
-    Ruído de alta frequência é justamente o que o JPEG joga fora: um
-    array com desvio 23 por canal volta da compressão com quase nada, e
-    a janela reprova na guarda de textura por motivo errado. Blocos de
-    16 px sobrevivem e imitam o que a folha de fato tem, que é variação
-    de nervura e sombra.
-    """
+    """Textura em blocos de 16 px, que sobrevive à compressão JPEG (ruído
+    por pixel seria descartado e a janela reprovaria por textura)."""
     altura, largura = forma
     pequeno = rng.integers(-amplitude, amplitude, (altura // 16 + 1, largura // 16 + 1))
     return np.kron(pequeno, np.ones((16, 16), np.int16))[:altura, :largura]
 
 
 def _foto(cor=(60, 160, 70), tamanho=(4608, 2592), amplitude=70) -> bytes:
-    """Captura sintética no tamanho REAL da câmera.
-
-    O tamanho importa: recortar() decodifica em metade (ESCALA=2), e
-    4608x2592 vira 2304x1296, que é o que rende as 36 janelas da grade.
-    Uma imagem menor rende menos janelas e o teste mediria outra coisa.
-    """
+    """Captura sintética no tamanho real da câmera (4608 × 2592), que rende
+    as 36 janelas da grade."""
     rng = np.random.default_rng(7)
     base = np.zeros((tamanho[1], tamanho[0], 3), np.int16)
     base[:, :] = cor
-    # A MESMA textura nos três canais, não uma por canal. Sombra e
-    # nervura escurecem a cor inteira, e é isso que a guarda mede: ela
-    # olha o cinza, e três ruídos independentes se cancelam na média,
-    # devolvendo desvio abaixo do limiar por artefato do dublê.
+    # Mesma textura nos três canais: a verificação mede o cinza, e ruídos
+    # independentes por canal se cancelariam.
     ruido = _textura((tamanho[1], tamanho[0]), rng, amplitude)
     for canal in range(3):
         base[..., canal] += ruido
@@ -120,10 +93,8 @@ def _classes(monkeypatch, nomes, info=None):
 
 
 def test_a_geometria_bate_com_a_do_treino():
-    """Estes três números têm que ser os mesmos de
-    ml/src/porta/avaliar.py e ml/src/dataset/extrair_janelas.py. Mudar
-    aqui sem mudar lá entrega ao modelo uma escala em que ele não foi
-    treinado, e nada quebra: só a acurácia cai."""
+    """A geometria deve ser a mesma de ml/src/porta/avaliar.py e
+    ml/src/dataset/extrair_janelas.py."""
     assert janelas.JANELA_NATIVA == 896
     assert janelas.PASSO_NATIVO == 448
     assert janelas.ESCALA == 2
@@ -170,9 +141,8 @@ def test_janela_de_folha_passa():
 
 
 def test_minoria_acima_do_limiar_vence_a_maioria(monkeypatch):
-    """ESTE É O TESTE CENTRAL DO MÓDULO. Uma planta não precisa estar
-    inteira doente para estar doente: 30% das janelas com doença é
-    doença, mesmo com 70% sadias."""
+    """Teste central: 30% das janelas com doença resulta em doença, mesmo
+    com 70% sadias."""
     _classes(monkeypatch, ["septoriose", "pinta_preta", "saudavel"])
     doente = [0.05, 0.90, 0.05]
     sadia = [0.05, 0.05, 0.90]
@@ -198,10 +168,8 @@ def test_abaixo_do_limiar_nao_vira_diagnostico(monkeypatch):
 
 
 def test_o_limiar_fica_acima_do_falso_positivo_medido():
-    """A fração só é defensável porque supera o falso positivo do
-    modelo (7% medido no conjunto de teste reservado). Se alguém baixar
-    este número para perto do ruído, o sistema passa a diagnosticar
-    ruído."""
+    """A fração de incidência deve ficar acima da taxa de falso positivo do
+    modelo (7%)."""
     assert janelas.FRACAO_MINIMA_INCIDENCIA >= 0.15
 
 
@@ -299,26 +267,17 @@ def test_planta_sadia_nao_ganha_frase_de_incidencia(monkeypatch):
     assert resultado["recomendacao"] is None
 
 
-# --- 7. o caso do pote verde (falha real de 2026-11-03) ---
+# --- 7. objeto verde que não é folha ---
 
 
 def test_superficie_verde_lisa_nao_e_folha(monkeypatch):
-    """FALHA REAL EM PRODUCAO. Com a planta fora da estufa, a camera
-    enquadrou um pote plastico verde-azulado. As 11:00 e 13:00 todas as
-    janelas foram recusadas, correto. As 15:00, com luz mais forte, o
-    plastico rendeu 9% a 12% de "verde", cinco janelas passaram do
-    limiar antigo de 8%, e o sistema afirmou "saudavel 93%" sobre uma
-    cena SEM PLANTA.
-
-    O limiar novo vem das 135 janelas rotuladas a mao: nenhuma janela
-    de folha real fica abaixo de 20,5% de cobertura verde.
-    """
+    """Um pote plástico verde-azulado rende de 9% a 12% de cobertura verde
+    e não pode passar; nas janelas rotuladas, nenhuma folha real fica
+    abaixo de 20,5%."""
     _classes(monkeypatch, ["septoriose", "pinta_preta", "saudavel"])
 
-    # A janela real NAO era verde por inteiro: era pote, plastico
-    # branco, fios e madeira, e so 9% a 12% dos pixels passavam no
-    # teste de verde. Um quadrado uniforme de verde-azulado daria 96% e
-    # mediria outra coisa.
+    # A cena real mistura pote, plástico branco, fios e madeira; só 9% a
+    # 12% dos pixels são verdes.
     janela = _janela((150, 150, 148))  # cinza texturizado: fundo
     lado = int(224 * (0.11 ** 0.5))  # mancha que cobre ~11% da area
     janela[:lado, :lado] = _janela((60, 140, 120))[:lado, :lado]
@@ -340,9 +299,8 @@ def test_o_limiar_de_verde_nao_corta_folha_real():
 
 
 def test_poucas_janelas_nao_viram_diagnostico(monkeypatch):
-    """A captura das 15:00 diagnosticou com CINCO janelas de 36. Mesmo
-    que as cinco fossem folha, 14% do quadro e base fraca, e a regra de
-    incidencia perde o sentido: com 5 janelas, uma vira 20% sozinha."""
+    """Com poucas janelas aproveitáveis, um único voto ultrapassaria a
+    fração de incidência; abaixo do mínimo, nenhum diagnóstico é afirmado."""
     _classes(monkeypatch, ["septoriose", "pinta_preta", "saudavel"])
     interp = _InterpretadorFalso([[0.05, 0.05, 0.90]] * 36)
 

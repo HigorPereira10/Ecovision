@@ -1,42 +1,19 @@
 """
-cloud/app/api/routes/auth.py
+Rotas de autenticação dos usuários do aplicativo.
 
-Endpoints de autenticação do PRODUTOR no dashboard/app (não confundir com
-a API Key do dispositivo IoT, ver app/core/security.py para a distinção).
+- POST /auth/register: cadastro aberto, sempre com papel "produtor" e
+  e-mail pendente de confirmação.
+- POST /auth/verify-email e /auth/resend-code: confirmação por código de
+  6 dígitos.
+- POST /auth/login: verifica e-mail e senha e emite token de acesso (24 h)
+  e de renovação (30 dias).
+- POST /auth/forgot-password e /auth/reset-password: redefinição de senha
+  por código.
+- POST /auth/refresh: novo token de acesso a partir do token de renovação.
 
-Rotas, conforme ADR 0003 (JWT do produtor) e ADR 0010 (cadastro aberto
-e confirmação por e-mail):
-- POST /auth/register: cria conta de produtor. Cadastro ABERTO, com
-  papel sempre 'produtor' e e-mail pendente de confirmação.
-- POST /auth/verify-email: confirma a conta com o código de 6 dígitos.
-- POST /auth/resend-code: reenvia o código de uma conta pendente.
-- POST /auth/login: valida email/senha (hash bcrypt) e emite um par de
-  tokens: JWT de acesso (24h) + refresh token (30 dias).
-- POST /auth/forgot-password e POST /auth/reset-password: recuperação
-  de senha pelo mesmo mecanismo de código por e-mail.
-- POST /auth/refresh: troca um refresh token válido por um novo JWT de
-  acesso (não emite um novo refresh token; a sessão de 30 dias continua
-  contada a partir do login original).
-
-HISTÓRICO: até 2026-10-10 não existia cadastro, e a única conta de
-produtor era semeada à mão por cloud/scripts/seed_usuario_teste.py. O
-script continua existindo para popular ambiente de teste, mas não é
-mais o caminho normal de criar conta.
-
-TRÊS PROTEÇÕES QUE PARECEM DETALHE E NÃO SÃO:
-1. Anti-enumeração: login, recuperação e reenvio respondem igual para
-   e-mail cadastrado e inexistente, inclusive no tempo de resposta
-   (ver HASH_DESCARTAVEL em app/core/security.py).
-2. O código enviado por e-mail nunca aparece em nenhuma resposta da
-   API, e no banco fica apenas o hash bcrypt dele.
-3. Força bruta de senha é travada por e-mail digitado, não por conta
-   existente (ver TentativaLogin em app/db/models.py).
-
-Relação com o resto do sistema:
-- Consumido pelo frontend (app/) para autenticar o produtor.
-- Depende de app/core/security.py (geração/validação de JWT, verificação
-  de hash bcrypt), app/core/emails.py (envio do código) e
-  app/db/models.py (tabelas usuarios, codigos_email, tentativas_login).
+Proteções: as respostas não revelam se um e-mail tem conta, inclusive no
+tempo de resposta; o código enviado por e-mail nunca volta na API e é
+guardado como hash; tentativas de login são limitadas por e-mail digitado.
 """
 
 import logging
@@ -79,16 +56,11 @@ logger = logging.getLogger("ecovision.cloud.auth")
 
 router = APIRouter()
 
-# Validação de email por expressão regular, a mesma de
-# app/src/screens/CadastroScreen.tsx. Regex não cobre todos os casos
-# exóticos da RFC 5322, mas rejeita o que interessa (sem @, sem domínio,
-# com espaço) sem puxar a dependência `email-validator` para um deploy
-# que precisa caber na RAM do Railway.
+# Validação de e-mail por expressão regular, igual à do aplicativo; recusa
+# os casos comuns (sem @, sem domínio, com espaço) sem dependência extra.
 _EMAIL_REGEX = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
-# Trava contra força bruta de senha. Ver TentativaLogin em
-# app/db/models.py para por que o contador é indexado pelo email
-# DIGITADO, exista a conta ou não.
+# Bloqueio por força bruta, contado por e-mail digitado (ver TentativaLogin).
 _MAX_TENTATIVAS = 5
 _BLOQUEIO = timedelta(minutes=15)
 
@@ -98,12 +70,8 @@ def _agora() -> datetime:
 
 
 async def _checar_bloqueio(sessao: AsyncSession, email: str) -> None:
-    """Recusa a tentativa se este email está em bloqueio temporário.
-
-    Responde 429 com o tempo restante. Isso NÃO denuncia quais emails
-    existem, porque o contador vale para qualquer email digitado: um
-    endereço inexistente martelado 5 vezes recebe exatamente a mesma
-    resposta de um cadastrado."""
+    """Recusa a tentativa se o e-mail está bloqueado, com 429 e o tempo
+    restante. Vale para qualquer e-mail digitado, exista ou não a conta."""
     registro = await sessao.get(TentativaLogin, email)
     if registro is None or registro.bloqueado_ate is None:
         return
@@ -138,18 +106,13 @@ async def _registrar_falha(sessao: AsyncSession, email: str) -> None:
     await sessao.commit()
 
 
-# --- Códigos enviados por email ---
+# --- Códigos enviados por e-mail ---
 
 _VALIDADE_CODIGO = timedelta(minutes=15)
 _MAX_TENTATIVAS_CODIGO = 5
 
-# Intervalo minimo entre dois reenvios de codigo para o mesmo email.
-# Nao e protecao contra invasao (o reenvio nao revela nada e so manda
-# email para o proprio dono do endereco): e protecao de RECURSO. O
-# plano gratuito do Brevo da 300 emails por dia, e um botao de
-# "reenviar" sem trava permitiria esgotar a cota do dia em segundos,
-# derrubando o cadastro de todo mundo. 60 segundos tambem cobre o caso
-# honesto de quem toca duas vezes porque o email demorou a chegar.
+# Intervalo mínimo entre reenvios para o mesmo e-mail, para proteger a cota
+# diária do serviço de e-mail.
 _INTERVALO_REENVIO = timedelta(seconds=60)
 
 TIPO_VERIFICACAO = "verificacao"
@@ -157,23 +120,15 @@ TIPO_RECUPERACAO = "recuperacao"
 
 
 def _gerar_codigo() -> str:
-    """Código numérico de 6 dígitos, fácil de ler do email e digitar.
-
-    São apenas um milhão de combinações, o que isoladamente seria
-    fraco. O que torna isso seguro é a soma de três limites:
-    validade de 15 minutos, uso único, e no máximo
-    _MAX_TENTATIVAS_CODIGO tentativas. A chance de acerto por força
-    bruta fica em 5 por milhão."""
+    """Código numérico de 6 dígitos. Validade de 15 minutos, uso único e
+    limite de tentativas tornam a força bruta inviável."""
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
 async def _criar_codigo(sessao: AsyncSession, email: str, tipo: str) -> str:
-    """Gera um código, guarda o HASH e devolve o código em claro para
-    quem vai enviá-lo por email.
+    """Gera um código, grava o hash e devolve o código em claro para envio.
 
-    Invalida os códigos anteriores do mesmo tipo: pedir um código novo
-    tem que derrubar o antigo, senão um código vazado continuaria
-    valendo mesmo depois de a pessoa pedir outro."""
+    Invalida os códigos anteriores do mesmo tipo."""
     anteriores = await sessao.execute(
         select(CodigoEmail).where(
             CodigoEmail.email == email,
@@ -198,12 +153,9 @@ async def _criar_codigo(sessao: AsyncSession, email: str, tipo: str) -> str:
 
 
 async def _consumir_codigo(sessao: AsyncSession, email: str, tipo: str, codigo: str) -> bool:
-    """Confere o código e o marca como usado. Devolve False para
-    código errado, expirado, já usado ou com tentativas esgotadas.
-
-    Quem chama NÃO deve diferenciar esses casos na resposta: dizer
-    "código expirado" em vez de "código inválido" confirma que existe
-    um pedido em andamento para aquele email."""
+    """Confere o código e o marca como usado. Devolve False para código
+    errado, expirado, já usado ou com tentativas esgotadas; a resposta ao
+    usuário não diferencia esses casos."""
     registro = await sessao.scalar(
         select(CodigoEmail)
         .where(
@@ -236,7 +188,7 @@ async def _consumir_codigo(sessao: AsyncSession, email: str, tipo: str, codigo: 
 
 
 async def _limpar_falhas(sessao: AsyncSession, email: str) -> None:
-    """Zera o contador depois de um login bem-sucedido."""
+    """Zera o contador após um login bem-sucedido."""
     registro = await sessao.get(TentativaLogin, email)
     if registro is not None:
         await sessao.delete(registro)
@@ -245,23 +197,13 @@ async def _limpar_falhas(sessao: AsyncSession, email: str) -> None:
 
 @router.post("/auth/login", response_model=TokenResponse)
 async def login(dados: LoginRequest, sessao: AsyncSession = Depends(get_session)) -> TokenResponse:
-    """Autentica o produtor e retorna JWT de acesso + refresh token.
+    """Autentica o usuário e devolve token de acesso e de renovação.
 
-    Mensagem de erro deliberadamente genérica ("email ou senha
-    inválidos") tanto para email inexistente quanto para senha errada:
-    diferenciar os dois casos permitiria a um atacante descobrir quais
-    emails têm conta cadastrada (enumeração de usuários).
-
-    A verificação contra HASH_DESCARTAVEL quando o email não existe é o
-    que faz essa proteção valer na prática. Antes ela era só aparente: o
-    `or` em curto-circuito pulava o bcrypt para email inexistente, e a
-    resposta voltava em ~0.39s contra ~0.65s para email cadastrado.
-    Cronometrando as respostas dava para descobrir quais emails têm
-    conta, mesmo com a mensagem idêntica.
+    A mensagem de erro é a mesma para e-mail inexistente e senha errada, e
+    a verificação contra HASH_DESCARTAVEL iguala o tempo de resposta nos
+    dois casos.
     """
-    # Normaliza antes de qualquer coisa: o cadastro grava o email em
-    # minúsculas, então sem isto quem digitasse "Maria@X.com" no login
-    # não acharia a própria conta.
+    # O cadastro grava o e-mail em minúsculas.
     email = dados.email.strip().lower()
 
     await _checar_bloqueio(sessao, email)
@@ -281,10 +223,8 @@ async def login(dados: LoginRequest, sessao: AsyncSession = Depends(get_session)
 
     await _limpar_falhas(sessao, email)
 
-    # Só aqui, depois de a senha conferir. Avisar antes revelaria que o
-    # email existe para quem nem sabe a senha. Quem chegou até este
-    # ponto já provou conhecer a credencial, então a mensagem pode ser
-    # específica e dizer o que fazer.
+    # A exigência de confirmação só é informada depois de a senha conferir,
+    # para não revelar a existência da conta.
     if not usuario.email_verificado:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -303,18 +243,11 @@ async def login(dados: LoginRequest, sessao: AsyncSession = Depends(get_session)
 async def registrar(
     dados: RegistroRequest, sessao: AsyncSession = Depends(get_session)
 ) -> Usuario:
-    """Cria uma conta de produtor. Cadastro aberto: qualquer pessoa pode
-    se registrar.
+    """Cria uma conta de produtor (cadastro aberto).
 
-    Isso só é seguro porque as rotas de leitura filtram por dono (ver
-    app/api/escopo.py): uma conta recém-criada não enxerga nada até
-    vincular um dispositivo próprio, pelo código de pareamento que vem
-    com o aparelho.
-
-    O papel é SEMPRE 'produtor', ignorando qualquer valor que venha no
-    corpo. Sem isso, bastaria mandar papel='administrador' no JSON para
-    ganhar acesso irrestrito a todas as estufas do sistema. O papel de
-    administrador é concedido apenas por script, com acesso ao banco.
+    Uma conta nova não vê nenhum dado até vincular um dispositivo. O papel
+    é sempre "produtor", independentemente do corpo da requisição; o papel
+    de administrador só é concedido por script.
     """
     nome = dados.nome.strip()
     email = dados.email.strip().lower()
@@ -325,8 +258,7 @@ async def registrar(
     if not _EMAIL_REGEX.match(email):
         erros.append("Informe um e-mail válido.")
 
-    # Lista todas as regras de senha que falharam, não só a primeira,
-    # para o app marcar o checklist inteiro de uma vez.
+    # Devolve todas as regras de senha não cumpridas de uma vez.
     erros.extend(validar_forca_senha(dados.senha))
 
     if erros:
@@ -334,11 +266,8 @@ async def registrar(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=erros
         )
 
-    # Checagem antecipada só para devolver uma mensagem clara no caso
-    # comum. Ela NÃO basta sozinha: dois cadastros simultâneos com o
-    # mesmo email passariam os dois por aqui e um quebraria no INSERT.
-    # Quem garante de verdade é o índice único da coluna, tratado no
-    # except abaixo.
+    # Verificação antecipada para uma mensagem clara; a garantia contra
+    # cadastros simultâneos é o índice único, tratado abaixo.
     ja_existe = await sessao.scalar(select(Usuario.id).where(Usuario.email == email))
     if ja_existe is not None:
         raise HTTPException(
@@ -346,11 +275,8 @@ async def registrar(
             detail="Já existe uma conta com este e-mail.",
         )
 
-    # Sem SMTP configurado a conta nasce ATIVA. Criá-la bloqueada seria
-    # pior do que não verificar: o produtor ficaria preso numa conta que
-    # ninguém consegue confirmar, porque o email de código nunca sairia.
-    # Mesma filosofia de app/core/inference.py: dependência externa
-    # ausente degrada o comportamento, não derruba o sistema.
+    # Sem envio de e-mail configurado, a conta nasce ativa, para não ficar
+    # impossível de confirmar.
     pode_enviar_email = settings.email_configurado
     if not pode_enviar_email:
         logger.warning(
@@ -382,9 +308,7 @@ async def registrar(
         codigo = await _criar_codigo(sessao, email, TIPO_VERIFICACAO)
         assunto, corpo = emails.montar_email_verificacao(nome, codigo)
         if not emails.enviar(email, assunto, corpo):
-            # A conta existe e o email falhou. Deixar o produtor
-            # trancado seria o pior resultado, então libera e registra:
-            # o log é o que permite descobrir que o SMTP está quebrado.
+            # Falha no envio: a conta é liberada e o erro fica no log.
             logger.error(
                 "Conta %s criada mas o email de verificacao falhou. "
                 "Liberando a conta para nao prender o produtor.",
@@ -401,12 +325,7 @@ async def registrar(
 async def verificar_email(
     dados: VerificarEmailRequest, sessao: AsyncSession = Depends(get_session)
 ) -> MensagemOut:
-    """Confirma o cadastro com o código de 6 dígitos enviado por email.
-
-    A mensagem de erro é a mesma para código errado, expirado, já usado
-    ou com tentativas esgotadas. Diferenciar confirmaria que existe um
-    pedido em andamento para aquele endereço.
-    """
+    """Confirma o cadastro com o código de 6 dígitos enviado por e-mail."""
     email = dados.email.strip().lower()
 
     if not await _consumir_codigo(sessao, email, TIPO_VERIFICACAO, dados.codigo.strip()):
@@ -428,23 +347,10 @@ async def verificar_email(
 async def reenviar_codigo(
     dados: ReenviarCodigoRequest, sessao: AsyncSession = Depends(get_session)
 ) -> MensagemOut:
-    """Envia um código de confirmação novo para uma conta pendente.
+    """Envia um novo código de confirmação para uma conta pendente.
 
-    POR QUE ESTA ROTA EXISTE: sem ela, uma conta cujo e-mail de
-    confirmação não chegasse ficava inacessível para sempre. O login
-    recusa quem não confirmou (ver login() acima), o cadastro recusa o
-    e-mail por já existir, e não havia nenhum caminho para gerar outro
-    código. Bastava o e-mail cair no spam e ser apagado.
-
-    Responde SEMPRE a mesma coisa, como /auth/forgot-password: conta
-    inexistente, conta já confirmada e código recém-enviado recebem
-    resposta idêntica. Diferenciar transformaria esta rota num
-    detector de quais e-mails têm conta e quais ainda estão pendentes.
-
-    Um código novo invalida o anterior, porque _criar_codigo() derruba
-    os códigos não usados do mesmo tipo. Então quem pedir reenvio e
-    depois digitar o código do primeiro e-mail recebe "código
-    inválido", o que é o comportamento correto: vale o último.
+    Responde sempre da mesma forma, exista ou não a conta, e o novo código
+    invalida o anterior.
     """
     email = dados.email.strip().lower()
     resposta = MensagemOut(
@@ -486,15 +392,8 @@ async def reenviar_codigo(
 async def esqueci_a_senha(
     dados: EsqueciSenhaRequest, sessao: AsyncSession = Depends(get_session)
 ) -> MensagemOut:
-    """Envia um código de redefinição de senha.
-
-    Responde SEMPRE a mesma coisa, exista ou não a conta. Diferenciar
-    permitiria descobrir quais emails estão cadastrados simplesmente
-    testando endereços, o que anularia a proteção anti-enumeração que o
-    login já tem.
-
-    O código nunca volta na resposta: sai apenas pelo email.
-    """
+    """Envia um código de redefinição de senha. Responde sempre da mesma
+    forma, exista ou não a conta, e o código só sai por e-mail."""
     email = dados.email.strip().lower()
     resposta = MensagemOut(
         mensagem="Se existir uma conta com este e-mail, o código foi enviado."
@@ -519,12 +418,8 @@ async def esqueci_a_senha(
 async def redefinir_senha(
     dados: RedefinirSenhaRequest, sessao: AsyncSession = Depends(get_session)
 ) -> MensagemOut:
-    """Troca a senha usando o código recebido por email.
-
-    Valida a força da nova senha com as mesmas regras do cadastro: sem
-    isto, a recuperação viraria um caminho para contornar a exigência de
-    senha forte.
-    """
+    """Redefine a senha com o código recebido por e-mail, aplicando as
+    mesmas regras de senha do cadastro."""
     email = dados.email.strip().lower()
 
     problemas = validar_forca_senha(dados.nova_senha)
@@ -541,20 +436,18 @@ async def redefinir_senha(
 
     usuario = await sessao.scalar(select(Usuario).where(Usuario.email == email))
     if usuario is None:
-        # Código válido para email sem conta não deveria acontecer, mas
-        # se acontecer a resposta não entrega essa informação.
+        # Não revela que o código pertence a um e-mail sem conta.
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Código inválido ou expirado. Peça um novo código.",
         )
 
     usuario.senha_hash = gerar_hash_senha(dados.nova_senha)
-    # Quem provou ter acesso ao email também confirma o endereço.
+    # Quem comprovou acesso ao e-mail também tem o endereço confirmado.
     usuario.email_verificado = True
     await sessao.commit()
 
-    # Zera o bloqueio por tentativas: quem acabou de redefinir a senha
-    # não pode ficar preso pelo contador das tentativas antigas.
+    # Zera o bloqueio por tentativas anteriores.
     await _limpar_falhas(sessao, email)
 
     logger.info("Senha redefinida: %s", email)
@@ -563,9 +456,8 @@ async def redefinir_senha(
 
 @router.post("/auth/refresh", response_model=TokenResponse)
 async def refresh_token_endpoint(dados: RefreshRequest) -> TokenResponse:
-    """Troca um refresh token válido por um novo JWT de acesso. Não
-    consulta o banco: o próprio token já carrega usuario_id e papel
-    (assinados, não podem ser forjados sem a chave secreta)."""
+    """Troca um token de renovação válido por um novo token de acesso, sem
+    consultar o banco (usuario_id e papel vêm assinados no token)."""
     payload = decodificar_token(dados.refresh_token, tipo_esperado="refresh")
     usuario_id = int(payload["sub"])
     papel = payload.get("papel", "produtor")

@@ -26,13 +26,8 @@ export default function PerfilScreen() {
   const navigation = useNavigation<any>();
   const { dados, carregando, erro, recarregar, atualizar } = useCarregamentoAssincrono(buscarDadosPerfil, []);
 
-  // Atualiza ao voltar da tela de vínculo: sem isto, o aparelho
-  // recém-vinculado só apareceria no próximo reinício do app.
-  //
-  // `atualizar` e não `recarregar`: o primeiro busca em segundo plano,
-  // mantendo o conteúdo na tela, enquanto o segundo levanta o estado de
-  // carregamento e apagaria o perfil por um instante a cada vez que a
-  // aba ganha foco.
+  // Atualiza ao voltar da tela de vínculo, em segundo plano (`atualizar`),
+  // sem apagar o conteúdo exibido.
   useFocusEffect(
     useCallback(() => {
       atualizar();

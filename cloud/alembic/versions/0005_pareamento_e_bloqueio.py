@@ -1,23 +1,12 @@
-"""credencial por dispositivo, pareamento e bloqueio de forca bruta
+"""credencial por dispositivo, pareamento e bloqueio de força bruta
 
-Tres mudancas que vem juntas porque habilitam o cadastro aberto de
-produtores:
+1. dispositivos.chave_hash: hash bcrypt do segredo de cada dispositivo,
+   em substituição à chave global compartilhada.
+2. dispositivos.codigo_pareamento: código para o produtor reivindicar o
+   aparelho; vale enquanto usuario_id for nulo.
+3. tentativas_login: contador por e-mail digitado, exista ou não a conta.
 
-1. `dispositivos.chave_hash`: hash bcrypt do segredo DAQUELE Pi. Ate
-   aqui todo dispositivo usava a mesma API Key global (ADR 0003), cuja
-   justificativa era existir "1 unico dispositivo". Com varios
-   produtores, chave global significa que qualquer um que a tenha pode
-   enviar captura se passando por qualquer device_id.
-2. `dispositivos.codigo_pareamento`: o codigo que o agricultor digita no
-   app para reivindicar o aparelho dele. So vale enquanto usuario_id for
-   nulo.
-3. `tentativas_login`: contador para travar forca bruta de senha.
-   Indexado pelo email DIGITADO, exista a conta ou nao, para a resposta
-   de bloqueio nao denunciar quais emails estao cadastrados.
-
-Todas as colunas novas sao nullable: as linhas que ja existem em
-`dispositivos` (o Pi de teste) continuam validas e recebem a chave pelo
-script de provisionamento, sem precisar recriar nada.
+As colunas novas são nullable, para manter válidas as linhas existentes.
 
 Revision ID: 0005
 Revises: 0004

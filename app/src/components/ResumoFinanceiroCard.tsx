@@ -1,6 +1,4 @@
 /**
- * app/src/components/ResumoFinanceiroCard.tsx
- *
  * Card verde escuro no topo da tela Financeiro: total gasto com insumos
  * e quantidade de lançamentos, no mesmo estilo dos cards de destaque
  * usados no restante do app.

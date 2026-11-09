@@ -1,28 +1,7 @@
 /**
- * app/src/screens/HistoricoScreen.tsx
- *
- * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Tela de Histórico: diagnósticos e leituras ambientais passadas, com
- * filtro por período e por campo (dispositivo). Os dois vêm da API
- * real, via services/leituras.ts e services/diagnosticos.ts.
- *
- * FILTRO POR CAMPO, o detalhe que mudou em 2026-10-11: antes, a lista
- * de diagnósticos era filtrada contra um id de dispositivo FIXO em
- * código (getDispositivoIdUnico, que devolvia 1), porque o mock de
- * diagnósticos não carregava de qual aparelho a foto tinha vindo. A
- * consequência era silenciosa e errada: escolher qualquer estufa
- * diferente da primeira esvaziava a lista de diagnósticos inteira. A
- * API passou a devolver `device_id` em cada diagnóstico (ver
- * DiagnosticoHistoricoOut em cloud/app/db/schemas.py) e agora os dois
- * filtros usam o mesmo critério, comparando o device_id de verdade.
- *
- * Loading/erro/refresh padronizados via useCarregamentoAssincrono
- * (mesmo hook usado nas outras telas), e os avisos de "nenhum
- * resultado no período" usam o componente compartilhado EstadoVazio
- * (variante "secao").
- *
- * Header sem botão de voltar por enquanto (a ser implementado quando
- * a navegação para esta tela deixar de ser só pela tab bar).
+ * Tela de Histórico: diagnósticos e leituras ambientais, com filtros por
+ * período e por campo (dispositivo). Os dois filtros comparam o device_id
+ * de cada item.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -50,20 +29,9 @@ import { OPCOES_PERIODO, filtrarPorPeriodo } from '../utils/periodo';
 
 const OPCAO_TODOS_CAMPOS = { valor: 'todos', rotulo: 'Todos os campos' };
 
-/** Monta o texto de uma leitura, pulando a medição que não existe.
- *
- * As três medições são opcionais: quando um sensor falha,
- * edge/src/main.py grava null naquele campo e segue o ciclo, para não
- * perder a foto por causa de um sensor instável.
- *
- * Antes, o texto era montado interpolando os três valores direto, e um
- * null renderizava como vazio: a linha saía literalmente
- * "°C · ar % · solo %", só as unidades, que parece app quebrado. Foi o
- * que apareceu nas duas capturas de 10/10 em que o DHT22 não respondeu.
- *
- * Mostrar zero seria pior ainda: 0°C e 0% de umidade são valores
- * válidos e alarmantes, e o produtor não teria como saber que na
- * verdade não houve medição. */
+/** Monta o texto de uma leitura omitindo as medições ausentes (sensor com
+ * falha), em vez de exibir unidades vazias ou um zero que pareceria
+ * medição. */
 function descreverLeitura(l: LeituraAmbiental): string {
   const partes: string[] = [];
   if (l.temperatura !== null) partes.push(`${l.temperatura}°C`);
@@ -98,14 +66,9 @@ export default function HistoricoScreen() {
   const leituras = dados?.leituras ?? [];
   const diagnosticos = dados?.diagnosticos ?? [];
 
-  // As opções saem das DUAS listas, não só das leituras. Um
-  // dispositivo pode ter mandado foto e nenhuma leitura (sensor
-  // falhando, ver edge/src/main.py), e nesse caso ele precisa aparecer
-  // no filtro, senão seus diagnósticos ficariam inalcançáveis.
-  //
-  // O rótulo é o próprio device_id ('pi-estufa-01'), que é o nome que
-  // o produtor vê na tela de Perfil e no corpo do aparelho. Prefixar
-  // com "Estufa" produzia "Estufa pi-estufa-01".
+  // As opções do filtro vêm das leituras e dos diagnósticos, para incluir
+  // dispositivos que enviaram fotos sem leituras. O rótulo é o próprio
+  // device_id, o mesmo exibido no Perfil.
   const opcoesCampo = useMemo(() => {
     const idsUnicos = Array.from(
       new Set([

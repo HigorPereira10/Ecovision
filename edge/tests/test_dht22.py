@@ -1,18 +1,7 @@
 """
-edge/tests/test_dht22.py
-
-O que este arquivo verifica, em português simples:
-
-Que a leitura do sensor DHT22 (edge/src/sensors/dht22.py) tenta de novo
-quando o sensor falha pontualmente (comportamento normal e esperado do
-protocolo 1-Wire do DHT22, não um defeito), desiste com um erro claro
-depois de esgotar as tentativas, arredonda os valores lidos, e sempre
-libera o sensor (dispositivo.exit()) no final, mesmo quando a leitura
-falha.
-
-As libs adafruit_dht/board só existem de verdade em hardware Raspberry
-Pi com o sensor conectado; edge/tests/conftest.py substitui essas libs
-por dublês antes de qualquer teste rodar.
+Testes de edge/src/sensors/dht22.py: novas tentativas em falhas pontuais,
+erro claro ao esgotá-las, arredondamento, recusa de leitura implausível e
+liberação do sensor ao final.
 """
 
 from unittest.mock import MagicMock
@@ -23,10 +12,9 @@ from edge.src.sensors import dht22
 
 
 class _DispositivoSimulado:
-    """Simula o objeto adafruit_dht.DHT22: cada acesso a .temperature
-    consome uma "tentativa" da lista (uma tupla (temp, umidade), ou o
-    texto "erro" para simular uma falha de leitura); .humidity devolve
-    o valor da mesma tentativa que .temperature acabou de consumir."""
+    """Simula adafruit_dht.DHT22: cada acesso a .temperature consome uma
+    tentativa da lista (tupla (temperatura, umidade) ou "erro"); .humidity
+    devolve o valor da mesma tentativa."""
 
     def __init__(self, tentativas):
         self._tentativas = list(tentativas)

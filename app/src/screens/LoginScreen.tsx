@@ -1,26 +1,7 @@
 /**
- * app/src/screens/LoginScreen.tsx
- *
- * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
- *
- * Tela de login do produtor, consumindo POST /auth/login
- * (cloud/app/api/routes/auth.py). Ao autenticar com sucesso, armazena
- * o JWT de acesso e o refresh token (ver app/src/services/auth.ts).
- * O cadastro do produtor é feito apenas com e-mail e senha.
- *
- * Relação com o resto do sistema:
- * - Depende de app/src/services/auth.ts para a chamada HTTP (hoje mockada).
- * - É acessada a partir de WelcomeScreen.tsx no stack de não-autenticado
- *   (app/src/navigation/AppNavigator.tsx).
- * - Leva para CadastroScreen.tsx pelo link "Criar conta".
- *
- * Visual: redesenhado para seguir o mockup (topo verde com logo + card
- * de formulário em creme). A LÓGICA de autenticação não foi alterada —
- * só a apresentação.
- *
- * Requer a dependência expo-linear-gradient:
- *   npx expo install expo-linear-gradient
+ * Login do usuário (POST /auth/login). Os tokens são guardados por
+ * src/services/auth.ts. A tela é aberta a partir da WelcomeScreen e leva
+ * ao cadastro pelo link "Criar conta".
  */
 
 import React, { useState } from "react";

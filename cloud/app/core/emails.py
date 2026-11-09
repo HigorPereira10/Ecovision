@@ -1,40 +1,14 @@
 """
-cloud/app/core/emails.py
+Envio dos e-mails de confirmação de cadastro e de redefinição de senha.
 
-Envio de email para confirmar cadastro e redefinir senha.
+Dois caminhos, nesta ordem:
+1. API HTTP do Brevo, quando BREVO_API_KEY está definida (produção; o
+   Railway bloqueia as portas de SMTP nos planos Free, Trial e Hobby);
+2. SMTP, quando apenas SMTP_* está definido (desenvolvimento local).
 
-DOIS CAMINHOS, e a ordem importa:
-
-1. API HTTP do Brevo, quando BREVO_API_KEY existe. É o que funciona em
-   PRODUÇÃO.
-2. SMTP, quando BREVO_API_KEY não existe mas SMTP_* sim. Útil em
-   desenvolvimento local.
-
-POR QUE SMTP NÃO SERVE EM PRODUÇÃO: o Railway BLOQUEIA as portas de
-email (25, 465, 587, 2525) nos planos Free, Trial e Hobby, para impedir
-que spammers abusem dos IPs do datacenter. O projeto está no Hobby,
-então SMTP de lá nunca vai funcionar, por melhor que seja a
-configuração. Isso custou um diagnóstico: o envio funcionava na máquina
-de desenvolvimento e falhava em produção, sempre estourando o tempo de
-conexão. A própria documentação do Railway indica serviços com API HTTP
-como alternativa, porque usam a porta 443, que não é bloqueada.
-
-POR QUE BREVO E NÃO RESEND: os planos gratuitos costumam exigir um
-domínio verificado para enviar a terceiros. Sem domínio, o Resend só
-entrega no endereço do dono da conta, o que impediria o resto do grupo
-de receber. O Brevo aceita verificar apenas um endereço REMETENTE e
-enviar para qualquer destinatário, com 300 emails por dia no plano
-gratuito.
-
-Usa urllib da biblioteca padrão em vez de `requests` de propósito: o
-Blueprint é restritivo com dependências no deploy, e uma única chamada
-HTTP não justifica um pacote novo.
-
-DEGRADAÇÃO PROPOSITAL: sem nenhum caminho configurado, enviar() devolve
-False em vez de levantar exceção. Quem chama decide o que fazer. Em
-app/api/routes/auth.py isso significa criar a conta JÁ VERIFICADA, com
-aviso no log, em vez de prender o produtor numa conta que ele nunca
-conseguiria confirmar.
+Usa urllib da biblioteca padrão para a chamada HTTP. Sem nenhum caminho
+configurado, enviar() devolve False em vez de levantar exceção; o cadastro
+cria então a conta já verificada, com aviso no log.
 """
 
 import json
@@ -51,11 +25,8 @@ logger = logging.getLogger("ecovision.cloud.emails")
 
 _BREVO_URL = "https://api.brevo.com/v3/smtp/email"
 
-# Curto de propósito. O envio acontece DENTRO da requisição de cadastro,
-# e o app desiste em 10 segundos (EXPO_PUBLIC_API_TIMEOUT). Com o limite
-# antigo de 20s, uma porta bloqueada pendurava o cadastro além do tempo
-# do app e o produtor via "fetch failed" sem entender nada. Melhor
-# desistir rápido do email e liberar a conta.
+# Tempo limite curto: o envio ocorre durante a requisição de cadastro, e o
+# aplicativo desiste após 10 segundos.
 _TIMEOUT_SEGUNDOS = 8
 
 
@@ -90,9 +61,8 @@ def _enviar_por_brevo(destinatario: str, assunto: str, corpo: str) -> bool:
             )
             return True
     except urllib.error.HTTPError as erro:
-        # O corpo do erro do Brevo diz a causa (chave inválida,
-        # remetente não verificado, cota estourada). Sem ele no log,
-        # descobrir o motivo vira adivinhação.
+        # O corpo da resposta do Brevo indica a causa (chave inválida,
+        # remetente não verificado, cota esgotada).
         detalhe = erro.read().decode("utf-8", "replace")[:300]
         logger.error(
             "Brevo recusou o envio para %s: HTTP %s %s", destinatario, erro.code, detalhe
@@ -126,9 +96,8 @@ def _enviar_por_smtp(destinatario: str, assunto: str, corpo: str) -> bool:
 
 
 def enviar(destinatario: str, assunto: str, corpo: str) -> bool:
-    """Envia um email em texto puro. Devolve True se saiu, False caso
-    contrário. Nunca levanta exceção: uma falha de email não pode
-    derrubar a requisição que estava em andamento."""
+    """Envia um e-mail em texto puro e devolve se o envio foi aceito. Nunca
+    levanta exceção, para não interromper a requisição em andamento."""
     if settings.BREVO_API_KEY and settings.remetente:
         return _enviar_por_brevo(destinatario, assunto, corpo)
 
@@ -145,7 +114,7 @@ def enviar(destinatario: str, assunto: str, corpo: str) -> bool:
 
 
 def montar_email_verificacao(nome: str, codigo: str) -> tuple[str, str]:
-    """Assunto e corpo do email de confirmacao de cadastro."""
+    """Assunto e corpo do e-mail de confirmação de cadastro."""
     corpo = (
         f"Olá, {nome}.\n\n"
         f"Seu código de confirmação do EcoVision é:\n\n"
@@ -159,7 +128,7 @@ def montar_email_verificacao(nome: str, codigo: str) -> tuple[str, str]:
 
 
 def montar_email_recuperacao(codigo: str) -> tuple[str, str]:
-    """Assunto e corpo do email de redefinicao de senha."""
+    """Assunto e corpo do e-mail de redefinição de senha."""
     corpo = (
         f"Recebemos um pedido para redefinir a senha da sua conta EcoVision.\n\n"
         f"Seu código é:\n\n"

@@ -1,20 +1,8 @@
 """
-cloud/tests/test_security.py
-
-O que este arquivo verifica, em português simples:
-
-Parte 1 (dispositivo IoT): a Raspberry Pi só pode falar com a API se
-mandar a "senha" certa (a API Key) no cabeçalho da requisição. Este
-teste confere as três situações possíveis: chave certa (deixa passar),
-chave errada (barra com 401) e chave ausente (também barra com 401).
-Sem isso, qualquer um na internet poderia mandar fotos falsas para o
-sistema.
-
-Parte 2 (dashboard): as peças de autenticação do produtor (ADR 0003)
-usadas por app/api/routes/auth.py e como dependency dos demais
-endpoints do dashboard: gerar/verificar hash de senha, gerar tokens de
-acesso e refresh, e recusar um token errado (expirado, tipo trocado,
-sem o prefixo "Bearer", assinado com outra chave).
+Testes de app/core/security.py: validação da credencial de dispositivo
+(correta, errada e ausente) e das peças de autenticação dos usuários
+(hash de senha, tokens de acesso e de renovação e recusa de tokens
+expirados, de tipo trocado, sem "Bearer" ou assinados com outra chave).
 """
 
 import time
@@ -53,9 +41,7 @@ def test_chave_ausente_levanta_401():
 
 
 def test_hash_de_senha_verifica_corretamente():
-    # String neutra de proposito. Antes aqui estava a senha real da conta
-    # de produtor em producao, e este repositorio vai se tornar publico:
-    # literal de teste nao deve coincidir com credencial de verdade.
+    # Senha fictícia, sem relação com credenciais reais.
     senha = "senha-de-teste-123"
     hash_gerado = gerar_hash_senha(senha)
     assert verificar_senha(senha, hash_gerado) is True
@@ -70,9 +56,8 @@ def test_access_token_decodifica_com_os_dados_certos():
 
 
 def test_refresh_token_nao_passa_como_access_token():
-    """Um refresh token NUNCA deve funcionar como access token: são
-    tokens de vida útil bem diferente (30 dias vs 24h), então usar um
-    no lugar do outro burlaria a expiração curta do access token."""
+    """Um token de renovação (30 dias) nunca funciona como token de acesso
+    (24 h)."""
     refresh = criar_refresh_token(usuario_id=1, papel="produtor")
     with pytest.raises(HTTPException) as excinfo:
         decodificar_token(refresh, tipo_esperado="access")
@@ -109,10 +94,8 @@ def test_obter_produtor_atual_com_bearer_valido_funciona():
 
 
 def test_token_com_relogio_levemente_adiantado_e_aceito():
-    """Regressão: sem tolerância de relógio, um token emitido por uma
-    máquina alguns segundos adiantada era recusado com 401 "Token
-    inválido", sem pista da causa. Aconteceu de verdade ao testar a API
-    publicada no Railway a partir de uma máquina 11 segundos à frente."""
+    """Tokens emitidos por uma máquina com relógio alguns segundos
+    adiantado continuam válidos, dentro da tolerância."""
     agora = int(time.time())
     adiantado = agora + 10
     token = jwt.encode(

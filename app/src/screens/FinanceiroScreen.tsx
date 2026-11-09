@@ -1,32 +1,10 @@
 /**
- * app/src/screens/FinanceiroScreen.tsx
+ * Módulo financeiro: seletor de mês, resumo e transações do mês, gráfico
+ * por categoria, total geral, registro e exclusão de gastos. Os dados
+ * ficam no aparelho (src/services/gastos.ts).
  *
- * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Tela financeira MOCK (Blueprint v3.0, Semana 3 do cronograma):
- * seletor de mês, resumo e transações do mês selecionado, gráfico por
- * categoria, total geral (todos os períodos), formulário de registro
- * de gasto e exclusão de gastos.
- *
- * Dados persistidos em AsyncStorage (ver src/services/gastos.ts),
- * semeados a partir do mock `gastos.json` na primeira execução.
- *
- * Loading/erro/refresh padronizados via useCarregamentoAssincrono.
- * Particularidade desta tela: a busca depende de `mesSelecionado`, e
- * trocar de mês dispara uma nova busca (deps do hook). Pra não sumir
- * com o conteúdo da tela a cada troca de mês (como acontecia antes,
- * com carregando bloqueando a tela inteira), mantemos os dados do mês
- * anterior visíveis e só mostramos um spinner pequeno ao lado do
- * seletor enquanto o novo mês carrega.
- *
- * ATUALIZAÇÃO (Dia 25): estado vazio de transações passou a usar o
- * componente compartilhado EstadoVazio, e registrar/excluir um gasto
- * com sucesso agora mostra um toast leve (useToastSucesso) como
- * confirmação visual, além do Alert nativo de confirmação de exclusão
- * (que continua igual).
- *
- * Header customizado (logo + título) igual ao padrão do Dashboard,
- * headerShown: false precisa estar setado no Tab.Screen "Financeiro"
- * no AppNavigator para não duplicar o header nativo.
+ * Ao trocar de mês, os dados anteriores continuam visíveis e um indicador
+ * pequeno aparece ao lado do seletor enquanto o novo mês carrega.
  */
 
 import React, { useCallback, useState } from 'react';
@@ -169,9 +147,8 @@ export default function FinanceiroScreen() {
     }
   };
 
-  // Só bloqueia a tela inteira na primeiríssima carga (sem nenhum
-  // dado ainda). Trocar de mês depois disso não derruba a tela — ver
-  // o spinner pequeno ao lado do seletor de mês abaixo.
+  // Só bloqueia a tela na primeira carga; ao trocar de mês, um indicador
+  // pequeno aparece ao lado do seletor.
   if (carregando && !dados) {
     return <EstadoCarregamento />;
   }

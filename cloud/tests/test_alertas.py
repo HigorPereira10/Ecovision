@@ -1,19 +1,12 @@
 """
-cloud/tests/test_alertas.py
+Testes de GET /alertas e PATCH /alertas/{id}/lido:
 
-O que este arquivo verifica, em português simples:
-
-GET /alertas e PATCH /alertas/{id}/lido, o dashboard do produtor:
-1. Sem login, ambos recusam com 401.
-2. GET /alertas lista os alertas reais (mais recente primeiro).
-3. Quando o dispositivo está inativo (ver ADR 0008), aparece um item
-   sintético (`sintetico: true`, `id: null`) no topo da lista, sem
-   gravar nada na tabela `alertas`.
-4. Sem nenhuma captura ainda registrada, o item sintético também
-   aparece (dispositivo "nunca reportou").
-5. PATCH marca um alerta real como lido; um id inexistente devolve 404
-   (isso também cobre a tentativa de marcar o item sintético, que nunca
-   tem uma linha real).
+1. sem login: 401;
+2. lista os alertas gravados, do mais recente ao mais antigo;
+3. dispositivo inativo gera um item sintético no topo, sem gravar nada;
+4. dispositivo sem nenhuma captura também gera o item sintético;
+5. PATCH marca alerta gravado como lido; id inexistente (inclusive do
+   item sintético) responde 404.
 """
 
 from datetime import datetime, timedelta, timezone

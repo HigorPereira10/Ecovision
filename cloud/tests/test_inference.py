@@ -1,25 +1,12 @@
 """
-cloud/tests/test_inference.py
+Testes de app/core/inference.py.
 
-O que este arquivo verifica, em português simples:
-
-Desde 2026-10-10 existe um modelo real em ml/models/modelo.tflite (3
-classes). Ainda assim, a API precisa continuar de pé quando o modelo
-não puder ser carregado (runtime ausente, arquivo faltando, arquivo
-corrompido), devolvendo um resultado "placeholder" e avisando no log,
-em vez de recusar subir. Uma falha no modelo nunca pode derrubar o
-upload da imagem nem a gravação no banco.
-
-Também confere o pré-processamento da imagem, que tem duas
-particularidades capazes de corromper TODO diagnóstico sem levantar
-erro nenhum, e por isso valem teste próprio:
-
-1. Os pixels precisam sair CRUS, de 0 a 255. O modelo normaliza por
-   dentro; dividir por 255 aqui faz tudo virar "saudavel" com ~90% de
-   confiança, inclusive folha doente.
-2. O redimensionamento precisa ser por vizinho mais próximo, igual ao
-   do treino. Com interpolação diferente, 2 das 6 imagens de
-   ml/validacao_externa/ trocam de classe.
+A API deve continuar funcionando quando o modelo não pode ser carregado
+(runtime ausente, arquivo faltando ou corrompido), com resultado
+provisório. O pré-processamento tem dois pontos que corrompem o
+diagnóstico sem gerar erro: os pixels devem ficar entre 0 e 255 (a
+normalização faz parte do modelo) e o redimensionamento deve usar o
+vizinho mais próximo, como no treino.
 """
 
 import io
@@ -46,9 +33,8 @@ def test_preprocessar_imagem_gera_formato_esperado():
 
 
 def test_preprocessar_imagem_devolve_pixels_crus_e_nao_normalizados():
-    """Regressão: a versão anterior dividia por 255. Como o modelo
-    normaliza por dentro, isso colapsava toda predição para 'saudavel'
-    sem erro nenhum."""
+    """Os pixels não podem ser divididos por 255: o modelo normaliza
+    internamente, e a divisão levaria todas as predições a 'saudavel'."""
     array = inference.preprocessar_imagem(_imagem_de_teste())
 
     # A imagem de teste é lisa, cor (100, 150, 80). Se alguém voltar a
@@ -58,12 +44,10 @@ def test_preprocessar_imagem_devolve_pixels_crus_e_nao_normalizados():
 
 
 def test_preprocessar_imagem_usa_vizinho_mais_proximo_no_redimensionamento():
-    """Regressão: o padrão do Pillow é bicúbico, e o treino usou vizinho
-    mais próximo. Medido nas 6 imagens de validação externa, a troca de
-    interpolação muda a classe de 2 delas."""
-    # Tabuleiro de 2x2 pixels: com vizinho mais próximo, a ampliação
-    # para 224x224 preserva exatamente os dois valores originais. Com
-    # bicúbico ou bilinear, aparecem tons intermediários nas bordas.
+    """O redimensionamento deve usar o vizinho mais próximo (o padrão do
+    Pillow é bicúbico)."""
+    # Tabuleiro de 2x2 pixels: o vizinho mais próximo preserva os dois
+    # valores originais; interpolações criam tons intermediários.
     original = Image.new("RGB", (2, 2))
     original.putpixel((0, 0), (0, 0, 0))
     original.putpixel((1, 0), (255, 255, 255))
@@ -82,9 +66,8 @@ def test_preprocessar_imagem_usa_vizinho_mais_proximo_no_redimensionamento():
 
 
 def test_classes_do_modelo_batem_com_o_conversor():
-    """A ordem aqui precisa ser a mesma de ml/src/export/convert_tflite.py.
-    Se divergir, cada predição sai com o nome e a recomendação de outra
-    doença, e nada falha de forma visível."""
+    """A ordem deve seguir as saídas do modelo; se divergir, cada predição
+    recebe o nome e a recomendação de outra classe."""
     assert inference._CLASSES_DO_MODELO == [
         "septoriose",
         "pinta_preta",
@@ -116,10 +99,8 @@ def test_rodar_inferencia_sem_modelo_devolve_placeholder():
 
 
 def test_caminho_do_modelo_resolve_a_partir_da_raiz_do_repo():
-    """Regressão: TFLITE_MODEL_PATH é relativo e era resolvido contra o
-    diretório de trabalho do processo. Como a API sobe de dentro de
-    cloud/, ela procurava em cloud/ml/models/ e subia SEM MODELO, em
-    silêncio, devolvendo placeholder como se nada estivesse errado."""
+    """TFLITE_MODEL_PATH relativo é resolvido a partir da raiz do
+    repositório, e não do diretório de trabalho (a API inicia em cloud/)."""
     from pathlib import Path
 
     from app.config import get_settings
@@ -129,7 +110,7 @@ def test_caminho_do_modelo_resolve_a_partir_da_raiz_do_repo():
     assert caminho.is_absolute(), "o caminho precisa independer de onde o processo rodou"
     assert caminho.is_file(), (
         f"modelo nao encontrado em {caminho}. O .tflite e versionado no repositorio "
-        "(Blueprint Secao 4.4): se sumiu ou foi renomeado, a API sobe sem inferencia."
+        "(ml/models/): se sumiu ou foi renomeado, a API sobe sem inferencia."
     )
 
 
@@ -145,10 +126,8 @@ def _imagem_jpeg(cor, tamanho=(224, 224)) -> bytes:
 
 
 def test_foto_escura_demais_e_reprovada():
-    """O caso que motivou a guarda: o modelo responde 'saudavel' com 0,93
-    a 0,97 de confiança para imagem preta, e a confiança CRESCE conforme
-    a foto escurece. Classificar isso afirmaria 'sua planta está
-    saudável' sobre uma imagem onde não se vê nada."""
+    """Imagem preta é reprovada: o modelo responderia 'saudavel' com alta
+    confiança."""
     motivo = inference.avaliar_qualidade_imagem(_imagem_jpeg((10, 10, 12)))
 
     assert motivo is not None
@@ -166,46 +145,29 @@ def test_imagem_lisa_e_reprovada_por_falta_de_detalhe():
     assert "lente" in motivo.lower()
 
 
-def test_foto_real_do_conjunto_de_validacao_passa():
-    """A guarda não pode reprovar foto boa. Usa a imagem MAIS ESCURA do
-    conjunto de validação externa (brilho 74,6, textura 35,2), que é o
-    pior caso real conhecido: se ela passar, as outras passam."""
+def test_captura_real_do_dispositivo_passa():
+    """A verificação não pode reprovar uma foto válida. Usa uma captura
+    noturna do dispositivo, com o LED, a condição mais escura de operação."""
     from pathlib import Path
 
-    caminho = Path(__file__).resolve().parents[2] / "ml" / "validacao_externa" / "pinta_preta_01.jpg"
-    if not caminho.is_file():
-        import pytest
-
-        pytest.skip("conjunto de validação externa não disponível")
-
+    caminho = Path(__file__).resolve().parent / "fixtures" / "captura_dispositivo.jpg"
     assert inference.avaliar_qualidade_imagem(caminho.read_bytes()) is None
 
 
 def test_limiares_mantem_margem_sobre_a_pior_foto_boa():
-    """Trava de regressão sobre os números, não sobre o comportamento.
-
-    Os limiares foram escolhidos a partir de medição (brilho de 74,6 a
-    207,1 e textura de 35,2 a 71,4 nas fotos boas). Subir TEXTURA_MINIMA
-    para perto de 35 passaria a reprovar foto legítima, e o sintoma
-    seria o sistema recusando analisar plantas de verdade."""
+    """Os limiares mantêm margem sobre a pior foto válida medida (brilho
+    74,6 e textura 35,2): limiares próximos disso reprovariam fotos
+    legítimas."""
     assert inference.TEXTURA_MINIMA < 35.2, "nao pode alcancar a pior foto boa"
     assert inference.BRILHO_MINIMO < 74.6
-    # E não pode ser tão frouxo a ponto de deixar passar 25% de luz
-    # (brilho 51,4 / textura 17,8), que foi o caso medido em que o
-    # modelo devolveu 0,97 de confiança para lixo.
+    # E não pode aceitar uma foto com 25% de luz (brilho 51,4, textura
+    # 17,8), que o modelo classificou com 0,97 de confiança.
     assert inference.TEXTURA_MINIMA > 17.8
 
 
 def test_modelo_com_numero_de_saidas_diferente_da_lista_nao_carrega(tmp_path, caplog):
-    """BUG REAL de 2026-11-02: o padrao de TFLITE_MODEL_PATH foi trocado
-    para o modelo de 4 classes, mas cloud/.env define a mesma variavel e
-    ganha do padrao. Rodou o modelo ANTIGO de 3 saidas com 4 nomes
-    listados, e elegeu "septoriose" com severidade ALTA numa planta sem
-    doenca, sem erro nenhum.
-
-    A protecao que existia so pegava o caso inverso (modelo maior que a
-    lista). Este teste trava o caso perigoso: lista maior que o modelo.
-    """
+    """Um modelo com menos saídas do que nomes em _CLASSES_DO_MODELO não
+    pode ser carregado: atribuiria nomes errados com alta confiança."""
     import logging
 
     caminho = Path(__file__).resolve().parents[2] / "ml" / "models" / "modelo.tflite"

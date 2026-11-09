@@ -1,13 +1,7 @@
-"""metadados de localizacao e intervalo por dispositivo
+"""metadados de localização e intervalo por dispositivo
 
-A tela de Perfil do app (app/src/components/DispositivoCard.tsx) ja
-desenhava campo, setor e intervalo de captura, mas eles so existiam no
-mock local do app. Sem estas colunas, ligar getDispositivos() na API de
-verdade quebraria o card, e o app continuaria mostrando um dispositivo
-inventado em vez do Raspberry real do produtor.
-
-Todas nullable: as linhas que ja existem continuam validas e sao
-preenchidas depois, sem precisar recriar nada.
+Campo, setor e intervalo de captura exibidos na tela de Perfil. Colunas
+nullable, preenchidas depois para as linhas existentes.
 
 Revision ID: 0006
 Revises: 0005

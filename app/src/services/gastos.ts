@@ -1,11 +1,7 @@
 /**
- * app/src/services/gastos.ts
- *
- * Camada de Dados Falsa para o módulo Financeiro (Blueprint v3.0 —
- * Semana 3 do cronograma). Persiste em AsyncStorage, semeada a partir
- * do mock `gastos.json` na primeira execução. No futuro, essas mesmas
- * assinaturas (async/Promise) viram chamadas fetch() pra API FastAPI
- * real — a tela não muda.
+ * Dados do módulo financeiro, guardados no AsyncStorage do aparelho e
+ * iniciados a partir de src/mocks/gastos.json na primeira execução. Não
+ * são sincronizados com a API.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -107,9 +103,8 @@ export async function getGastosPorMes(
 }
 
 /**
- * Resumo financeiro do mês de referência (padrão: mês atual).
- * Total e detalhamento por categoria consideram só os gastos
- * daquele mês/ano — não o histórico inteiro.
+ * Resumo financeiro do mês de referência (padrão: mês atual), com total e
+ * detalhamento por categoria apenas daquele mês.
  */
 export async function getResumoFinanceiro(
   referencia: Date = new Date()
@@ -161,8 +156,8 @@ export async function registrarGasto(
 }
 
 /**
- * Remove um gasto pelo id. Retorna `true` se algum item foi removido,
- * `false` se o id não foi encontrado (ex: já excluído em outra tela).
+ * Remove um gasto pelo id. Devolve true se algum item foi removido e false
+ * se o id não existia.
  */
 export async function excluirGasto(id: string): Promise<boolean> {
   const gastos = await carregarGastosDoStorage();

@@ -1,22 +1,7 @@
 /**
- * app/src/screens/VincularDispositivoScreen.tsx
- *
- * Tela de vínculo de um equipamento IoT à conta do produtor. Mesmo
- * visual da CadastroScreen (topo verde com gradiente + card creme).
- *
- * Por que esta tela existe: o cadastro é aberto, qualquer pessoa cria
- * conta. O que separa um produtor dos dados de outro é a posse física
- * do equipamento, provada ao digitar aqui o código que vem na etiqueta
- * dele. Antes disso, a conta não enxerga nada (ver app/api/escopo.py no
- * backend).
- *
- * É opcional de propósito, e não um passo obrigatório depois do login:
- * o módulo Financeiro funciona sem dispositivo nenhum, e quem ainda
- * está esperando o equipamento chegar não pode ficar trancado numa tela
- * sem saída. A entrada é pela tela de Perfil.
- *
- * Consome vincularDispositivo() de app/src/services/dispositivos.ts
- * (POST /dispositivos/vincular).
+ * Vínculo de um dispositivo à conta pelo código de pareamento da etiqueta
+ * (POST /dispositivos/vincular). Até vincular um dispositivo, a conta não
+ * vê nenhum dado. O vínculo é opcional e acessado pela tela de Perfil.
  */
 
 import React, { useState } from "react";
@@ -41,12 +26,8 @@ import { colors } from "../theme/colors";
 
 const CODIGO_COMPLETO = /^ECO-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
-/** Formata o que o produtor digita como ECO-XXXX-XXXX.
- *
- * Aceita colar o código inteiro ou digitar só a parte variável: o
- * prefixo "ECO" é sempre o mesmo, então exigir que ele seja digitado
- * seria trabalho à toa. Letras viram maiúsculas sozinhas, porque a
- * etiqueta é impressa em maiúsculas. */
+/** Formata a entrada como ECO-XXXX-XXXX: aceita o código colado inteiro ou
+ * só a parte variável, e converte as letras para maiúsculas. */
 function mascararCodigo(texto: string): string {
   let limpo = texto.toUpperCase().replace(/[^A-Z0-9]/g, "");
   if (limpo.startsWith("ECO")) limpo = limpo.slice(3);

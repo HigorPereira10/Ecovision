@@ -1,23 +1,13 @@
 """
-cloud/tests/test_historico.py
+Testes de GET /leituras e GET /diagnosticos:
 
-O que este arquivo verifica, em português simples:
-
-Os endpoints de consulta histórica do dashboard (GET /leituras e
-GET /diagnosticos):
-1. Sem login (sem token JWT), a API recusa com 401.
-2. Com login válido, devolvem os dados certos, na ordem certa
-   (leituras: mais antiga primeiro, para o gráfico; diagnósticos: mais
-   recente primeiro, para o feed de histórico).
-3. O filtro `?horas=N` exclui itens mais antigos que o período pedido.
-4. GET /diagnosticos inclui a signed URL da imagem
-   (gerar_urls_assinadas_imagens, em lote, ver
-   infra/supabase/storage_policies.md), e não quebra a lista inteira se
-   a geração da URL falhar.
-5. GET /diagnosticos informa de QUAL dispositivo veio cada diagnóstico.
-   Sem isso, o filtro por estufa da tela de Histórico não tem como
-   funcionar, e o app chegou a contornar a falta assumindo que todo
-   diagnóstico era do dispositivo de id 1.
+1. sem login: 401;
+2. ordem correta (leituras em ordem cronológica, diagnósticos do mais
+   recente ao mais antigo);
+3. o filtro ?horas=N exclui itens mais antigos;
+4. os diagnósticos trazem a URL assinada, sem quebrar a lista quando a
+   geração falha;
+5. cada diagnóstico informa o dispositivo de origem.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -33,12 +23,8 @@ AGORA = datetime.now(timezone.utc)
 
 
 async def _urls_assinadas_falsas(caminhos: list[str]) -> dict[str, str]:
-    """Substitui app.storage.supabase_storage.gerar_urls_assinadas_imagens
-    nos testes: não existe Supabase real disponível.
-
-    A rota assina em LOTE (uma ida à rede para todos os caminhos), então
-    o dublê recebe a lista e devolve o mapa caminho -> URL, igual à
-    função real."""
+    """Substitui a geração de URLs assinadas (feita em lote) por um dublê
+    que devolve o mapa caminho -> URL."""
     return {caminho: f"https://storage.teste/{caminho}?signed=1" for caminho in caminhos}
 
 
@@ -59,10 +45,7 @@ async def _criar_registro_com_leitura_e_diagnostico(
     sessao.add(registro)
     await sessao.flush()
 
-    # criado_em passado explicitamente (em vez de deixar o default
-    # _agora_utc do modelo) para o teste nao depender do relogio real:
-    # sem isso, "mais nova"/"mais antiga" ficariam definidas pela ordem
-    # de insercao no teste, nao pelo timestamp em si.
+    # criado_em explícito, para a ordem não depender do relógio real.
     sessao.add(LeituraAmbiental(
         device_id=device_id,
         registro_imagem_id=registro.id,
@@ -183,12 +166,8 @@ async def test_filtro_horas_exclui_itens_antigos(token_produtor: str):
 async def test_diagnosticos_informam_o_dispositivo_de_origem(
     token_produtor: str, usuario_produtor, monkeypatch
 ):
-    """O campo que faltava para o filtro por estufa do app funcionar.
-
-    Dois dispositivos do MESMO produtor: os dois aparecem na lista (não
-    é teste de isolamento, isso está em test_escopo.py), cada um com seu
-    próprio device_id. Antes, o app não tinha como separá-los e tratava
-    tudo como se fosse do dispositivo de id 1."""
+    """Dois dispositivos do mesmo usuário aparecem na lista, cada um com
+    seu device_id."""
     monkeypatch.setattr(
         "app.api.routes.historico.gerar_urls_assinadas_imagens", _urls_assinadas_falsas
     )
@@ -220,11 +199,7 @@ async def test_diagnosticos_informam_o_dispositivo_de_origem(
 
 
 async def test_limite_controla_quantos_diagnosticos_voltam(token_produtor: str, monkeypatch):
-    """`limite` corta a consulta no banco e o tamanho do lote de
-    assinatura. Desde que a assinatura passou a ser em lote, ele já não
-    é o que separa uma tela rápida de uma lenta, mas continua sendo o
-    que impede a tela de Diagnóstico de carregar a janela inteira só
-    para mostrar um diagnóstico e uma fileira de miniaturas."""
+    """`limite` restringe a consulta e o lote de URLs assinadas."""
     assinados: list[str] = []
 
     async def _contando(caminhos: list[str]) -> dict[str, str]:

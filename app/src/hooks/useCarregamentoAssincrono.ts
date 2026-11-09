@@ -1,29 +1,12 @@
 /**
- * app/src/hooks/useCarregamentoAssincrono.ts
+ * Hook dos estados de carregamento, erro e atualização (pull-to-refresh)
+ * das telas que consomem services/*.ts.
  *
- * Hook compartilhado por todas as telas que consomem a camada de
- * serviço (services/*.ts). Padroniza os estados de UI que toda tela
- * baseada em dados assíncronos precisa tratar — carregando, erro e
- * atualizando (pull-to-refresh) — evitando repetir esse boilerplate
- * nas 5 telas do app.
- *
- * Comportamento importante:
- * - Na carga inicial (ou numa nova tentativa via botão "Tentar
- *   novamente"), um erro deixa `dados` como null: quem usa o hook
- *   deve mostrar o EstadoErro de tela cheia nesse caso.
- * - Num pull-to-refresh que falha, os últimos dados carregados com
- *   sucesso são MANTIDOS na tela (não somem) — quem usa o hook pode
- *   mostrar um aviso não-bloqueante (ver AvisoErroInline) sem perder
- *   o que já estava na tela. Falha de rede não deve apagar o último
- *   dado bom conhecido.
- * - RECARREGA AO VOLTAR PARA A TELA. Sem isso, os dados ficavam presos
- *   no momento em que a aba foi aberta pela primeira vez. Foi exatamente
- *   o que aconteceu no primeiro teste com o dispositivo real em
- *   2026-10-11: uma captura chegou às 18:50, o Histórico (aberto depois)
- *   já mostrava o diagnóstico novo, e o Início continuava exibindo a
- *   contagem de antes, porque tinha sido carregado mais cedo e nunca
- *   mais buscou nada. Para o produtor isso lê como "o app não viu minha
- *   captura", que é o oposto do que estava acontecendo.
+ * - Na carga inicial ou em nova tentativa, um erro deixa `dados` como
+ *   null, e a tela mostra o EstadoErro.
+ * - Em uma atualização que falha, os últimos dados são mantidos e a tela
+ *   pode exibir um aviso não bloqueante (AvisoErroInline).
+ * - Os dados são recarregados sempre que a tela volta ao foco.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';

@@ -1,16 +1,7 @@
 /**
- * app/src/utils/erros.ts
- *
- * Converte erros lançados pela camada de serviço (services/*.ts) em
- * mensagens amigáveis para o produtor, em português. Centralizado aqui
- * para não duplicar essa lógica em cada tela.
- *
- * Hoje os serviços leem de JSON/AsyncStorage local, então praticamente
- * não falham por rede — mas a assinatura Promise/try-catch já está
- * pronta para quando os erros vierem de fetch() real contra o FastAPI
- * (Semana 3 do cronograma). Nesse cenário, o React Native lança um
- * TypeError com a mensagem "Network request failed" quando não há
- * conexão, e é isso que tratamos como "sem conexão" abaixo.
+ * Converte erros da camada de serviço em mensagens em português para o
+ * usuário. "Network request failed" (sem conexão) e erros de tempo limite
+ * recebem mensagens próprias.
  */
 
 const MENSAGEM_SEM_CONEXAO =
@@ -49,9 +40,8 @@ export function obterMensagemErro(erro: unknown, mensagemPadrao = MENSAGEM_GENER
     if (pareceErroDeRede(erro.message)) return MENSAGEM_SEM_CONEXAO;
     if (pareceTimeout(erro.message)) return MENSAGEM_TIMEOUT;
 
-    // Mensagens curtas (sem stack trace) normalmente foram escritas à
-    // mão pelos serviços para o usuário final — essas podem ser
-    // exibidas diretamente em vez de cair na mensagem genérica.
+    // Mensagens curtas, sem stack trace, foram escritas pelos serviços
+    // para o usuário e são exibidas diretamente.
     if (erro.message.length <= 120) return erro.message;
   }
 

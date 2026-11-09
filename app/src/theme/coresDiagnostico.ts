@@ -1,6 +1,4 @@
 /**
- * app/src/theme/coresDiagnostico.ts
- *
  * A cor que cada estado da planta recebe na interface, num lugar só.
  *
  * POR QUE ISTO EXISTE

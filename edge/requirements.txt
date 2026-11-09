@@ -1,44 +1,12 @@
-# edge/requirements.txt
-#
-# Dependências do software de borda (Raspberry Pi 3 Model B+, Anatel;
-# ver docs/decisions/0004-raspberry-pi-3b-plus.md), conforme Tech Stack
-# Blueprint v3.0, Fase 2.
-#
-# Ainda sem versões fixadas, fixar ao configurar o Pi.
-# Algumas dessas libs (picamera2, RPi.GPIO) só instalam/funcionam
-# de fato em hardware Raspberry Pi.
+# Dependências do software do dispositivo (Raspberry Pi OS Lite, 64 bits).
+# Instaladas por edge/scripts/install.sh. O Picamera2 vem do apt
+# (python3-picamera2), porque depende das bibliotecas do libcamera do
+# sistema; por isso o ambiente virtual usa --system-site-packages.
 
-# --- Sistema operacional alvo ---
-# Raspberry Pi OS Lite (64-bit): necessário para Picamera2 e libs modernas.
-
-# --- Câmera ---
-# picamera2: NÃO instalar via pip aqui. É instalado via apt em
-# edge/scripts/install.sh (python3-picamera2), porque depende de bindings
-# do libcamera compilados para o sistema; pip puro é frágil/não suportado
-# para esse pacote. O venv usa --system-site-packages para enxergá-lo.
-
-# --- Compressão de imagem ---
-pillow
-# (garantir libjpeg-turbo instalado no SO, não é um pacote pip)
-
-# --- GPIO / Sensores ---
-RPi.GPIO
-Adafruit-Blinka              # fornece o módulo `board`, usado pelo DHT22.
-adafruit-circuitpython-dht   # DHT22, substitui o legado Adafruit_DHT (descontinuado,
-                              # instalação frágil em Raspberry Pi OS atual). Requer
-                              # libgpiod3 no sistema (instalado em install.sh).
-smbus2                       # ADS1115 (sensor de solo). Substituiu
-                              # adafruit-circuitpython-ads1x15: a pilha
-                              # Blinka/Adafruit-PureIO falha com
-                              # `OSError: [Errno 5]` em toda leitura de
-                              # registrador no Pi 3B+ com Raspberry Pi OS
-                              # trixie (Python 3.13, kernel 6.18, ARM64).
-                              # Medido no dispositivo: Adafruit 0/3,
-                              # smbus2 10/10. Ver soil_moisture.py.
-
-# --- Rede, fila e agendamento ---
+pillow                       # recompressão JPEG; requer libjpeg-turbo no sistema
+RPi.GPIO                     # acionamento do LED
+Adafruit-Blinka              # módulo `board`, usado pelo DHT22
+adafruit-circuitpython-dht   # DHT22; requer libgpiod3 no sistema
+smbus2                       # ADS1115 por acesso direto ao barramento I2C
 requests
-# (fcntl, cron, pathlib são stdlib/SO, não entram no requirements.txt)
-
-# --- Configuração ---
-python-dotenv  # carrega edge/.env (cron não faz isso sozinho)
+python-dotenv                # carrega edge/.env nas execuções do cron

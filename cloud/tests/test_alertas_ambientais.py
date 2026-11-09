@@ -1,18 +1,7 @@
 """
-cloud/tests/test_alertas_ambientais.py
-
-O que este arquivo verifica, em português simples:
-
-As regras de "risco ambiental" (temperatura, umidade do ar e umidade do
-solo fora da faixa considerada segura para o tomateiro). Ver
-docs/decisions/0005-limiares-ambientais.md para saber de onde vieram
-esses números. Este teste confere que a função de avaliação:
-- não gera nada quando as leituras estão dentro da faixa ideal;
-- gera o alerta certo quando cada variável, isoladamente, sai da faixa;
-- consegue gerar mais de um alerta ao mesmo tempo (ex.: calor e solo
-  seco juntos);
-- ignora leituras ausentes (sensor que falhou não deveria gerar alerta
-  sozinho, ver edge/src/main.py).
+Testes de app/core/alertas_ambientais.py: nenhum alerta dentro da faixa,
+alerta correto para cada variável fora da faixa, mais de um alerta ao
+mesmo tempo e leituras ausentes ignoradas.
 """
 
 from app.core.alertas_ambientais import avaliar_risco_ambiental
@@ -49,11 +38,8 @@ def test_solo_seco_e_solo_encharcado_geram_alertas_diferentes():
 
 
 def test_solo_em_zero_vira_suspeita_de_sensor_e_nao_alerta_de_seca():
-    """Encontrado no primeiro ciclo real, em 2026-10-11: o Pi na bancada,
-    com o sensor pendurado no ar, gerou um alerta CRÍTICO de "Solo seco,
-    risco de estresse hídrico". Mandar irrigar por causa de um sensor
-    fora da terra é pior do que não alertar, porque ensina o produtor (e
-    o grupo) a ignorar o alerta de seca."""
+    """Leitura no piso da escala (sensor fora da terra) gera alerta de
+    verificação do sensor, e não de solo seco."""
     alertas = avaliar_risco_ambiental(24.0, 65.0, 0.0)
 
     assert len(alertas) == 1
@@ -85,12 +71,8 @@ def test_leitura_ausente_nao_gera_alerta_por_conta_propria():
 
 
 def test_sensor_fora_da_terra_nao_vira_alerta_de_seca():
-    """Em 2026-11-02 a haste foi retirada da terra e o ADS1115 passou a
-    ler 1,7% a 2,1%, nao 0,0% exato. Com o piso antigo em zero exato,
-    isso caia em UMIDADE_SOLO_MIN_PCT e disparava "Solo seco" com
-    severidade ALTA a cada ciclo: o falso alarme que manda irrigar uma
-    planta que nao precisa, e que ensina o grupo a ignorar o alerta de
-    seca."""
+    """Um sensor fora da terra lê cerca de 2%, não 0,0% exato; essas
+    leituras também geram alerta de verificação do sensor."""
     for leitura in (1.7, 2.1, 3.9):
         alertas = avaliar_risco_ambiental(24.0, 65.0, leitura)
         assert len(alertas) == 1, f"{leitura}% gerou {len(alertas)} alertas"

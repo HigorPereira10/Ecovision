@@ -1,62 +1,19 @@
 """
-ml/src/porta/avaliar.py
+Avalia uma captura do dispositivo por janelas, com verificação de
+familiaridade, e gera o mapa de classes por janela.
 
-Avalia uma captura do dispositivo com a PORTA DE FAMILIARIDADE e uma
-janela deslizante, em vez de reduzir o quadro inteiro para 224x224.
+Reduzir o quadro inteiro de 4608 × 2592 para 224 × 224 deixa o folíolo
+com 12 a 31 pixels, faixa em que a acurácia fica perto do acaso (80,7%
+com a folha a 224 pixels e 47,4% a 56 pixels, em 249 imagens rotuladas).
+Este módulo divide a captura em janelas de JANELA_NATIVA pixels, reduz
+cada uma para 224 × 224 (redução de cerca de 4 vezes, próxima do treino),
+descarta as janelas sem familiaridade suficiente (ver referencia.py) e
+classifica as restantes.
 
-O PROBLEMA QUE ISTO RESOLVE
----------------------------
-A câmera entrega 4608x2592 e o pipeline de produção reduz o quadro
-inteiro para 224x224. É uma redução linear de 11,6 vezes no lado menor
-e 20,6 no maior, mais o esmagamento de 16:9 para 1:1. As imagens de
-treino do PlantDoc reduzem 2,6 vezes na mediana.
+Limitação: a verificação recusa janelas de fundo, mas não caule, flor ou
+fruto, que se parecem com o material de treino.
 
-Medido em 2026-10-29 sobre 249 imagens rotuladas, simulando distância
-de captura (acaso com três classes é 33,3%):
-
-    folha com 224 px na entrada .... 80,7% de acurácia
-    folha com 156 px ............... 74,3%
-    folha com 112 px ............... 62,7%
-    folha com  56 px ............... 47,4%
-    folha com  33 px ............... 49,4%
-
-Nas capturas reais do dispositivo o folíolo chega ao modelo com 12 a
-31 px, ou seja, dentro da faixa de acaso. Por isso o veredito do
-quadro inteiro não é confiável, e por isso ele muda conforme o filtro
-de redimensionamento: cinco de doze capturas trocam de diagnóstico só
-por trocar NEAREST por BILINEAR, enquanto no PlantDoc a troca é
-estatisticamente irrelevante (McNemar p = 1,00 em 249 imagens).
-
-O QUE ESTE MÓDULO FAZ
----------------------
-1. Divide a captura em janelas de JANELA_NATIVA pixels nativos.
-2. Reduz cada janela para 224x224, o que dá uma redução de cerca de
-   4 vezes, próxima do regime de treino.
-3. Mede a familiaridade de cada janela (ver referencia.py) e descarta
-   as que o modelo não reconhece.
-4. Classifica apenas as aprovadas e devolve o mapa.
-
-O RESULTADO NÃO É UM RÓTULO ÚNICO, E ISSO É DE PROPÓSITO
---------------------------------------------------------
-Medido na captura de 2026-10-31: o quadro inteiro devolve
-"pinta_preta 81,7%" para a planta toda. Com a porta, as 28 janelas
-aprovadas se dividem em 12 pinta_preta, 13 saudável e 3 septoriose, e
-a separação é espacialmente correta: o saudável cai sobre as folhas
-limpas da direita e o restante sobre as folhas secas da esquerda.
-
-A planta é mista. Um rótulo único para a planta inteira é a pergunta
-errada, e o sistema atual responde essa pergunta errada com confiança
-alta. O mapa é a informação acionável.
-
-LIMITAÇÃO CONHECIDA
--------------------
-A porta recusa 100% das janelas de fundo, mas não recusa caule, flor
-nem fruto, porque esses são material vegetal parecido com o do treino.
-Resolver isso depende de uma classe "outro" no modelo, que por sua vez
-depende de dado rotulado que ainda não existe (ver ADR 0011).
-
-USO
----
+Uso:
     python -m ml.src.porta.avaliar <imagem ou pasta> [--mapa saida.png]
 """
 
@@ -77,16 +34,12 @@ RAIZ = Path(__file__).resolve().parents[3]
 REFERENCIA = RAIZ / "ml" / "models" / "referencia_familiaridade.npz"
 MODELO_KERAS = RAIZ / "ml" / "training" / "modelo_hibrido_lab_campo.keras"
 
-# Janela de 896 px nativos reduzida para 224 dá redução de 4x, dentro
-# do regime em que a acurácia medida fica acima de 70%. Janelas muito
-# menores mostram um pedaço de limbo em vez de uma folha e são
-# recusadas pela porta: das janelas de 224 px nativos, só 27% passam.
+# Janela de 896 pixels reduzida para 224: redução de 4 vezes, no regime em
+# que a acurácia medida fica acima de 70%.
 JANELA_NATIVA = 896
 PASSO_NATIVO = 448  # sobreposição de metade, para não cortar folha ao meio
 
-# Escala de decodificação do JPEG. Decodificar em metade economiza
-# memória sem mudar o resultado, porque a janela é reduzida de
-# qualquer forma.
+# Decodificação do JPEG em metade da resolução, sem alterar o resultado.
 ESCALA = 2
 
 CORES = {
@@ -111,13 +64,8 @@ def carregar_referencia():
 
 
 def _ultima_densa(modelo):
-    """Acha a camada de classificação pelo TIPO, não pelo nome.
-
-    O nome importa menos do que parece e muda sozinho: ao acrescentar a
-    quarta classe, ml/src/training/ajuste_quatro_classes.py liga uma
-    densa nova ao grafo, e ela não pode se chamar "dense" porque a
-    antiga continua registrada ali. Procurar pelo tipo faz este módulo
-    servir aos dois modelos sem edição."""
+    """Localiza a camada de classificação pelo tipo, e não pelo nome, para
+    servir aos modelos de três e de quatro classes."""
     import keras
 
     densas = [c for c in modelo.layers if isinstance(c, keras.layers.Dense)]

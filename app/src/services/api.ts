@@ -1,23 +1,11 @@
 /**
- * app/src/services/api.ts
+ * Cliente HTTP da API, com autenticação por JWT. O aplicativo nunca acessa
+ * o Supabase diretamente.
  *
- * Framework: Expo (React Native), decisão confirmada pelo grupo.
- * Ver docs/decisions/0002-frontend-framework-pendente.md (ADR 0002).
- *
- * Cliente HTTP central para consumir a API FastAPI (cloud/), sempre
- * autenticado via JWT do produtor. Regra do Blueprint (Seção 4.2, passo
- * 5): o frontend NUNCA fala diretamente com o Supabase, só com esta API.
- *
- * Usa fetch nativo em vez de axios de propósito: o axios não está nas
- * dependências, e as mensagens de erro do fetch já são as que
- * src/utils/erros.ts traduz ("Network request failed", "Failed to
- * fetch", abort por timeout).
- *
- * Renovação automática de sessão: quando a API responde 401 num
- * endpoint autenticado, este módulo tenta renovar o access token uma
- * única vez e repete a requisição original. Se a renovação também
- * falhar, faz logout e propaga o erro, e o AppNavigator reage à
- * mudança de estado levando o produtor de volta ao login.
+ * Usa fetch nativo. Quando a API responde 401 em uma rota autenticada, o
+ * cliente renova o token de acesso uma única vez e repete a requisição;
+ * se a renovação falhar, faz logout e propaga o erro, e a navegação volta
+ * ao login.
  */
 
 import { env } from "../config/env";
@@ -42,18 +30,11 @@ export class ErroHttp extends Error {
   }
 }
 
-/** Mensagem de erro vinda da API (campo `detail` do FastAPI), se houver.
+/** Mensagem de erro da API (campo `detail` do FastAPI), se houver.
  *
- * O `detail` chega em três formatos diferentes, e todos precisam virar
- * texto legível:
- * - string: a maioria dos erros da nossa API ("Email ou senha inválidos.")
- * - lista de strings: POST /auth/register devolve TODAS as regras de
- *   senha que falharam de uma vez, para a tela marcar o checklist inteiro
- * - lista de objetos {loc, msg, type}: formato automático do Pydantic
- *   quando o corpo da requisição nem chega a ser válido
- *
- * Sem tratar os dois últimos, o usuário veria "A API respondeu com erro
- * 422" sem saber o que corrigir. */
+ * O `detail` pode ser uma string, uma lista de strings (todas as regras de
+ * senha não cumpridas no cadastro) ou uma lista de objetos {loc, msg, type}
+ * gerada pelo Pydantic; os três formatos viram texto legível. */
 async function extrairMensagemDeErro(resposta: Response): Promise<string> {
   try {
     const corpo = await resposta.json();
@@ -74,9 +55,7 @@ async function extrairMensagemDeErro(resposta: Response): Promise<string> {
 }
 
 /**
- * fetch com timeout. O React Native não aplica timeout por padrão, então
- * sem isso uma rede instável na estufa deixaria a tela carregando para
- * sempre em vez de mostrar erro.
+ * fetch com tempo limite: o React Native não aplica timeout por padrão.
  */
 async function fetchComTimeout(url: string, init: RequestInit): Promise<Response> {
   const controlador = new AbortController();
@@ -103,11 +82,8 @@ async function enviar(caminho: string, init: RequestInit, comToken: boolean): Pr
 }
 
 /**
- * Troca o refresh token guardado por um access token novo.
- *
- * Mora aqui, e não em auth.ts, porque é o cliente HTTP que precisa
- * dela para se recuperar sozinho de um 401. Deixá-la em auth.ts criaria
- * um ciclo de importação entre os dois módulos.
+ * Troca o token de renovação guardado por um novo token de acesso. Fica
+ * neste módulo para evitar importação circular com auth.ts.
  */
 export async function renovarSessao(): Promise<void> {
   const refreshToken = await getRefreshToken();
@@ -132,9 +108,8 @@ async function encerrarSessao(): Promise<void> {
 }
 
 /**
- * Requisição autenticada. Em 401, renova a sessão uma vez e repete.
- * Não repete mais de uma vez de propósito: se o token recém-renovado
- * também for recusado, insistir viraria laço infinito contra a API.
+ * Requisição autenticada. Em 401, renova a sessão uma única vez e repete,
+ * sem tentar de novo se o token renovado também for recusado.
  */
 async function requisicaoAutenticada<T>(caminho: string, init: RequestInit = {}): Promise<T> {
   let resposta = await enviar(caminho, init, true);
@@ -177,14 +152,8 @@ export async function post<T>(caminho: string, corpo: unknown): Promise<T> {
   });
 }
 
-/** PATCH autenticado, para alterar parte de um recurso existente
- * (marcar um alerta como lido). Mesmo caminho do GET e do POST, então
- * herda a renovação automática de sessão no 401.
- *
- * Aceita corpo opcional porque PATCH /alertas/{id}/lido não tem corpo:
- * o próprio caminho já diz o que fazer. Enviar `{}` funcionaria, mas
- * declarar um Content-Type para um corpo vazio é mentir sobre a
- * requisição. */
+/** PATCH autenticado (por exemplo, marcar um alerta como lido), com a mesma
+ * renovação automática de sessão. O corpo é opcional. */
 export async function patch<T>(caminho: string, corpo?: unknown): Promise<T> {
   if (corpo === undefined) {
     return requisicaoAutenticada<T>(caminho, { method: "PATCH" });
@@ -197,8 +166,7 @@ export async function patch<T>(caminho: string, corpo?: unknown): Promise<T> {
 }
 
 /**
- * POST sem autenticação, para os endpoints de login e refresh (que são
- * justamente os que ainda não têm token válido para enviar).
+ * POST sem autenticação, para login e renovação de sessão.
  */
 export async function postSemAutenticacao<T>(caminho: string, corpo: unknown): Promise<T> {
   const resposta = await enviar(

@@ -1,20 +1,6 @@
-# ml/requirements.txt
-#
-# Dependências do pipeline de treino (rodado no Google Colab), conforme
-# Tech Stack Blueprint v3.0, Sumário Executivo (camada "IA / Treino").
-#
-# Ainda sem versões fixadas. No Colab, várias dessas libs já vêm
-# pré-instaladas (tensorflow, numpy); fixar versões apenas se necessário
-# para reprodutibilidade.
-
-# --- Treino e exportação ---
-# tensorflow                # 2.x + Keras, SOMENTE no treino (Colab). Nunca em produção (cloud/).
-# TFLite Converter é parte do próprio pacote tensorflow.
-
-# --- Preparação de dataset ---
-# rembg                     # remoção seletiva de fundo (6 classes de baixo risco)
-# albumentations            # data augmentation
-# scikit-learn              # class_weight, métricas (F1 por classe, matriz de confusão)
-
-# --- Fontes de dataset ---
-# kaggle                    # download programático (PlantVillage, Mendeley via Kaggle Datasets)
+# Dependências dos scripts de treino e avaliação (ml/src).
+# No Google Colab, todas já vêm instaladas.
+tensorflow>=2.15
+numpy
+pillow
+matplotlib

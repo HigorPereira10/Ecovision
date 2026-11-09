@@ -1,14 +1,6 @@
 """
-cloud/tests/test_usuarios.py
-
-O que este arquivo verifica, em português simples:
-
-GET /usuarios/me, a tela de Perfil do dashboard:
-1. Sem login, recusa com 401.
-2. Com login, devolve nome e email do produtor dono do token (nunca de
-   outro usuário).
-3. Se o campo `nome` nunca foi preenchido (usuário antigo, antes da
-   coluna existir), devolve `null` em vez de quebrar.
+Testes de GET /usuarios/me: sem login, 401; com login, dados do dono do
+token; `nome` não preenchido volta como null.
 """
 
 from fastapi.testclient import TestClient

@@ -1,6 +1,4 @@
 /**
- * app/src/components/FiltroDropdown.tsx
- *
  * Chip de filtro reutilizável (ícone + rótulo + seta) que abre um menu
  * modal simples com as opções. Usado no Histórico para período e campo,
  * mas serve pra qualquer filtro single-select futuro.

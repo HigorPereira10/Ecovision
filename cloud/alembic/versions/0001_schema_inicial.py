@@ -1,12 +1,6 @@
 """schema inicial: registros_imagem, leituras_ambientais, diagnosticos,
 alertas, usuarios, dispositivos
 
-Escrita à mão (sem autogenerate, sem conexão real com Postgres
-disponível neste momento) espelhando cloud/app/db/models.py. Só as 3
-primeiras tabelas são de fato usadas nesta rodada (caminho do
-dispositivo); as outras 3 têm o schema pronto para o dashboard, ver
-cloud/README.md.
-
 Revision ID: 0001
 Revises:
 Create Date: 2026-08-22

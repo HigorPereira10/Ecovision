@@ -1,53 +1,14 @@
 """leitura ambiental independente da foto
 
-PROBLEMA QUE ESTA MIGRATION RESOLVE
+1. registro_imagem_id passa a aceitar NULL, para leituras sem foto; o
+   UNIQUE continua valendo (o PostgreSQL admite vários NULL).
+2. device_id passa a ser coluna da leitura, preenchida a partir de
+   registros_imagem nas linhas existentes antes de virar NOT NULL.
+3. idempotency_key, nullable e única, evita duplicar leituras reenviadas.
+4. Índice em (device_id, criado_em), usado por GET /leituras.
 
-A tabela nasceu com `registro_imagem_id` NOT NULL e UNIQUE, modelando
-"uma leitura por captura". Era verdade: o Pi lia os sensores e tirava a
-foto no mesmo ciclo, a cada 2 horas, e mandava os dois juntos.
-
-A consequencia nao era obvia. Como leitura nao existia sem foto, a
-temperatura na tela inicial do app podia ter ate 2 horas de idade, e a
-tela nao tinha como mostrar outra coisa: nao havia leitura mais nova
-para buscar. Medir o ambiente de hora em hora e caro por causa da FOTO
-(acionar o LED, comprimir 1,2 MB, subir para o Storage, rodar a
-inferencia), nao por causa do sensor: ler o DHT22 leva 2 segundos e o
-registro ocupa uns 100 bytes.
-
-O QUE MUDA
-
-1. `registro_imagem_id` passa a aceitar NULL. O UNIQUE continua, e
-   continua valendo para quem tem foto: no Postgres, UNIQUE permite
-   varios NULL, entao leituras sem foto nao colidem entre si.
-
-2. Entra `device_id` na propria leitura. Antes o dispositivo era
-   descoberto por JOIN com registros_imagem, e sem foto nao existe
-   JOIN: a leitura ficaria orfa, invisivel para o escopo por dono de
-   GET /leituras e para o filtro por campo do app.
-
-   A coluna nasce nullable, e preenchida a partir de registros_imagem
-   para todas as linhas existentes, e so depois vira NOT NULL. Criar
-   NOT NULL direto falharia com a tabela populada, e um server_default
-   mentiria sobre a origem das leituras antigas.
-
-3. Entra `idempotency_key`, nullable e unica, pelo mesmo motivo que ela
-   existe em registros_imagem: um reenvio depois de falha parcial (a API
-   confirma, o processo do Pi cai antes de marcar como enviado) criaria
-   uma linha duplicada, que contaria duas vezes no grafico e geraria o
-   mesmo alerta ambiental duas vezes.
-
-   Nullable porque as leituras que ja existem nasceram junto da foto e a
-   chave delas esta em registros_imagem. Unica porque e exatamente a
-   garantia que se quer, e no Postgres o UNIQUE aceita varios NULL.
-
-4. Indice em (device_id, criado_em), que e exatamente como GET /leituras
-   consulta: filtra por dispositivo e ordena por data.
-
-REVERSAO
-
-O downgrade recusa rodar se houver leitura sem foto, em vez de apagar
-dado medido em campo para caber no schema antigo. Quem precisar reverter
-decide o que fazer com essas linhas antes.
+O downgrade recusa executar se houver leituras sem foto, em vez de
+apagá-las.
 
 Revision ID: 0008
 Revises: 0007
@@ -80,8 +41,7 @@ def upgrade() -> None:
         sa.Column("device_id", sa.String(), nullable=True),
     )
 
-    # Backfill: toda leitura que existe hoje veio de uma captura, entao
-    # o dispositivo dela e o da foto.
+    # Preenchimento: toda leitura existente veio de uma captura.
     op.execute(
         """
         UPDATE leituras_ambientais AS l
@@ -91,9 +51,8 @@ def upgrade() -> None:
         """
     )
 
-    # Se sobrou alguma linha sem device_id, o NOT NULL abaixo falha e a
-    # migration aborta inteira, que e o comportamento desejado: melhor
-    # nao migrar do que gravar leitura sem dono, que ninguem veria.
+    # Se restar linha sem device_id, o NOT NULL abaixo falha e a migração
+    # é abortada.
     op.alter_column(
         "leituras_ambientais",
         "device_id",

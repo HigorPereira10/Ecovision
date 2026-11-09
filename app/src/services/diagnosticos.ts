@@ -1,32 +1,12 @@
 /**
- * app/src/services/diagnosticos.ts
+ * Diagnósticos da IA, a partir de GET /diagnosticos.
  *
- * Camada de dados para os diagnósticos da IA. Consome GET /diagnosticos
- * da API real (ver cloud/app/api/routes/historico.py).
- *
- * Até 2026-10-11 este módulo lia de src/mocks/diagnosticos.json e
- * src/mocks/imagens.json. Os dois mocks foram apagados junto com esta
- * troca: enquanto existiam, o Dashboard e a tela de Diagnóstico
- * mostravam temperatura real de um lado e folha inventada do outro, o
- * que é pior do que mostrar uma tela vazia.
- *
- * DUAS CHAMADAS VIRARAM UMA: antes a tela buscava o diagnóstico e, para
- * cada um, a imagem correspondente (getImagemDoRegistro). A API já
- * devolve `url_imagem` dentro do próprio item, então a segunda chamada
- * deixou de existir. O endpoint gera uma signed URL por imagem (bucket
- * privado, ver infra/supabase/storage_policies.md), com validade curta:
- * ela serve para exibir agora, não para guardar.
- *
- * A URL pode vir nula quando a geração falha no Supabase. A lista NÃO
- * pode quebrar por causa disso, então nulo é propagado e cada tela
- * mostra seu próprio placeholder visual.
- *
- * TRADUÇÃO DE NOMES, igual a services/leituras.ts: a API usa os nomes do
- * banco (classe_prevista, criado_em, device_id) e as telas usam os
- * nomes antigos (classificacao, timestamp, dispositivo_id). A conversão
- * fica aqui, num lugar só. `classificacao` já sai traduzido para texto
- * legível por src/domain/doencas.ts, e `classe` guarda o nome técnico
- * para quem precisar comparar sem depender do rótulo.
+ * Cada item já traz a URL assinada da imagem, de validade curta, que pode
+ * vir nula se a geração falhar; nesse caso a tela mostra um marcador.
+ * Os nomes da API (classe_prevista, criado_em, device_id) são convertidos
+ * para os usados pelas telas (classificacao, timestamp, dispositivo_id);
+ * `classificacao` já vem traduzida por src/domain/doencas.ts, e `classe`
+ * mantém o nome técnico.
  */
 
 import { get } from './api';
@@ -43,13 +23,8 @@ import {
  * a API devolve até 1000 itens, muito mais do que cabe numa tela. */
 const JANELA_PADRAO_HORAS = 168;
 
-/** Quantos itens a tela de Diagnóstico pede.
- *
- * Não é só economia de banda: a API gera uma signed URL por imagem, e
- * cada uma é uma chamada de rede ao Supabase. Com captura a cada 2h, a
- * janela de 7 dias dá cerca de 84 imagens, logo 84 idas ao Supabase
- * para montar uma tela que mostra o diagnóstico atual e uma fileira de
- * miniaturas. Doze cobre a fileira com folga. */
+/** Quantidade de itens pedida pela tela de Diagnóstico: cada item exige uma
+ * URL assinada, e a tela mostra o diagnóstico atual e algumas miniaturas. */
 const ITENS_TELA_DIAGNOSTICO = 12;
 
 /** Formato devolvido pela API (GET /diagnosticos). */
@@ -76,10 +51,9 @@ export interface Diagnostico {
   /** Signed URL pronta para exibir, ou null se não houver imagem. */
   urlImagem: string | null;
   saudavel: boolean;
-  /** true quando a API não afirmou diagnóstico: foto reprovada na
-   * guarda de qualidade, ou servidor sem modelo. Nesse caso
-   * `recomendacao` traz o motivo em linguagem de produtor, e a tela
-   * mostra a foto SEM dizer nada sobre a planta. */
+  /** true quando a API não afirmou diagnóstico (foto reprovada na
+   * verificação de qualidade ou servidor sem modelo); `recomendacao` traz
+   * o motivo e a tela não diz nada sobre a planta. */
   semDiagnostico: boolean;
   /** Alteração visível na folha sem doença identificada. Não é saudável
    * nem doença: é o terceiro estado, e as telas pintam de âmbar. */
@@ -107,12 +81,9 @@ function traduzir(bruto: DiagnosticoDaApi): Diagnostico {
 }
 
 /**
- * Diagnósticos da janela informada, do mais recente para o mais antigo.
- *
- * A API já devolve nessa ordem, mas a ordenação é repetida aqui de
- * propósito: as telas assumem que o item [0] é o diagnóstico atual, e
- * esse contrato não pode depender da cláusula ORDER BY de outro
- * repositório.
+ * Diagnósticos da janela informada, do mais recente ao mais antigo. A
+ * ordenação é garantida aqui, pois as telas tratam o item [0] como o
+ * diagnóstico atual.
  */
 export async function getDiagnosticos(
   horas: number = JANELA_PADRAO_HORAS,

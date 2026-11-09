@@ -1,13 +1,6 @@
 """
-cloud/tests/test_cors.py
-
-O que este arquivo verifica, em português simples:
-
-Sem CORS configurado, o navegador bloquearia a versão web do app/
-(Expo web) de chamar esta API, porque ela roda em outra origem
-(localhost com outra porta em dev, outro domínio em produção). Este
-teste confere que o cabeçalho Access-Control-Allow-Origin vem
-preenchido numa resposta normal.
+Teste de CORS: o cabeçalho Access-Control-Allow-Origin é enviado, para que
+a versão web do aplicativo, em outra origem, consiga chamar a API.
 """
 
 from fastapi.testclient import TestClient

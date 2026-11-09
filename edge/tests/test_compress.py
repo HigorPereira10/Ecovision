@@ -1,19 +1,6 @@
 """
-edge/tests/test_compress.py
-
-O que este arquivo verifica, em português simples:
-
-Que a função que comprime as fotos antes de mandar para a internet
-(edge/src/compress.py) realmente entrega um arquivo JPEG válido. Ou
-seja, depois de comprimida, a imagem não fica corrompida e ainda pode
-ser aberta normalmente por qualquer programa. Também confere que pedir
-mais "qualidade" gera um arquivo maior, como esperado de qualquer
-compressor JPEG: um sinal de que o parâmetro está de fato sendo usado
-(e não ignorado silenciosamente).
-
-Não testa a câmera em si (Picamera2), só a etapa de compressão que vem
-depois da foto já capturada, a parte que roda em qualquer computador,
-sem precisar do Raspberry Pi.
+Testes de edge/src/compress.py: a recompressão gera um JPEG válido e a
+qualidade configurada afeta o tamanho do arquivo.
 """
 
 import io
@@ -24,10 +11,8 @@ from edge.src.compress import comprimir_imagem
 
 
 def _imagem_de_teste_com_textura() -> bytes:
-    """Gera uma imagem com um padrão de cores variado (não uma cor
-    lisa), para se parecer mais com uma foto real de folha do que um
-    retângulo de cor sólida. Uma imagem de cor sólida "engana" o
-    compressor JPEG e não mostra a compressão de verdade."""
+    """Gera uma imagem com padrão de cores variado, mais próxima de uma
+    foto real do que uma cor sólida, que o JPEG comprime trivialmente."""
     imagem = Image.new("RGB", (800, 600))
     pixels = imagem.load()
     for x in range(800):

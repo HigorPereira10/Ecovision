@@ -1,16 +1,12 @@
 #!/bin/bash
 #
-# edge/scripts/install.sh
+# Instalação do software do dispositivo no Raspberry Pi 3 Model B+
+# (Raspberry Pi OS Lite, 64 bits). Executar a partir da raiz do
+# repositório já clonado:
 #
-# Script de setup do ambiente no Raspberry Pi 3 Model B+ (Anatel), Raspberry
-# Pi OS Lite 64-bit. Ver docs/decisions/0004-raspberry-pi-3b-plus.md pela
-# troca de hardware (era Pi Zero 2 W). Necessário 64-bit para Picamera2/libcamera,
-# conforme Tech Stack Blueprint v3.0, Fase 2.
-#
-# Uso: rodar a partir da raiz do repositório, já clonado no Pi:
 #   bash edge/scripts/install.sh
 #
-# Idempotente: pode ser reexecutado sem duplicar configuração.
+# Pode ser executado mais de uma vez sem duplicar a configuração.
 
 set -euo pipefail
 
@@ -25,23 +21,17 @@ echo "==> 2/7: Instalando libjpeg-turbo (Pillow ~5x mais lento sem ela)"
 sudo apt install -y libjpeg-turbo-progs libturbojpeg0-dev
 
 echo "==> 3/7: Instalando dependências de sistema do Picamera2/libcamera"
+# libgpiod3: exigido pela leitura do DHT22 (Adafruit Blinka) a partir do Debian trixie.
 sudo apt install -y python3-picamera2 python3-libcamera libcamera-apps \
   python3-venv python3-pip i2c-tools libgpiod3
-# libgpiod3: exigido pelo Blinka/adafruit-circuitpython-dht (leitura do DHT22)
-# em Raspberry Pi OS Bullseye+; ver edge/src/sensors/dht22.py. Nome do pacote
-# mudou de libgpiod2 pra libgpiod3 a partir do Debian trixie (bump de ABI da
-# libgpiod upstream).
 
 echo "==> 4/7: Criando/ativando virtualenv e instalando requirements.txt"
+# --system-site-packages: o Picamera2 e o libcamera vêm do apt (passo 3).
 python3 -m venv --system-site-packages "$VENV_DIR"
-# --system-site-packages: picamera2/libcamera vêm do apt (passo 3), não do pip.
 "$VENV_DIR/bin/pip" install --upgrade pip
 "$VENV_DIR/bin/pip" install -r "$REPO_ROOT/edge/requirements.txt"
 
 echo "==> 5/7: Verificando se o Pillow está de fato usando libjpeg-turbo"
-# O apt install do passo 2 só coloca a lib no sistema, não garante que o
-# Pillow instalado no passo 4 foi de fato linkado contra ela. Sem isso ativo,
-# a compressão (edge/src/compress.py) fica ~5x mais lenta, silenciosamente.
 "$VENV_DIR/bin/python" -c "
 from PIL import features
 if features.check_feature('libjpeg_turbo'):
@@ -51,9 +41,7 @@ else:
 "
 
 echo "==> 6/7: Instalando o crontab a partir de edge/crontab.example"
-# Os logs do cron (crontab.example) vão para dentro do repo, não /var/log/
-# (que normalmente exige root). Garantir que o diretório já existe antes
-# do cron tentar escrever neles pela primeira vez.
+# Os registros do cron ficam em edge/data/logs/, sem exigir permissão de root.
 mkdir -p "$REPO_ROOT/edge/data/logs"
 CRONTAB_TMP="$(mktemp)"
 sed \

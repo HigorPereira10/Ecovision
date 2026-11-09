@@ -1,18 +1,7 @@
 """
-edge/tests/test_led_flash.py
-
-O que este arquivo verifica, em português simples:
-
-Que o acionamento do Ring LED via MOSFET (edge/src/actuators/led_flash.py)
-manda os comandos certos para o pino GPIO: nível alto para ligar, nível
-baixo para desligar, que o pino só é configurado uma vez mesmo sendo
-usado várias vezes, e que o LED sempre acaba desligado no final mesmo
-se algo der errado enquanto ele estava aceso (ex.: a captura da foto,
-que em main.py acontece "abraçada" pelo LED aceso, falhar no meio).
-
-O RPi.GPIO só existe de verdade em hardware Raspberry Pi; edge/tests/conftest.py
-substitui esse módulo por um dublê antes de qualquer teste rodar, então
-este arquivo roda em qualquer computador.
+Testes de edge/src/actuators/led_flash.py: níveis enviados ao GPIO,
+configuração única do pino e LED sempre desligado ao final, mesmo em caso
+de erro durante a captura.
 """
 
 import pytest

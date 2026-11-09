@@ -20,13 +20,8 @@ import { useCarregamentoAssincrono } from '../hooks/useCarregamentoAssincrono';
 import { colors } from '../theme/colors';
 
 /**
- * Esta tela foi a última a sair do mock, em 2026-10-11. O card de
- * situação sanitária contava folhas de src/mocks/diagnosticos.json,
- * sempre as mesmas 6, enquanto os cards de temperatura e umidade logo
- * abaixo já mostravam o sensor de verdade. Metade real e metade
- * inventada é pior do que vazia: na banca, um diagnóstico de uma folha
- * que nunca existiu ao lado de 29,5 °C medidos na estufa é exatamente o
- * tipo de coisa que destrói a credibilidade do resto.
+ * Tela inicial: situação sanitária dos diagnósticos recentes, leituras
+ * atuais dos sensores e séries ambientais.
  */
 
 interface DiagnosticoResumo {
@@ -51,27 +46,11 @@ async function buscarDadosDashboard(): Promise<DadosDashboard> {
     getDiagnosticosRecentes(),
   ]);
 
-  // Quem decide o que conta como sadio é src/domain/doencas.ts, e o
-  // serviço já entrega o campo resolvido. O Dashboard não repete essa
-  // regra: ela é a mesma que pinta a cor na tela de Diagnóstico e no
-  // card do Histórico, e três cópias dela divergiriam.
-  //
-  // A contagem é sobre os diagnósticos RECENTES, não sobre o histórico
-  // inteiro, e isso é proposital: o card responde "como está a estufa
-  // agora", e uma doença resolvida há seis dias continuaria pesando no
-  // número se a janela fosse maior.
-  // Diagnóstico ausente NÃO entra em nenhuma das duas contagens. O
-  // contrário de "saudável" não é "doente" neste sistema: foto
-  // reprovada na guarda de qualidade não diz nada sobre a planta, e
-  // contá-la como doença encheria o card de alarme falso toda vez que
-  // o LED falhasse.
-  //
-  // Sao TRES estados de planta, nao dois. Ate 2026-11-03 esta contagem
-  // era `saudaveis` contra `!saudavel`, e no dia em que a classe
-  // estresse_foliar entrou em producao o card passou a exibir "Com
-  // doenca (10)" para uma planta que a tela de Diagnostico descreve,
-  // duas telas adiante, como alteracao que NAO corresponde a doenca
-  // nenhuma do catalogo. Estresse pede atencao, nao pulverizacao.
+  // A classificação de cada diagnóstico vem resolvida por
+  // src/domain/doencas.ts, a mesma regra usada nas outras telas. A
+  // contagem considera só os diagnósticos recentes e separa três estados
+  // (saudável, com estresse e com doença); diagnósticos ausentes, de fotos
+  // reprovadas na verificação de qualidade, não entram em nenhum deles.
   const analisados = diagnosticos.filter((d) => !d.semDiagnostico);
   const situacao: DiagnosticoResumo = {
     saudaveis: analisados.filter((d) => d.saudavel).length,
@@ -97,9 +76,8 @@ export default function DashboardScreen() {
     return <EstadoErro mensagem={erro} aoTentarNovamente={recarregar} />;
   }
 
-  // Dispositivo existe mas ainda não enviou nenhuma leitura nem gerou
-  // nenhum diagnóstico — cenário plausível logo após o cadastro do
-  // sensor, antes do IoT começar a reportar dados.
+  // Dispositivo sem nenhuma leitura nem diagnóstico ainda, como logo após
+  // o vínculo.
   const semNenhumDado =
     dados && !dados.leitura && dados.historico.length === 0 &&
     dados.situacao.saudaveis === 0 && dados.situacao.comEstresse === 0 &&

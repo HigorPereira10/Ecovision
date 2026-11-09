@@ -1,19 +1,12 @@
 """
-cloud/tests/test_pressao_infecciosa.py
+Testes de app/core/pressao_infecciosa.py:
 
-O que este arquivo verifica, em português simples:
-
-1. Que a tabela de severidade do FAST foi transcrita certo, célula por
-   célula, incluindo as bordas (a hora exata em que o DSV sobe) e as
-   faixas de temperatura em que a tabela não vale.
-2. Que o histórico é integrado pelo TEMPO entre as leituras, e que uma
-   lacuna longa (dispositivo desligado) não vira molhamento inventado.
-3. Que o sistema só afirma "o ambiente contradiz este diagnóstico"
-   quando mediu o suficiente para isso. Este é o teste que mais importa:
-   um aviso errado aqui mandaria o produtor NÃO pulverizar uma lavoura
-   de fato doente.
-4. Que o módulo nunca altera o diagnóstico do modelo de imagem, só
-   acrescenta contexto.
+1. transcrição da tabela de severidade do FAST, incluindo bordas e faixas
+   sem valor;
+2. integração do histórico pelo tempo entre leituras, sem contar lacunas
+   como molhamento;
+3. ressalva emitida apenas com medição suficiente;
+4. o diagnóstico do modelo nunca é alterado.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -93,9 +86,8 @@ def test_temperatura_ausente_nao_vira_dsv():
 
 
 def test_buracos_entre_as_faixas_publicadas_nao_devolvem_zero():
-    """A tabela publicada pula 17-18, 20-21 e 25-26 graus. Um buraco
-    devolveria DSV 0 para temperatura plenamente favorável, que é o erro
-    mais perigoso possível aqui."""
+    """As lacunas entre faixas da tabela publicada são fechadas, para que
+    uma temperatura favorável nunca resulte em DSV 0."""
     for temperatura in (17.5, 20.5, 25.5):
         assert dsv_do_dia(24, temperatura) > 0, f"{temperatura} graus caiu num buraco"
 
@@ -141,9 +133,8 @@ def test_leitura_sem_sensor_e_descartada():
 
 
 def test_temperatura_media_e_ponderada_so_pelas_horas_molhadas():
-    """A tabela do FAST pede a temperatura DURANTE o molhamento, não a
-    média do dia. Aqui o dia tem 2h molhadas a 23 graus e 8h secas a 35,
-    e a média que importa é 23."""
+    """A temperatura considerada é a média durante o molhamento (2 h a
+    23 °C), não a do dia inteiro."""
     leituras = [
         (AGORA - timedelta(hours=10), 35.0, 50.0),
         (AGORA - timedelta(hours=4), 35.0, 50.0),
@@ -165,9 +156,8 @@ def test_leitura_fora_da_janela_e_ignorada():
 
 
 def test_nao_avisa_quando_mediu_pouco_demais():
-    """ESTE É O TESTE QUE MAIS IMPORTA. Com o dispositivo desligado
-    quase a janela inteira, afirmar que não houve molhamento mandaria o
-    produtor deixar de pulverizar uma planta de fato doente."""
+    """Com o dispositivo desligado na maior parte da janela, a ausência de
+    molhamento não pode ser afirmada."""
     leituras = _serie(horas=3, umidade=50.0, temperatura=23.0)
     pressao = calcular_pressao(leituras, ate=AGORA, janela_dias=14)
     assert pressao.cobertura < COBERTURA_MINIMA_CONFIAVEL
@@ -188,9 +178,7 @@ def test_avisa_quando_mediu_bastante_e_nao_houve_molhamento():
 
 
 def test_umidade_perto_do_limiar_nao_gera_ressalva():
-    """A margem de UMIDADE_NUNCA_PROXIMA_PCT existe porque o proxy
-    subestima o molhamento e a folha condensa antes do ar chegar a 90%.
-    Com umidade raspando no limiar, calar é o certo."""
+    """Com a umidade próxima do limiar, nenhuma ressalva é emitida."""
     leituras = _serie(horas=24 * 10, umidade=UMIDADE_NUNCA_PROXIMA_PCT + 0.1,
                       temperatura=27.0, fim=AGORA)
     pressao = calcular_pressao(leituras, ate=AGORA, janela_dias=14)
@@ -209,10 +197,8 @@ def test_umidade_maxima_e_a_da_janela_nao_a_media():
 
 
 def test_a_ressalva_nunca_manda_deixar_de_pulverizar():
-    """A cadeia de inferência tem elos fracos declarados no módulo
-    (proxy de molhamento, sensor pontual, DSV de outra espécie,
-    irrigação por cima invisível). Com essa base, desaconselhar
-    tratamento pode custar a lavoura. O texto pede conferência."""
+    """O texto da ressalva pede conferência e nunca desaconselha o
+    tratamento."""
     leituras = _serie(horas=24 * 10, umidade=65.0, temperatura=27.0, fim=AGORA)
     pressao = calcular_pressao(leituras, ate=AGORA, janela_dias=14)
     _titulo, descricao = avaliar_plausibilidade("pinta_preta", pressao)
@@ -275,9 +261,7 @@ def test_avaliar_devolve_texto_e_nunca_uma_classe():
 
 
 def test_leitura_sem_fuso_e_tratada_como_utc():
-    """O Postgres devolve capturado_em COM fuso e o SQLite dos testes
-    devolve SEM. Misturar levantava TypeError, e como quem chama captura
-    excecao para nao derrubar a rota, a ressalva sumia sem sintoma."""
+    """Datas com e sem fuso (PostgreSQL e SQLite) são comparáveis."""
     ingenuas = [(m.replace(tzinfo=None), t, u) for m, t, u in
                 _serie(horas=10, umidade=95.0, temperatura=23.0)]
     pressao = calcular_pressao(ingenuas, ate=AGORA, janela_dias=1)

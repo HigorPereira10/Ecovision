@@ -1,29 +1,18 @@
 """
-cloud/scripts/seed_usuario_teste.py
+Cria ou atualiza a conta de produtor de teste (produtor@ecovision.app).
 
-Cria (ou atualiza a senha de) a conta de produtor usada para testar o
-login de verdade contra a API, com o MESMO e-mail que o mock do app/ já
-usa (app/src/services/auth.ts): produtor@ecovision.app. A senha vem da
-variável de ambiente `SENHA_PRODUTOR_TESTE`, nunca do código, porque
-este repositório vai se tornar público e senha em texto claro continua
-legível no histórico do git mesmo depois de removida do arquivo.
+A senha vem da variável de ambiente SENHA_PRODUTOR_TESTE.
 
-Decisão do grupo em 2026-09-11: por enquanto não existe
-endpoint de cadastro (POST /auth/registrar); a primeira conta é
-semeada manualmente assim, direto no banco configurado em DATABASE_URL.
-
-Como rodar (dentro de cloud/, com o venv ativado e as variáveis de
-ambiente reais carregadas, ou seja, contra o Supabase de verdade):
+Uso (em cloud/, com o ambiente configurado):
 
     SENHA_PRODUTOR_TESTE='...' python -m scripts.seed_usuario_teste
 
-No PowerShell, definindo a variável antes:
+No PowerShell:
 
     $env:SENHA_PRODUTOR_TESTE = '...'
     python -m scripts.seed_usuario_teste
 
-Idempotente: rodar de novo só atualiza o hash da senha se o usuário já
-existir, não cria duplicata (email é UNIQUE em app/db/models.py).
+Idempotente: se a conta existir, apenas atualiza o hash da senha.
 """
 
 import asyncio
@@ -39,19 +28,11 @@ from app.db.session import _SessionLocal
 
 logger = logging.getLogger("ecovision.cloud.seed")
 
-# ATENCAO: rodar este script SOBRESCREVE A SENHA da conta abaixo pela
-# que estiver em SENHA_PRODUTOR_TESTE. Desde 2026-10-10 esse email e a
-# conta real do grupo em producao, dona do pi-estufa-01. Rodar isto
-# contra o banco de producao troca a senha dela sem avisar ninguem.
-#
-# Use apenas contra banco LOCAL de desenvolvimento. Para criar conta em
-# producao, use o cadastro do proprio app (POST /auth/register), que
-# exige senha forte.
+# Atenção: o script sobrescreve a senha da conta abaixo. Use apenas em
+# banco de desenvolvimento; em produção, crie contas pelo aplicativo.
 
 NOME_TESTE = "Produtor EcoVision"
-# Conta de produtor do grupo, dona do Pi real. E-mail neutro do
-# projeto em vez do nome de alguem: ele aparece na tela de Perfil, e
-# essa tela vai para a apresentacao.
+# E-mail neutro do projeto, exibido na tela de Perfil.
 EMAIL_TESTE = "produtor@ecovision.app"
 PAPEL_TESTE = "produtor"
 
@@ -59,8 +40,7 @@ VARIAVEL_SENHA = "SENHA_PRODUTOR_TESTE"
 
 
 def _senha_do_ambiente() -> str:
-    """Le a senha do ambiente e recusa rodar sem ela, em vez de cair num
-    valor padrao embutido no codigo."""
+    """Lê a senha do ambiente e recusa executar sem ela."""
     senha = os.environ.get(VARIAVEL_SENHA, "")
     if not senha:
         sys.exit(

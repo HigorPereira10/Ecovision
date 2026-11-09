@@ -1,15 +1,11 @@
 """
-cloud/tests/test_dispositivos.py
+Testes de GET /dispositivos:
 
-O que este arquivo verifica, em português simples:
-
-GET /dispositivos, a lista de dispositivos IoT da tela de Perfil:
-1. Sem login, recusa com 401.
-2. Sem nenhum dispositivo cadastrado, devolve lista vazia (não quebra).
-3. Um dispositivo que nunca mandou captura aparece como "inativo".
-4. Um dispositivo com captura recente aparece como "ativo".
-5. Um dispositivo com captura muito atrasada aparece como "inativo"
-   (mesmos limiares do item sintético de alerta, ver ADR 0008).
+1. sem login: 401;
+2. sem dispositivos: lista vazia;
+3. dispositivo que nunca enviou captura: "inativo";
+4. captura recente: "ativo";
+5. captura muito atrasada: "inativo".
 """
 
 from datetime import datetime, timedelta, timezone
@@ -43,9 +39,8 @@ async def test_dispositivos_sem_token_retorna_401():
 
 
 async def test_sem_dispositivo_cadastrado_devolve_lista_vazia(usuario_produtor: Usuario):
-    # Usa usuario_produtor em vez de token_produtor de proposito: a
-    # fixture token_produtor ja vincula um dispositivo ao produtor, e
-    # aqui o cenario e justamente o de quem ainda nao tem nenhum.
+    # usuario_produtor em vez de token_produtor: o cenário é de um usuário
+    # ainda sem dispositivo.
     token = criar_access_token(usuario_produtor.id, usuario_produtor.papel)
 
     with TestClient(app) as client:
@@ -92,14 +87,8 @@ async def test_dispositivo_com_captura_atrasada_aparece_inativo(token_produtor: 
 
 
 async def test_dispositivo_devolve_metadados_e_limiares_reais(token_produtor: str):
-    """Regressão: o schema não tinha esses campos e a rota os enviava,
-    então o Pydantic os descartava em silêncio. A tela de Perfil
-    receberia um objeto sem o que o card desenha.
-
-    Os limiares não são enfeite: precisam ser os mesmos valores que
-    app/core/alertas_ambientais.py usa para decidir se gera alerta.
-    Exibir um número que não controla nada seria pior do que não exibir.
-    """
+    """A resposta inclui os metadados e os limiares exibidos na tela de
+    Perfil, com os mesmos valores usados pela lógica de alertas."""
     from app.core.alertas_ambientais import (
         TEMPERATURA_MAX_C,
         UMIDADE_AR_MAX_PCT,

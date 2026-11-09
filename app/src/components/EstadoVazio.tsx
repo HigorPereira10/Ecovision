@@ -1,13 +1,8 @@
 /**
- * app/src/components/EstadoVazio.tsx
- *
- * Estado vazio padronizado, usado sempre que uma lista/seção não tem
- * dados pra mostrar (ex: "nenhum alerta ainda", "nenhum gasto neste
- * mês"). Duas variantes:
- * - "tela" (padrão): ocupa a tela toda, centralizado — quando é o
- *   único conteúdo da tela (ex: Diagnóstico sem nenhum registro).
- * - "secao": versão compacta, pra usar dentro de uma ScrollView junto
- *   com outros blocos (ex: Histórico, onde só uma sub-lista está vazia).
+ * Estado vazio padronizado para listas e seções sem dados. Variantes:
+ * - "tela" (padrão): ocupa a tela toda, centralizado, quando é o único
+ *   conteúdo (por exemplo, Diagnóstico sem registros);
+ * - "secao": versão compacta, dentro de uma ScrollView com outros blocos.
  */
 
 import React from 'react';

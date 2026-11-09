@@ -1,16 +1,8 @@
 /**
- * app/src/services/dispositivos.ts
+ * Dispositivos do usuário: GET /dispositivos e POST /dispositivos/vincular.
  *
- * Camada de serviço para os dispositivos IoT da propriedade
- * (Blueprint v3.0, entidade `dispositivos`).
- *
- * Consome a API real: GET /dispositivos e POST /dispositivos/vincular.
- *
- * A tradução entre o formato da API e a interface que as telas
- * consomem acontece AQUI, e não nas telas, pelo mesmo motivo de
- * leituras.ts: assim o DispositivoCard e a PerfilScreen continuam
- * exatamente como estão. Os dois nomes que divergem são
- * `device_id` -> `identificador` e `criado_em` -> `data_instalacao`.
+ * Converte `device_id` em `identificador` e `criado_em` em
+ * `data_instalacao`, os nomes usados pelas telas.
  */
 
 import { get, post } from './api';
@@ -64,12 +56,8 @@ function converter(bruto: DispositivoDaApi): Dispositivo {
     setor: bruto.setor?.trim() || NAO_INFORMADO,
     status: bruto.status,
     data_instalacao: bruto.criado_em,
-    // Nulo é PRESERVADO, não convertido para 0. A intenção de usar 0
-    // era boa (não inventar "120 min" como se fosse real), mas a tela
-    // acabava exibindo "Intervalo de captura: 0 min", que não é
-    // ausência de informação, é uma informação errada: lê-se como
-    // "captura a cada zero minutos". Quem decide como mostrar a
-    // ausência é o card, igual a campo e setor.
+    // Nulo é mantido: exibir "0 min" seria uma informação errada; o card
+    // decide como mostrar a ausência.
     intervalo_captura_min: bruto.intervalo_captura_min,
     limiar_temperatura: bruto.limiar_temperatura,
     limiar_umidade_ar: bruto.limiar_umidade_ar,
@@ -85,17 +73,12 @@ export async function getDispositivos(): Promise<Dispositivo[]> {
 }
 
 /**
- * Vincula um aparelho à conta logada, pelo código de pareamento que vem
- * na etiqueta dele (formato ECO-XXXX-XXXX).
+ * Vincula um aparelho à conta pelo código de pareamento da etiqueta
+ * (ECO-XXXX-XXXX). O código deixa de valer após o vínculo.
  *
- * É este passo que faz o cadastro aberto ser seguro: qualquer pessoa
- * cria conta, mas só enxerga dados depois de provar a posse física de
- * um equipamento. O código deixa de funcionar assim que o aparelho é
- * vinculado, então ninguém toma o dispositivo de outro.
- *
- * Erros que a API devolve e que valem tratar na tela:
- * - 404: código não existe (provavelmente digitação errada)
- * - 409: aparelho já pertence a outra conta
+ * Erros tratados pela tela:
+ * - 404: código inexistente;
+ * - 409: aparelho já vinculado a outra conta.
  */
 export async function vincularDispositivo(codigo: string): Promise<Dispositivo> {
   const bruto = await post<DispositivoDaApi>('/dispositivos/vincular', {

@@ -1,34 +1,14 @@
 /**
- * app/src/domain/doencas.ts
+ * Vocabulário de condições fitossanitárias: traduz o nome técnico devolvido
+ * pela API ('pinta_preta') para o texto exibido ('Pinta preta (Alternaria
+ * solani)').
  *
- * Vocabulário de condições fitossanitárias: traduz o nome técnico que a
- * API devolve ('pinta_preta') para o texto que o produtor lê na tela
- * ('Pinta preta (Alternaria solani)').
- *
- * POR QUE ISSO MORA NO APP, E NÃO NA API: a API devolve dado, a
- * interface decide como escrevê-lo. O backend grava
- * `diagnosticos.classe_prevista` com o nome da classe do modelo (ver
- * cloud/app/core/inference.py), que é estável e serve para consulta e
- * estatística. Rótulo bonito é assunto de tela. Sem esta tradução, a
- * tela de Diagnóstico mostrava literalmente "pinta_preta" ao produtor.
- *
- * ESCOPO ATUAL DO MODELO: a IA em produção reconhece TRÊS condições,
- * listadas em CLASSES_ATIVAS. O modelo nasceu com um recorte pequeno de
- * propósito (ver ml/README.md e ADR 0011): três classes com dados
- * suficientes e validadas por agrônomo valem mais, na banca e na
- * estufa, do que dez classes em que sete chutam. As outras sete ficam
- * aqui com `ativa: false` porque o catálogo agronômico do backend já as
- * cobre e elas voltam a valer quando houver dado para treiná-las. Para
- * reativar uma: trocar `ativa: false` por `ativa: true` AQUI e incluir
- * a classe em _CLASSES_DO_MODELO no backend, na ordem exata da saída do
- * modelo retreinado. As duas pontas têm que concordar, senão cada
- * predição sai com o rótulo de outra doença e nada falha de forma
- * visível.
- *
- * Os nomes científicos aparecem apenas nas classes ativas. Nas
- * inativas ficou só o nome comum de propósito: nenhuma delas chega ao
- * produtor hoje, e escrever um binômio que ninguém conferiu seria
- * criar informação para a banca cobrar depois.
+ * As classes com `ativa: true` são as reconhecidas pelo modelo em produção;
+ * as demais acompanham o catálogo agronômico do servidor e podem ser
+ * reativadas se o modelo for treinado com elas. Para reativar uma classe,
+ * marque `ativa: true` aqui e inclua-a em _CLASSES_DO_MODELO no servidor,
+ * na ordem exata das saídas do modelo; as duas pontas precisam coincidir.
+ * Os nomes científicos aparecem apenas nas classes ativas.
  */
 
 /** Nome técnico da classe, exatamente como a API devolve. */
@@ -41,38 +21,25 @@ interface CondicaoFitossanitaria {
   ativa: boolean;
   /** true apenas para a ausência de doença, que a tela pinta de verde. */
   saudavel?: boolean;
-  /** true quando NÃO houve diagnóstico. Não é saudável nem doente: é
-   * ausência de resposta, e a tela trata em cinza. */
+  /** true quando não houve diagnóstico: ausência de resposta, exibida em
+   * cinza. */
   semDiagnostico?: boolean;
-  /** true para alteração visível na folha que NÃO é doença conhecida.
-   *
-   * Existe porque o sistema passou a ter quatro estados, não dois. Até
-   * 2026-11-03 o Dashboard contava como "com doença" tudo que não fosse
-   * saudável, e passou a exibir "Com doença (10)" para uma planta que o
-   * próprio app descreve, duas telas adiante, como "alteração na folha
-   * que não corresponde às doenças que o sistema reconhece".
-   *
-   * A tela trata em âmbar: pede atenção, não tratamento. */
+  /** true para alteração visível na folha que não é doença conhecida,
+   * exibida em âmbar (pede atenção, não tratamento). */
   estresse?: boolean;
 }
 
-/** Classe devolvida pela API quando a foto foi reprovada na guarda de
- * qualidade (cloud/app/core/inference.py), por estar escura demais ou
- * sem detalhe. */
+/** Classe devolvida pela API quando a foto foi reprovada na verificação de
+ * qualidade, por estar escura demais ou sem detalhe. */
 export const CLASSE_IMAGEM_INADEQUADA = 'imagem_inadequada';
 
 /** Classe devolvida quando nenhum modelo está carregado no servidor. */
 export const CLASSE_INDISPONIVEL = 'indisponivel';
 
 const CATALOGO: Record<string, CondicaoFitossanitaria> = {
-  // --- ausência de diagnóstico, não é resultado ---
-  //
-  // O modelo tem três saídas e nenhuma delas é "isto não é uma folha":
-  // ele distribui qualquer entrada entre as três, e no escuro escolhe
-  // "saudável" com confiança altíssima. O servidor passou a recusar
-  // classificar foto escura ou sem detalhe, e devolve esta classe no
-  // lugar. A foto continua guardada e visível, para o produtor ver com
-  // os próprios olhos o que aconteceu.
+  // --- ausência de diagnóstico ---
+  // O servidor não classifica fotos escuras ou sem detalhe; a foto
+  // continua disponível para o produtor conferir.
   [CLASSE_IMAGEM_INADEQUADA]: {
     rotulo: 'Sem análise',
     ativa: true,
@@ -89,19 +56,9 @@ const CATALOGO: Record<string, CondicaoFitossanitaria> = {
   septoriose: { rotulo: 'Septoriose (Septoria lycopersici)', ativa: true },
   pinta_preta: { rotulo: 'Pinta preta (Alternaria solani)', ativa: true },
 
-  // Classe do domínio próprio, rotulada nas capturas desta estufa
-  // (ADR 0018). Entrou em produção em 2026-11-02.
-  //
-  // O nome é DESCRITIVO de propósito: afirmar "deficiência de potássio"
-  // a partir de uma foto exige saber a adubação, e o sistema não sabe.
-  // "Distúrbio fisiológico" é o termo da Embrapa para o quadro, e está
-  // no texto da recomendação.
-  //
-  // Sem esta entrada o app ainda funcionava, porque rotuloDeEmergencia
-  // transforma 'estresse_foliar' em 'Estresse foliar'. Mas
-  // CLASSES_ATIVAS sai do catálogo, então resumoDoEscopoDoModelo()
-  // dizia ao produtor que a análise reconhece 3 condições enquanto a
-  // tela mostrava a quarta logo acima.
+  // Classe rotulada nas capturas do próprio dispositivo. O nome é
+  // descritivo: não afirma a causa da alteração. "Distúrbio fisiológico",
+  // termo da Embrapa para o quadro, aparece no texto da recomendação.
   estresse_foliar: { rotulo: 'Estresse foliar', ativa: true, estresse: true },
 
   // --- no catálogo agronômico, aguardando dado de treino ---
@@ -114,30 +71,21 @@ const CATALOGO: Record<string, CondicaoFitossanitaria> = {
   mosaico: { rotulo: 'Mosaico', ativa: false },
 };
 
-/** As condições que o modelo em produção realmente reconhece, na ordem
- * em que fazem sentido para leitura (saudável primeiro). Usada no aviso
- * da tela de Diagnóstico, para o produtor saber o que o aparelho sabe
- * ver e, principalmente, o que ele NÃO sabe ver. */
+/** Condições reconhecidas pelo modelo em produção, em ordem de leitura
+ * (saudável primeiro), exibidas no aviso de escopo da tela de Diagnóstico. */
 export const CLASSES_ATIVAS: string[] = Object.entries(CATALOGO)
   .filter(([, condicao]) => condicao.ativa && condicao.semDiagnostico !== true)
   .map(([classe]) => classe);
 
-/** True quando a API não afirmou diagnóstico nenhum: foto reprovada na
- * guarda de qualidade, ou servidor sem modelo.
- *
- * As telas precisam disso porque o contrário de "saudável" NÃO é
- * "doente" neste sistema: existe um terceiro estado, que é "não dá para
- * dizer". Tratar ausência de resposta como doença encheria o painel de
- * alarme falso; tratar como saudável seria a mentira perigosa que a
- * guarda existe justamente para impedir. */
+/** True quando a API não afirmou diagnóstico: foto reprovada na
+ * verificação de qualidade ou servidor sem modelo. Esse estado não conta
+ * como saudável nem como doença. */
 export function semDiagnostico(classe: ClasseDiagnostico): boolean {
   return CATALOGO[classe]?.semDiagnostico === true;
 }
 
-/** Converte 'nome_tecnico' em 'Nome tecnico' para uma classe que não
- * está no catálogo. Acontece se o modelo for retreinado e esta tabela
- * não acompanhar: melhor mostrar um rótulo imperfeito do que uma tela
- * vazia ou um erro. */
+/** Converte 'nome_tecnico' em 'Nome tecnico' para uma classe fora do
+ * catálogo, em vez de exibir tela vazia ou erro. */
 function rotuloDeEmergencia(classe: string): string {
   const texto = classe.replace(/_/g, ' ').trim();
   if (texto.length === 0) return 'Classe desconhecida';
@@ -149,13 +97,8 @@ export function rotuloDaClasse(classe: ClasseDiagnostico): string {
   return CATALOGO[classe]?.rotulo ?? rotuloDeEmergencia(classe);
 }
 
-/** True quando o diagnóstico é de planta sadia.
- *
- * Decide a cor (verde contra vermelho) e a contagem do card de situação
- * sanitária do Dashboard. Tem fallback por texto porque uma classe nova
- * de planta sadia poderia chegar antes desta tabela ser atualizada, e
- * nesse caso errar para "doente" pintaria de vermelho uma estufa
- * saudável. */
+/** True quando o diagnóstico é de planta sadia. Tem recurso por texto para
+ * que uma classe nova de planta sadia não seja contada como doença. */
 export function ehSaudavel(classe: ClasseDiagnostico): boolean {
   const condicao = CATALOGO[classe];
   if (condicao !== undefined) return condicao.saudavel === true;
@@ -169,13 +112,9 @@ export function ehSaudavel(classe: ClasseDiagnostico): boolean {
     .includes('saudavel');
 }
 
-/** True quando há alteração na folha sem doença identificada.
- *
- * Decide a cor âmbar e a contagem separada nas telas. O fallback por
- * texto segue o mesmo princípio de ehSaudavel: uma classe nova de
- * estresse poderia chegar antes desta tabela ser atualizada, e nesse
- * caso contá-la como doença mandaria o produtor pulverizar uma planta
- * que não tem doença nenhuma. */
+/** True quando há alteração na folha sem doença identificada. Tem recurso
+ * por texto para que uma classe nova de estresse não seja contada como
+ * doença. */
 export function ehEstresse(classe: ClasseDiagnostico): boolean {
   const condicao = CATALOGO[classe];
   if (condicao !== undefined) return condicao.estresse === true;
@@ -183,19 +122,14 @@ export function ehEstresse(classe: ClasseDiagnostico): boolean {
   return classe.toLowerCase().includes('estresse');
 }
 
-/** True quando o diagnóstico é de doença identificada.
- *
- * Definida por exclusão de propósito: qualquer classe nova que não seja
- * sadia, estresse, nem ausência de diagnóstico, é doença. Errar para
- * "doença" aqui é o lado seguro: avisa demais em vez de calar sobre uma
- * doença real. */
+/** True quando o diagnóstico é de doença identificada, definida por
+ * exclusão: na dúvida, o sistema avisa em vez de calar. */
 export function ehDoenca(classe: ClasseDiagnostico): boolean {
   return !ehSaudavel(classe) && !ehEstresse(classe) && !semDiagnostico(classe);
 }
 
-/** Frase pronta com o que a IA reconhece hoje, para a tela de
- * Diagnóstico. Deixa explícito o limite do modelo em vez de dar a
- * impressão de que ele identifica qualquer doença de tomate. */
+/** Frase com as condições que a IA reconhece, para a tela de Diagnóstico
+ * deixar claro o limite do modelo. */
 export function resumoDoEscopoDoModelo(): string {
   const rotulos = CLASSES_ATIVAS.map((classe) => rotuloDaClasse(classe).split(' (')[0]);
   return `A análise reconhece ${rotulos.length} condições: ${rotulos.join(', ')}.`;

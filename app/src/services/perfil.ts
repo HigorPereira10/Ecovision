@@ -1,6 +1,4 @@
 /**
- * app/src/services/perfil.ts
- *
  * Camada de serviço para os dados de perfil do produtor logado.
  * Separado de auth.ts propositalmente: auth.ts cuida só de
  * token/sessão, este arquivo cuida dos dados de exibição do usuário,

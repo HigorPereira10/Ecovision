@@ -1,0 +1,19 @@
+{
+  "enquadramento_teste": "posF.jpg",
+  "janelas_teste": 18,
+  "janelas_uteis_total": 135,
+  "acuracia": 0.9444,
+  "baseline_trivial": 0.5556,
+  "janelas_sadias": 8,
+  "sadias_chamadas_de_doenca": 0,
+  "previstas": {
+    "saudavel": 8,
+    "estresse_foliar": 9,
+    "pinta_preta": 1
+  },
+  "modelo_antigo_previstas": {
+    "saudavel": 8,
+    "pinta_preta": 9,
+    "septoriose": 1
+  }
+}

@@ -1,25 +1,9 @@
 /**
- * src/config/env.ts
+ * Variáveis de ambiente do aplicativo (padrão EXPO_PUBLIC_* do Metro).
  *
- * Camada central de acesso às variáveis de ambiente do app.
- * Usa o padrão EXPO_PUBLIC_* (nativo do Metro Bundler), sem depender
- * de bibliotecas externas como react-native-dotenv.
- *
- * ATENÇÃO, O ACESSO PRECISA SER ESTÁTICO: o Metro substitui
- * `process.env.EXPO_PUBLIC_ALGUMA_COISA` pelo valor literal durante o
- * empacotamento. Ele faz isso procurando essa forma exata no código, e
- * NÃO consegue resolver um acesso dinâmico como `process.env[chave]`.
- *
- * Esta é a correção de um bug real: a versão anterior lia
- * `process.env[key]` dentro de uma função. No servidor de
- * desenvolvimento funcionava, porque lá o `process.env` existe de
- * verdade em tempo de execução. Já no app publicado (EAS Update ou
- * APK), nada era substituído, as duas variáveis chegavam `undefined`,
- * e o `throw` abaixo derrubava o app ANTES de desenhar qualquer tela,
- * com um "Something went wrong" sem explicação.
- *
- * Então: nunca transforme as leituras abaixo em acesso por variável,
- * por mais repetitivo que pareça.
+ * O acesso precisa ser estático (process.env.EXPO_PUBLIC_NOME): o Metro
+ * substitui essa forma exata pelo valor no empacotamento, e um acesso
+ * dinâmico como process.env[chave] chega indefinido no app publicado.
  */
 
 // Lidas de forma estática, uma por uma, para o Metro poder substituir.

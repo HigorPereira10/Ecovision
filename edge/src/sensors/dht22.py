@@ -1,31 +1,10 @@
 """
-edge/src/sensors/dht22.py
+Leitura do DHT22 (temperatura e umidade do ar) com adafruit-circuitpython-dht.
 
-Leitura do sensor DHT22 (temperatura/umidade do ar, protocolo 1-Wire),
-via adafruit-circuitpython-dht (Blueprint v3.0, Fase 1 e 2).
-
-Precisão do sensor: ±0.5°C / ±2-5%RH. O BoM prevê 2 unidades (1 sobressalente).
-
-Biblioteca: usamos adafruit-circuitpython-dht (import adafruit_dht) em vez
-do antigo Adafruit_DHT, que está descontinuado e tem histórico de
-falha de instalação em versões recentes do Raspberry Pi OS. Requer o
-pacote de sistema libgpiod2 (instalado em edge/scripts/install.sh).
-
-Esta é a única parte do projeto que ainda usa a pilha Blinka. O sensor
-de solo saiu dela e fala I2C direto via smbus2, porque a camada de I2C
-da Blinka quebra neste Raspberry Pi (ver soil_moisture.py). O DHT22 não
-é afetado: ele usa 1-Wire por GPIO, não I2C.
-
-ATENÇÃO: adafruit_dht levanta RuntimeError com frequência em leituras
-normais (erros de checksum/timing são esperados no protocolo 1-Wire do
-DHT22). Por isso existe o retry manual abaixo, em vez de tratar
-RuntimeError como falha definitiva já na primeira tentativa.
-
-Relação com o resto do sistema:
-- Chamado por edge/src/main.py em cada ciclo de captura.
-- A leitura resultante entra no pacote enviado para o endpoint
-  /diagnostico e é persistida na tabela leituras_ambientais
-  (cloud/app/db/models.py).
+O protocolo do DHT22 gera erros pontuais de checksum e temporização em
+operação normal; por isso a leitura é repetida algumas vezes antes de ser
+considerada falha. Requer libgpiod3 no sistema (instalado por
+edge/scripts/install.sh).
 """
 
 import time
@@ -49,29 +28,11 @@ def _pino_board(pino: int):
 
 
 def _leitura_plausivel(temperatura_c, umidade_ar_pct) -> bool:
-    """Decide se o par devolvido pela biblioteca é uma medição de verdade.
+    """Indica se o par devolvido pela biblioteca é uma medição real.
 
-    POR QUE NÃO BASTA CHECAR None: em 2026-10-31, às 21:30, o sensor
-    passou a devolver `0.0` em AMBOS os campos em vez de `None` ou de
-    levantar erro. Como `0.0 is not None`, a checagem antiga aceitava,
-    e o zero entrou no banco como medição válida. Três ciclos gravaram
-    0,0 grau e 0,0 por cento, e cada um disparou alerta ambiental falso,
-    porque 0 grau fica abaixo do limiar mínimo de 10 definido em
-    cloud/app/core/alertas_ambientais.py.
-
-    Zero exato nos dois campos ao mesmo tempo não é medição possível
-    numa estufa: seria a temperatura de congelamento junto de ar
-    completamente seco. É a assinatura da falha, não um valor.
-
-    O resto da faixa é deliberadamente larga. O objetivo aqui é separar
-    falha de medição, não validar agronomia: limites estreitos
-    descartariam leitura real de madrugada fria ou de dia muito quente,
-    e essa decisão pertence aos limiares de alerta, na nuvem, não ao
-    driver do sensor.
-
-    Recusar faz o ler_dht22 levantar RuntimeError, que o
-    `_ler_sensores()` de edge/src/main.py já trata gravando None e
-    seguindo o ciclo. A foto não se perde por causa do sensor.
+    O sensor pode responder 0,0 nos dois campos em vez de falhar; esse par
+    é tratado como falha. A faixa aceita é larga de propósito: o objetivo é
+    separar falha de medição, e não validar valores agronômicos.
     """
     if temperatura_c is None or umidade_ar_pct is None:
         return False
@@ -85,10 +46,11 @@ def _leitura_plausivel(temperatura_c, umidade_ar_pct) -> bool:
 
 
 def ler_dht22(pino: int) -> dict:
-    """Lê temperatura e umidade do ar. Levanta RuntimeError se falhar em
-    todas as tentativas (o DHT22 falha pontualmente com frequência;
-    isso é esperado, não indica sensor com defeito), e também quando o
-    sensor responde com valor implausível (ver _leitura_plausivel)."""
+    """Lê temperatura e umidade do ar.
+
+    Levanta RuntimeError se todas as tentativas falharem ou se o sensor
+    responder com valor implausível; o ciclo de captura trata o erro
+    registrando o campo como ausente."""
     dispositivo = adafruit_dht.DHT22(_pino_board(pino))
     try:
         ultimo_erro: Exception | None = None

@@ -1,38 +1,16 @@
 """
-edge/tests/test_offline_queue.py
+Testes de edge/src/fila/offline_queue.py: enfileiramento, leitura dos
+pendentes e remoção apenas dos registros confirmados, com suas imagens.
 
-O que este arquivo verifica, em português simples:
-
-A "fila offline" é o mecanismo que guarda fotos e leituras de sensores
-em disco quando a internet da estufa cai, para não perder nada, e
-depois manda tudo assim que a conexão volta. Estes testes simulam esse
-ciclo inteiro, sem precisar de rede nem de Raspberry Pi:
-
-1. "Enfileirar" duas capturas, como se fossem duas fotos tiradas com a
-   internet fora do ar.
-2. Ler o que está pendente de envio e confirmar que as duas aparecem,
-   com os dados de sensor corretos.
-3. "Confirmar o envio" de uma delas e checar que:
-   - ela some da lista de pendentes;
-   - o arquivo de imagem dela é apagado do disco (não faz sentido
-     guardar a foto depois que ela já foi entregue à API);
-   - a outra, que ainda não foi confirmada, continua intacta, tanto o
-     registro quanto o arquivo de imagem dela.
-
-Só roda em Linux/WSL porque o módulo testado usa fcntl (trava de
-arquivo) para proteger a fila de corrupção quando a captura (escreve) e
-o envio (lê/remove) rodam ao mesmo tempo via cron. Esse recurso não
-existe no Python do Windows.
+Requer Linux, pois a fila usa fcntl.
 """
 
 from pathlib import Path
 
 import pytest
 
-# pytest.importorskip interrompe a COLETA do arquivo (não só os testes)
-# se fcntl não existir. Isso é necessário porque offline_queue.py importa
-# fcntl direto no topo do arquivo, então um simples skipif não evitaria
-# o ModuleNotFoundError ao tentar importar o módulo no Windows.
+# importorskip interrompe a coleta do arquivo inteiro sem fcntl, já que
+# offline_queue.py o importa no topo.
 pytest.importorskip(
     "fcntl",
     reason=(
@@ -41,7 +19,7 @@ pytest.importorskip(
     ),
 )
 
-from edge.src.fila import offline_queue  # noqa: E402 (import após o importorskip acima)
+from edge.src.fila import offline_queue  # noqa: E402
 
 
 def test_ciclo_completo_enfileirar_ler_remover(tmp_path: Path):
@@ -81,8 +59,8 @@ def test_ciclo_completo_enfileirar_ler_remover(tmp_path: Path):
 
 
 def test_ler_pendentes_com_fila_inexistente_retorna_lista_vazia(tmp_path: Path):
-    """Antes da primeira captura, o arquivo da fila ainda nem existe.
-    Isso não pode ser tratado como erro, e sim como 'nada pendente'."""
+    """Antes da primeira captura o arquivo da fila não existe; isso
+    significa "nada pendente", não erro."""
     caminho_fila = tmp_path / "nao-existe" / "fila.jsonl"
     assert offline_queue.ler_pendentes(caminho_fila=caminho_fila) == []
 

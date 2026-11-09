@@ -1,46 +1,22 @@
 #!/usr/bin/env python3
 """
-edge/scripts/calibrar_solo.py
-
 Ferramenta de calibração do sensor capacitivo de umidade do solo.
 
-POR QUE ESTE SCRIPT EXISTE
---------------------------
-edge/src/sensors/soil_moisture.py expõe só `ler_umidade_solo()`, que já
-devolve a porcentagem convertida por SOIL_DRY_RAW/SOIL_WET_RAW. Para
-CALIBRAR é preciso o valor BRUTO do ADC, e a função que o lê
-(`_ler_bruto`) é privada. Sem isto, calibrar exigia abrir o módulo e
-chamar função privada na mão, que é como os valores de 2026-10-11 foram
-obtidos e por isso não ficaram registrados em nenhum lugar reproduzível.
+Mostra o valor bruto do ADS1115, que define SOIL_DRY_RAW e SOIL_WET_RAW,
+junto da tensão e da porcentagem correspondente na calibração vigente.
 
-O QUE A CALIBRAÇÃO ATUAL TEM DE ERRADO
---------------------------------------
-Os dois extremos foram medidos no AR (17468) e SUBMERSO EM ÁGUA PURA
-(7179). Nenhum dos dois é um estado em que solo existe, e a consequência
-foi medida em 367 leituras de campo:
-
-    operação normal (04/11 a 06/11) ...... 307 leituras, TODAS entre 60% e 80%
-    alertas de "Solo encharcado" ......... 16
-    alertas de "Solo seco" ............... 0, nunca
-
-O limiar de seca de 20% está numa região que o vaso não visita, então o
-alerta de seca é código morto na prática. Ver
-docs/decisions/0005-limiares-ambientais.md.
-
-MODOS DE USO
-------------
-    # uma leitura, com média de 20 amostras para tirar o ruído
+Uso:
+    # uma leitura (mediana de 20 amostras)
     python edge/scripts/calibrar_solo.py
 
     # registra um ponto nomeado no CSV de calibração
     python edge/scripts/calibrar_solo.py --marcar "capacidade de campo"
 
-    # acompanha uma secagem, uma linha a cada 10 min, até Ctrl+C
+    # acompanha uma secagem, uma linha a cada 10 minutos, até Ctrl+C
     python edge/scripts/calibrar_solo.py --monitorar --intervalo 600
 
-O CSV sai em edge/data/calibracao_solo.csv e é o registro reproduzível
-que faltava: cada linha tem o horário, o valor bruto, a tensão, a
-porcentagem sob a calibração vigente e o rótulo que você deu ao ponto.
+O CSV é gravado em edge/data/calibracao_solo.csv, com horário, valor
+bruto, tensão, porcentagem e rótulo de cada ponto.
 """
 
 import argparse
@@ -57,10 +33,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from edge.src import config  # noqa: E402
 from edge.src.sensors import soil_moisture  # noqa: E402
 
-# Fundo de escala do ADS1115 na configuração que soil_moisture.py usa
-# (PGA=001, +-4,096 V). Serve só para exibir a tensão, que é o que um
-# multímetro mostraria no mesmo ponto: é assim que se confere se o
-# sensor está alimentado e respondendo antes de confiar no número.
+# Fundo de escala do ADS1115 na configuração de soil_moisture.py
+# (PGA=001, ±4,096 V), usado para exibir a tensão equivalente.
 _FUNDO_DE_ESCALA_V = 4.096
 _CONTAGEM_MAXIMA = 32767
 
@@ -71,10 +45,8 @@ _COLUNAS = ["momento_utc", "bruto", "tensao_v", "pct_calibracao_atual", "desvio"
 def medir(amostras: int) -> tuple[int, float, float]:
     """Devolve (bruto mediano, tensão, desvio padrão das amostras).
 
-    MEDIANA e não média: uma leitura espúria do I2C puxa a média e não
-    puxa a mediana. O desvio vai junto para quem calibra ver se o valor
-    está estável, porque sensor mal encaixado na terra oscila muito e o
-    número médio esconde isso.
+    A mediana é imune a leituras espúrias do I2C; o desvio indica se o
+    sensor está estável.
     """
     leituras = []
     for _ in range(amostras):
@@ -88,12 +60,7 @@ def medir(amostras: int) -> tuple[int, float, float]:
 
 
 def pct_atual(bruto: int) -> float:
-    """A porcentagem que o sistema produziria para este bruto.
-
-    Delega para soil_moisture.converter_para_pct, e não repete a conta:
-    uma ferramenta de calibração que mostra um número diferente do que o
-    sistema grava é pior do que não ter ferramenta.
-    """
+    """Porcentagem que o sistema produziria para este valor bruto."""
     return soil_moisture.converter_para_pct(bruto)
 
 
