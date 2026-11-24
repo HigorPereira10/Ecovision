@@ -1,0 +1,211 @@
+{
+  "tres_classes": {
+    "arquivo": "ml/models/modelo.tflite",
+    "sha256": "9e9b06d9c55f9624219f7ea594a9bce781bf6632553345c1f180d84d4367da04",
+    "classes": [
+      "septoriose",
+      "pinta_preta",
+      "saudavel"
+    ],
+    "dominios": {
+      "laboratorio": {
+        "matriz": {
+          "septoriose": {
+            "septoriose": 96,
+            "pinta_preta": 3,
+            "saudavel": 1
+          },
+          "pinta_preta": {
+            "septoriose": 9,
+            "pinta_preta": 87,
+            "saudavel": 4
+          },
+          "saudavel": {
+            "septoriose": 0,
+            "pinta_preta": 0,
+            "saudavel": 100
+          }
+        },
+        "acertos": 283,
+        "total": 300,
+        "acuracia": 0.9433,
+        "ic95_wilson": [
+          0.9111,
+          0.9643
+        ],
+        "falso_negativo": {
+          "n": 5,
+          "de": 200,
+          "taxa": 0.025,
+          "ic95_wilson": [
+            0.0107,
+            0.0572
+          ]
+        },
+        "falso_positivo_de_doenca": {
+          "n": 0,
+          "de": 100,
+          "taxa": 0.0,
+          "ic95_wilson": [
+            0.0,
+            0.037
+          ]
+        },
+        "previstas_estresse_foliar": 0
+      },
+      "campo": {
+        "matriz": {
+          "septoriose": {
+            "septoriose": 8,
+            "pinta_preta": 2,
+            "saudavel": 0
+          },
+          "pinta_preta": {
+            "septoriose": 2,
+            "pinta_preta": 6,
+            "saudavel": 1
+          },
+          "saudavel": {
+            "septoriose": 0,
+            "pinta_preta": 2,
+            "saudavel": 6
+          }
+        },
+        "acertos": 20,
+        "total": 27,
+        "acuracia": 0.7407,
+        "ic95_wilson": [
+          0.5532,
+          0.8683
+        ],
+        "falso_negativo": {
+          "n": 1,
+          "de": 19,
+          "taxa": 0.0526,
+          "ic95_wilson": [
+            0.0094,
+            0.2464
+          ]
+        },
+        "falso_positivo_de_doenca": {
+          "n": 2,
+          "de": 8,
+          "taxa": 0.25,
+          "ic95_wilson": [
+            0.0715,
+            0.5907
+          ]
+        },
+        "previstas_estresse_foliar": 0
+      }
+    }
+  },
+  "quatro_classes": {
+    "arquivo": "ml/models/modelo_dominio.tflite",
+    "sha256": "49a7e8ec778628d0d31409c6c886d712c5856f40dffbe9baee6dcca040788e42",
+    "classes": [
+      "septoriose",
+      "pinta_preta",
+      "saudavel",
+      "estresse_foliar"
+    ],
+    "dominios": {
+      "laboratorio": {
+        "matriz": {
+          "septoriose": {
+            "septoriose": 96,
+            "pinta_preta": 3,
+            "saudavel": 1,
+            "estresse_foliar": 0
+          },
+          "pinta_preta": {
+            "septoriose": 3,
+            "pinta_preta": 91,
+            "saudavel": 6,
+            "estresse_foliar": 0
+          },
+          "saudavel": {
+            "septoriose": 0,
+            "pinta_preta": 0,
+            "saudavel": 100,
+            "estresse_foliar": 0
+          }
+        },
+        "acertos": 287,
+        "total": 300,
+        "acuracia": 0.9567,
+        "ic95_wilson": [
+          0.9273,
+          0.9745
+        ],
+        "falso_negativo": {
+          "n": 7,
+          "de": 200,
+          "taxa": 0.035,
+          "ic95_wilson": [
+            0.0171,
+            0.0705
+          ]
+        },
+        "falso_positivo_de_doenca": {
+          "n": 0,
+          "de": 100,
+          "taxa": 0.0,
+          "ic95_wilson": [
+            0.0,
+            0.037
+          ]
+        },
+        "previstas_estresse_foliar": 0
+      },
+      "campo": {
+        "matriz": {
+          "septoriose": {
+            "septoriose": 6,
+            "pinta_preta": 4,
+            "saudavel": 0,
+            "estresse_foliar": 0
+          },
+          "pinta_preta": {
+            "septoriose": 1,
+            "pinta_preta": 7,
+            "saudavel": 1,
+            "estresse_foliar": 0
+          },
+          "saudavel": {
+            "septoriose": 0,
+            "pinta_preta": 1,
+            "saudavel": 7,
+            "estresse_foliar": 0
+          }
+        },
+        "acertos": 20,
+        "total": 27,
+        "acuracia": 0.7407,
+        "ic95_wilson": [
+          0.5532,
+          0.8683
+        ],
+        "falso_negativo": {
+          "n": 1,
+          "de": 19,
+          "taxa": 0.0526,
+          "ic95_wilson": [
+            0.0094,
+            0.2464
+          ]
+        },
+        "falso_positivo_de_doenca": {
+          "n": 1,
+          "de": 8,
+          "taxa": 0.125,
+          "ic95_wilson": [
+            0.0224,
+            0.4709
+          ]
+        },
+        "previstas_estresse_foliar": 0
+      }
+    }
+  }
+}
