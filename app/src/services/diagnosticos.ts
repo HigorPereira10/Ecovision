@@ -18,9 +18,9 @@ import {
   semDiagnostico,
 } from '../domain/doencas';
 
-/** Janela padrão: 7 dias. Mesma de services/leituras.ts, para o
- * Histórico mostrar leitura e diagnóstico do mesmo período. Sem filtro
- * a API devolve até 1000 itens, muito mais do que cabe numa tela. */
+/** Janela padrão: 7 dias, a mesma de services/leituras.ts. O Histórico
+ * pede sem janela (null), porque o filtro "Todo o período" só pode filtrar
+ * o que foi baixado; sem janela a API devolve até 1000 itens. */
 const JANELA_PADRAO_HORAS = 168;
 
 /** Quantidade de itens pedida pela tela de Diagnóstico: cada item exige uma
@@ -81,18 +81,20 @@ function traduzir(bruto: DiagnosticoDaApi): Diagnostico {
 }
 
 /**
- * Diagnósticos da janela informada, do mais recente ao mais antigo. A
- * ordenação é garantida aqui, pois as telas tratam o item [0] como o
- * diagnóstico atual.
+ * Diagnósticos da janela informada, do mais recente ao mais antigo; com
+ * `horas` null, sem corte de período. A ordenação é garantida aqui, pois as
+ * telas tratam o item [0] como o diagnóstico atual.
  */
 export async function getDiagnosticos(
-  horas: number = JANELA_PADRAO_HORAS,
+  horas: number | null = JANELA_PADRAO_HORAS,
   limite?: number,
 ): Promise<Diagnostico[]> {
-  const parametros = new URLSearchParams({ horas: String(horas) });
+  const parametros = new URLSearchParams();
+  if (horas !== null) parametros.set('horas', String(horas));
   if (limite !== undefined) parametros.set('limite', String(limite));
 
-  const brutos = await get<DiagnosticoDaApi[]>(`/diagnosticos?${parametros}`);
+  const consulta = parametros.toString();
+  const brutos = await get<DiagnosticoDaApi[]>(`/diagnosticos${consulta ? `?${consulta}` : ''}`);
   return brutos
     .map(traduzir)
     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());

@@ -61,8 +61,9 @@ function ordenarPorData(leituras: LeituraAmbiental[], crescente: boolean) {
   });
 }
 
-async function buscar(horas: number): Promise<LeituraAmbiental[]> {
-  const brutas = await get<LeituraDaApi[]>(`/leituras?horas=${horas}`);
+/** Com `horas` null, sem corte de período: a API devolve as últimas 1000. */
+async function buscar(horas: number | null): Promise<LeituraAmbiental[]> {
+  const brutas = await get<LeituraDaApi[]>(horas === null ? '/leituras' : `/leituras?horas=${horas}`);
   return brutas.map(traduzir);
 }
 
@@ -79,7 +80,7 @@ export async function getUltimaLeitura(): Promise<LeituraAmbiental | null> {
  * Leituras da janela padrão, em ordem cronológica, para os gráficos.
  */
 export async function getHistoricoLeituras(
-  horas: number = JANELA_PADRAO_HORAS,
+  horas: number | null = JANELA_PADRAO_HORAS,
 ): Promise<LeituraAmbiental[]> {
   return ordenarPorData(await buscar(horas), true);
 }

@@ -49,8 +49,13 @@ interface DadosHistorico {
 
 async function buscarDadosHistorico(): Promise<DadosHistorico> {
   // Em paralelo porque são duas rotas independentes: em série, a tela
-  // esperaria a soma das duas latências sem precisar.
-  const [leituras, diagnosticos] = await Promise.all([getHistoricoLeituras(), getDiagnosticos()]);
+  // esperaria a soma das duas latências sem precisar. Sem corte de período
+  // (null): os filtros da tela só alcançam o que foi baixado, e "Todo o
+  // período" precisa do histórico inteiro.
+  const [leituras, diagnosticos] = await Promise.all([
+    getHistoricoLeituras(null),
+    getDiagnosticos(null),
+  ]);
   return { leituras, diagnosticos };
 }
 
